@@ -18,6 +18,17 @@ async function listDriveFolderFiles(folderId, pageToken = null) {
   return json; 
 }
 
+async function listAllFiles(folderId) {
+  let all = [];
+  let pageToken = null;
 
+  do {
+    const res = await listDriveFolderFiles(folderId, pageToken);
+    all = all.concat(res.files || []);
+    pageToken = res.nextPageToken || null;
+  } while (pageToken);
 
-module.exports = listDriveFolderFiles;
+  return all;
+}
+
+module.exports = listAllFiles;

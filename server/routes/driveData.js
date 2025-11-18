@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const listDriveFolderFiles = require('../utils/folderExtracter');
-
-
+const { isAudioFile, pickAudioFiles } = require('../utils/audioExtractor');
 
 router.post('/', async (req, res) => {
   try {
-    const { url, userId } = req.body;
+    const { url, userId, folderName } = req.body;
     if (!url) return res.status(400).json({ error: 'Missing url in body' });
 
     // Extract the folder Id from the link
@@ -14,10 +13,11 @@ router.post('/', async (req, res) => {
     if (!m) return res.status(400).json({ error: 'Invalid Google Drive folder URL' });
     const folderId = m[1];
 
-    // pageToken
-    let pageToken = null;
-    const data = await listDriveFolderFiles(folderId, pageToken);
-    return res.json(data);
+    // Getting All of the files from Drive;
+    let files = await listDriveFolderFiles(folderId);
+    let audioFiles = await pickAudioFiles(files);
+
+    res.json(audioFiles);
 
   } catch (err) {
     console.error(err);
