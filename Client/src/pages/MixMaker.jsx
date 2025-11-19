@@ -104,17 +104,14 @@ const MixMaker = () => {
                <button 
                  key={folder.id}
                  onClick={() => setSelectedFolderId(folder.id)}
-                 className={`group w-full flex items-center gap-3 p-3.5 rounded-2xl text-left transition-all duration-300 ${
+                 className={`group w-full border-2 border-[#1717170b] flex items-center gap-3 p-3.5 rounded-2xl text-left transition-all duration-300 ${
                    selectedFolderId === folder.id 
                    ? 'bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-1 ring-white/50 translate-x-1' 
                    : 'hover:bg-white/40 text-slate-600 hover:translate-x-1'
                  }`}
                >
-                 <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${folder.color} flex items-center justify-center text-white shadow-sm group-hover:scale-110 transition-transform`}>
-                   <Folder className="w-4 h-4" />
-                 </div>
                  <div className="flex-1 min-w-0">
-                   <div className={`font-bold text-sm truncate ${selectedFolderId === folder.id ? 'text-slate-900' : 'text-slate-700'}`}>{folder.name}</div>
+                   <div className={`font-black text-sm truncate ${selectedFolderId === folder.id ? 'text-slate-900' : 'text-slate-700'}`}>{folder.name}</div>
                    <div className="text-[10px] text-slate-400">{folder.count} Songs</div>
                  </div>
                  {selectedFolderId === folder.id && (
@@ -127,15 +124,12 @@ const MixMaker = () => {
 
         {/* --- MAIN CONTENT --- */}
         {/* W-full to take remaining space, padded appropriately */}
-        <main className="flex-1 h-full overflow-y-auto pt-24 md:pt-28 pb-10 px-4 md:px-8 custom-scrollbar relative scroll-smooth">
+        <main className="flex-1 h-full overflow-y-auto pt-24 md:pt-6 pb-10 px-4 md:px-8 custom-scrollbar relative scroll-smooth">
           
           <div className="w-full max-w-[98%] mx-auto space-y-6">
             
             {/* === BOX 1: MIX GENERATOR (Expanded Width) === */}
-            <section className="relative bg-white rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] border border-white overflow-hidden">
-              {/* Decorative Top Gradient */}
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
-              
+            <section className="relative bg-white rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] border border-white overflow-hidden">      
               <div className="p-8 lg:p-10">
                 <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
                    <div>
@@ -281,7 +275,7 @@ const MixMaker = () => {
                    </div>
 
                    {/* RIGHT COLUMN: Mix Preview / Workspace */}
-                   <div className="bg-slate-900 rounded-3xl p-1 shadow-inner overflow-hidden flex flex-col">
+                   <div className="bg-slate-900 rounded-3xl p-1 shadow-inner h-120 overflow-hidden flex flex-col">
                       {/* Player Visualizer */}
                       <div className="bg-slate-800/50 rounded-t-[1.3rem] p-6 relative overflow-hidden">
                           <div className="flex items-center justify-between relative z-10">
@@ -301,24 +295,17 @@ const MixMaker = () => {
                                {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
                              </button>
                           </div>
-                          
-                          {/* Fake Visualizer Bars */}
-                          <div className="flex items-end justify-between h-16 mt-6 gap-1 opacity-30">
-                             {[...Array(20)].map((_, i) => (
-                               <div key={i} className="w-full bg-indigo-400 rounded-t-sm transition-all duration-300" style={{ height: isPlaying ? `${Math.random() * 100}%` : '10%' }}></div>
-                             ))}
-                          </div>
                       </div>
 
                       {/* Droppable Area */}
-                      <div className="flex-1 bg-slate-900 p-4 overflow-y-auto custom-scrollbar min-h-[300px]">
+                      <div className="flex-1 bg-slate-900 p-4 overflow-y-scroll custom-scrollbar min-h-[300px]">
                          {mixSongs.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-slate-600 border-2 border-dashed border-slate-700 rounded-2xl p-8">
-                               <p className="font-bold mb-2">Mix Workspace Empty</p>
-                               <p className="text-xs text-center max-w-[200px]">Add songs from the library below to start building your mix.</p>
+                               <p className="font-bold mb-2">Mix Custom Songs Empty</p>
+                               <p className="text-xs text-center max-w-[200px]">Add songs from the library to make them in starting of mix.</p>
                             </div>
                          ) : (
-                            <div className="space-y-2">
+                            <div className="space-y-2 overflow-y-scroll">
                                {mixSongs.map((song, idx) => (
                                   <div key={song.uniqueId} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl border border-slate-700 animate-in slide-in-from-bottom-2 duration-200">
                                      <div className="text-slate-500 cursor-grab"><GripVertical className="w-4 h-4" /></div>
