@@ -5,7 +5,7 @@ const { isAudioFile, pickAudioFiles } = require('../utils/audioExtractor');
 
 router.post('/', async (req, res) => {
   try {
-    const { url, userId, folderName } = req.body;
+    const { url} = req.body;
     if (!url) return res.status(400).json({ error: 'Missing url in body' });
 
     // Extract the folder Id from the link

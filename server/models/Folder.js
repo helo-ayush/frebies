@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const FolderSchema = new mongoose.Schema({
     userId: { type: String, required: true, index: true },
     folderId: { type: String, required: true },
-    folderName: { type: String, required: true }
+    folderName: { type: String, required: true },
+    count: {type: Number}
 })
 
 // unique per-user per-folder (avoid duplicates)
