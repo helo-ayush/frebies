@@ -70,15 +70,15 @@ const MixMaker = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#F5F6F9] text-slate-800 font-sans overflow-hidden selection:bg-indigo-500/30">
+    <div className="relative bg-[#F5F6F9] text-slate-800 font-sans selection:bg-indigo-500/30 h-screen overflow-hidden pl-6">
 
       <div className="fixed top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-300/30 rounded-full blur-[120px] mix-blend-multiply animate-blob" />
       <div className="fixed bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-300/30 rounded-full blur-[120px] mix-blend-multiply animate-blob animation-delay-2000" />
       <div className="fixed top-[20%] right-[20%] w-[400px] h-[400px] bg-pink-300/30 rounded-full blur-[120px] mix-blend-multiply animate-blob animation-delay-4000" />
 
-      <div className="relative z-10 max-w-[1600px] mx-auto h-screen flex flex-col md:flex-row overflow-hidden">
+      <div className="relative max-w-[1600px] mx-auto h-full flex flex-col md:flex-row pt-20">
 
-        <aside className="hidden md:flex flex-col w-[280px] p-6 gap-6 bg-white/40 backdrop-blur-xl border-r border-white/60">
+        <aside className="hidden md:flex flex-col w-[280px] pl-0 pr-6 py-6 gap-6 border-r border-gray-200/50 h-full overflow-y-auto">
           <div className="flex items-center gap-3 px-2">
             <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
@@ -557,7 +557,7 @@ const MixMaker = () => {
           </div>
           {/* --- NEW FOLDER MODAL --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm transition-all" onClick={() => setIsModalOpen(false)}>
+        <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm transition-all" style={{zIndex: 9999}} onClick={() => setIsModalOpen(false)}>
           <div 
             className="bg-white w-full max-w-md p-8 rounded-3xl shadow-2xl animate-[slideUp_0.3s_ease-out] m-4 relative overflow-hidden" 
             onClick={e => e.stopPropagation()}
