@@ -22,6 +22,11 @@ app.use('/data', driveData);
 app.use('/saveData',saveData);
 app.use('/getFolders',getFolder)
 
+app.get("/uptime", (req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+
 app.listen(port, () => {
     console.log(`Example app listening at http://localhost:${port}`);
 });
