@@ -111,17 +111,17 @@ const MixMaker = () => {
           folderName: folderName
         })
       })
-      if(req.ok){
+      if (req.ok) {
         setFolderAdded(!folderAdded);
       }
     }
-    catch(err){
+    catch (err) {
       console.log(err)
     }
 
   }
 
-  const deleteFolder = async (key) =>{
+  const deleteFolder = async (key) => {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/saveData/remove`, {
         method: 'POST',
@@ -129,7 +129,7 @@ const MixMaker = () => {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          userId: user.id,  
+          userId: user.id,
           folderId: key
         })
       })
@@ -142,7 +142,7 @@ const MixMaker = () => {
         console.log('Delete failed:', data.error);
       }
     }
-    catch(err){
+    catch (err) {
       console.log('Delete error:', err)
     }
   }
@@ -204,7 +204,7 @@ const MixMaker = () => {
                   )}
                 </button>
                 <button
-                  onClick={() => {setDeleteConfirmModal({ isOpen: true, folderId: folder._id, folderName: folder.folderName })}}
+                  onClick={() => { setDeleteConfirmModal({ isOpen: true, folderId: folder._id, folderName: folder.folderName }) }}
                   className="p-2 cursor-pointer rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 text-red-500 hover:text-red-600"
                   title="Delete folder"
                 >
@@ -220,6 +220,53 @@ const MixMaker = () => {
         <main className="flex-1 h-full overflow-y-auto pt-24 md:pt-6 pb-10 px-4 md:px-8 custom-scrollbar relative scroll-smooth">
 
           <div className="w-full max-w-[98%] mx-auto space-y-6">
+
+            {/* === MOBILE FOLDER MANAGEMENT === */}
+            <section className="md:hidden bg-white rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] border border-white overflow-hidden p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Folder className="w-6 h-6 text-indigo-500" />
+                  My Folders
+                </h2>
+                <button
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-lg shadow-slate-900/20 active:scale-95 transition-transform"
+                >
+                  <Plus className="w-4 h-4" /> Import
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
+                {folders.map(folder => (
+                  <div
+                    key={folder._id}
+                    className={`group w-full border flex items-center gap-3 p-3 rounded-2xl transition-all ${selectedFolderId === folder._id
+                      ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                      : 'bg-slate-50 border-slate-100'
+                      }`}
+                  >
+                    <button
+                      onClick={() => setSelectedFolderId(folder._id)}
+                      className="flex-1 flex items-center gap-3 text-left min-w-0"
+                    >
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${selectedFolderId === folder._id ? 'bg-indigo-500 text-white' : 'bg-white text-slate-400'}`}>
+                        <Folder className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className={`font-bold text-sm truncate ${selectedFolderId === folder._id ? 'text-indigo-900' : 'text-slate-700'}`}>{folder.folderName}</div>
+                        <div className="text-[10px] text-slate-400">{folder.count} Songs</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => { setDeleteConfirmModal({ isOpen: true, folderId: folder._id, folderName: folder.folderName }) }}
+                      className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                    >
+                      <BrushCleaning className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
 
             {/* === BOX 1: MIX GENERATOR (Expanded Width) === */}
             <section className="relative bg-white rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] border border-white overflow-hidden">
