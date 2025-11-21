@@ -18,8 +18,8 @@ const MixMaker = () => {
   const { user } = useUser();
 
   // Mix Configuration State
-  const [mixDuration, setMixDuration] = useState(60); // Minutes
-  const [crossfadeType, setCrossfadeType] = useState('auto'); // 'auto' | 'custom'
+  const [mixDuration, setMixDuration] = useState(60);
+  const [crossfadeType, setCrossfadeType] = useState('auto');
   const [crossfadeSeconds, setCrossfadeSeconds] = useState(4);
   const [normalizeAudio, setNormalizeAudio] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -28,6 +28,7 @@ const MixMaker = () => {
   const [folderName, setFolderName] = useState('');
   const [driveLink, setDriveLink] = useState('');
   const [folderAdded, setFolderAdded] = useState(false);
+  const [selectedFolderSongs, setSelectedFolderSongs] = useState([]);
 
   // --- Folder DATA ---
   const [folders, setFolders] = useState([]);
@@ -48,7 +49,8 @@ const MixMaker = () => {
         const data = await res.json();
 
         if (data.ok) {
-          setFolders(data.folders);
+          await setFolders(data.folders);
+          console.log(data.folders);
         }
       } catch (err) {
         console.error("Error fetching folders:", err);
@@ -58,6 +60,27 @@ const MixMaker = () => {
     if (SignedIn) fetchFolders();
   }, [SignedIn, isImportModalOpen, folderAdded]);
 
+  function songNameExtractor(filename) {
+    const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
+
+    if (nameWithoutExt.includes(' - ')) {
+      const parts = nameWithoutExt.split(' - ');
+      return parts.slice(1).join(' - ').trim();
+    }
+
+    return nameWithoutExt.trim();
+  }
+
+  function artistNameExtractor(filename) {
+    const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
+
+    if (nameWithoutExt.includes(' - ')) {
+      const parts = nameWithoutExt.split(' - ');
+      return parts[0].trim();
+    }
+
+    return 'Unknown Artist';
+  }
 
   const allSongs = [
     { id: 1, name: 'Sunset Dreams', artist: 'Luna Wave', duration: '3:45' },
@@ -71,9 +94,8 @@ const MixMaker = () => {
   ];
 
   // Filter songs for the bottom box
-  const folderSongs = allSongs.filter(s =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.artist.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredFolderSongs = selectedFolderSongs.filter(song =>
+    song.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const addToMix = (song) => {
@@ -146,6 +168,37 @@ const MixMaker = () => {
       console.log('Delete error:', err)
     }
   }
+
+  const fetchFolderSongs = async () => {
+    // Find the folder object that matches the selectedFolderId
+    const selectedFolder = folders.find(f => f._id === selectedFolderId);
+
+    // Check if folder exists before making the request
+    if (!selectedFolder) {
+      return;
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/data`, {
+      method: 'POST',
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `https://drive.google.com/drive/folders/${selectedFolder.folderId}`
+      })
+    });
+
+    const data = await response.json();
+    setSelectedFolderSongs(data);
+    console.log(data)
+  }
+
+  useEffect(() => {
+    // Only fetch if we have folders and a selected folder
+    if (folders.length > 0 && selectedFolderId) {
+      fetchFolderSongs();
+    }
+  }, [selectedFolderId, folders]) // Correct dependencies
 
   return (
     <div className="relative min-h-screen w-full bg-[#F5F6F9] text-slate-800 font-sans overflow-x-hidden">
@@ -447,12 +500,12 @@ const MixMaker = () => {
                       ) : (
                         <div className="space-y-2 overflow-y-scroll">
                           {mixSongs.map((song, idx) => (
-                            <div key={song.uniqueId} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl border border-slate-700 animate-in slide-in-from-bottom-2 duration-200">
+                            <div key={song.id} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl border border-slate-700 animate-in slide-in-from-bottom-2 duration-200">
                               <div className="text-slate-500 cursor-grab"><GripVertical className="w-4 h-4" /></div>
                               <div className="w-6 h-6 rounded bg-slate-700 text-slate-400 flex items-center justify-center text-xs font-bold">{idx + 1}</div>
                               <div className="flex-1 min-w-0">
-                                <div className="text-white text-sm font-bold truncate">{song.name}</div>
-                                <div className="text-slate-500 text-xs truncate">{song.artist}</div>
+                                <div className="text-white text-sm font-bold truncate">{songNameExtractor(song.name)}</div>
+                                <div className="text-slate-500 text-xs truncate">{artistNameExtractor(song.name)}</div>
                               </div>
                               <button onClick={() => removeFromMix(song.uniqueId)} className="text-slate-500 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
                             </div>
@@ -490,17 +543,17 @@ const MixMaker = () => {
               </div>
 
               <div className="max-h-[500px] overflow-y-auto custom-scrollbar p-4 md:p-6">
-                {folderSongs.length > 0 ? (
+                {filteredFolderSongs.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                    {folderSongs.map((song, i) => (
+                    {filteredFolderSongs.map((song, i) => (
                       <div key={song.id} className="group flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-white border border-slate-100 hover:border-indigo-200 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-200">
                         <div className="flex items-center gap-4 min-w-0">
                           <div className="w-10 h-10 rounded-xl bg-white text-slate-400 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-indigo-500 group-hover:text-white transition-colors">
                             {i + 1}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-bold text-slate-800 text-sm truncate pr-2">{song.name}</div>
-                            <div className="text-xs text-slate-500 truncate">{song.artist}</div>
+                            <div className="font-bold text-slate-800 text-sm truncate pr-2">{songNameExtractor(song.name)}</div>
+                            <div className="text-xs text-slate-500 truncate">{artistNameExtractor(song.name)}</div>
                           </div>
                         </div>
 
