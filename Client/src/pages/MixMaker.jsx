@@ -385,7 +385,7 @@ const MixMaker = () => {
                 </button>
               </div>
 
-              <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
+              <div className="space-y-3 max-h-[300px] min-h-[200px] overflow-y-auto custom-scrollbar">
                 {isFoldersLoading ? (
                   <div className="flex flex-col gap-2">
                     {[1, 2, 3].map((i) => (
