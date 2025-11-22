@@ -3,7 +3,7 @@ import {
   Music, Play, Pause, Plus, HardDrive, Folder, Search,
   Settings, Download, Zap, Clock, Sliders,
   FileAudio, AlignLeft, ChevronDown, GripVertical, X, Delete, Volume2,
-  BrushCleaning, Minus
+  BrushCleaning, Minus, Loader2
 } from 'lucide-react';
 
 import { SignedIn, useUser } from '@clerk/clerk-react';
@@ -34,6 +34,7 @@ const MixMaker = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSongsLoading, setIsSongsLoading] = useState(false);
 
   // --- Folder DATA ---
   const [folders, setFolders] = useState([]);
@@ -173,24 +174,28 @@ const MixMaker = () => {
     // Find the folder object that matches the selectedFolderId
     const selectedFolder = folders.find(f => f._id === selectedFolderId);
 
-    // Check if folder exists before making the request
     if (!selectedFolder) {
       return;
     }
 
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/data`, {
-      method: 'POST',
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        url: `https://drive.google.com/drive/folders/${selectedFolder.folderId}`
-      })
-    });
+    setIsSongsLoading(true); // 👈 Start loading
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/data`, {
+        method: 'POST',
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          url: `https://drive.google.com/drive/folders/${selectedFolder.folderId}`
+        })
+      });
 
-    const data = await response.json();
-    setSelectedFolderSongs(data);
-    console.log(data)
+      const data = await response.json();
+      setSelectedFolderSongs(data);
+      console.log(data)
+    } finally {
+      setIsSongsLoading(false); // 👈 Stop loading
+    }
   }
 
   useEffect(() => {
@@ -630,7 +635,14 @@ const MixMaker = () => {
               </div>
 
               <div className="h-[400px] overflow-y-auto custom-scrollbar p-4 md:p-6">
-                {filteredFolderSongs.length > 0 ? (
+                
+                {isSongsLoading ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                    <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mb-4" />
+                    <p className="font-semibold text-slate-600">Loading audio files...</p>
+                    <p className="text-xs text-slate-400 mt-1">This may take a moment</p>
+                  </div>
+                ) : filteredFolderSongs.length > 0 ? (
                   <div className="grid select-none cursor-pointer grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {filteredFolderSongs.map((song, i) => (
                       <div onClick={() => {
@@ -652,10 +664,13 @@ const MixMaker = () => {
                         <div
                           className="flex items-center gap-4 min-w-0">
                           <div
-                            className="w-10  h-10 rounded-xl bg-white text-slate-400 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-indigo-500 group-hover:text-white transition-colors relative"
+                            className="w-10 h-10 rounded-xl bg-white text-slate-400 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-indigo-500 group-hover:text-white transition-colors relative"
                           >
-                            {/* Show pause button if this song is currently selected and playing */}
-                            {currentSelectedSong.id === song.id && isPlaying ? (
+                            {/* Show loading spinner if this song is loading */}
+                            {currentSelectedSong.id === song.id && isLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : currentSelectedSong.id === song.id && isPlaying ? (
+                              // Show pause button if this song is currently selected and playing
                               <Pause className="w-4 h-4" />
                             ) : currentSelectedSong.id === song.id && !isPlaying ? (
                               // Show play button if this song is selected but paused
