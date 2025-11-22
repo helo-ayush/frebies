@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   Music, Play, Pause, Plus, HardDrive, Folder, Search,
-  Settings, Download, Zap, Clock, Sliders, CheckCircle2,
-  FileAudio, AlignLeft, ChevronDown, GripVertical, X, Delete,
-  BrushCleaning
+  Settings, Download, Zap, Clock, Sliders,
+  FileAudio, AlignLeft, ChevronDown, GripVertical, X, Delete, Volume2,
+  BrushCleaning, Minus
 } from 'lucide-react';
 
 import { SignedIn, useUser } from '@clerk/clerk-react';
@@ -29,6 +29,8 @@ const MixMaker = () => {
   const [driveLink, setDriveLink] = useState('');
   const [folderAdded, setFolderAdded] = useState(false);
   const [selectedFolderSongs, setSelectedFolderSongs] = useState([]);
+  const [volume, setVolume] = useState(80);
+  const [currentSelectedSong, setCurrentSelectedSong] = useState([]);
 
   // --- Folder DATA ---
   const [folders, setFolders] = useState([]);
@@ -82,28 +84,22 @@ const MixMaker = () => {
     return 'Unknown Artist';
   }
 
-  const allSongs = [
-    { id: 1, name: 'Sunset Dreams', artist: 'Luna Wave', duration: '3:45' },
-    { id: 2, name: 'Neon Highway', artist: 'Synth City', duration: '4:12' },
-    { id: 3, name: 'Deep Blue', artist: 'Ocean Sounds', duration: '5:30' },
-    { id: 4, name: 'Coffee Shop', artist: 'Jazzy Beats', duration: '2:50' },
-    { id: 5, name: 'Digital Love', artist: 'Cyber Punk', duration: '3:22' },
-    { id: 6, name: 'Rainy Day', artist: 'Nature Tones', duration: '3:10' },
-    { id: 7, name: 'Midnight Drive', artist: 'Retrowave', duration: '4:05' },
-    { id: 8, name: 'Golden Hour', artist: 'Solaris', duration: '3:55' },
-  ];
-
   // Filter songs for the bottom box
   const filteredFolderSongs = selectedFolderSongs.filter(song =>
     song.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const addToMix = (song) => {
-    setMixSongs([...mixSongs, { ...song, uniqueId: Date.now() }]);
+    setMixSongs([...mixSongs, { ...song, uniqueId: song.id }]);
+    console.log(song)
   };
 
   const removeFromMix = (uniqueId) => {
     setMixSongs(mixSongs.filter(s => s.uniqueId !== uniqueId));
+  };
+
+  const removeFromMix2 = (song) => {
+    setMixSongs(mixSongs.filter(mixSong => mixSong.id !== song.id));
   };
 
   const handleExport = () => {
@@ -222,7 +218,7 @@ const MixMaker = () => {
             className="mb-8 flex items-center gap-3 w-full p-4 rounded-2xl bg-slate-900 text-white shadow-xl shadow-slate-900/20 hover:scale-[1.02] transition-all group relative overflow-hidden"
           >
             {/* Shine effect */}
-            <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-linear-to-r from-transparent via-white/10 to-transparent" />
 
             <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors relative z-10">
               <HardDrive className="w-5 h-5" />
@@ -240,13 +236,13 @@ const MixMaker = () => {
               <div
                 key={folder._id}
                 className={`group w-full border-2 border-[#1717170b] flex items-center gap-3 p-3.5 rounded-2xl transition-all duration-300 ${selectedFolderId === folder._id
-                  ? 'bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-1 ring-white/50'
+                  ? 'bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-1 ring-white/50 border-[#17171717]'
                   : 'hover:bg-white/40'
                   }`}
               >
                 <button
                   onClick={() => setSelectedFolderId(folder._id)}
-                  className="flex-1 flex items-center gap-3 text-left"
+                  className="flex-1 cursor-pointer flex items-center gap-3 text-left"
                 >
                   <div className="flex-1 min-w-0">
                     <div className={`font-black text-sm truncate ${selectedFolderId === folder._id ? 'text-slate-900' : 'text-slate-700'}`}>{folder.folderName}</div>
@@ -300,11 +296,8 @@ const MixMaker = () => {
                   >
                     <button
                       onClick={() => setSelectedFolderId(folder._id)}
-                      className="flex-1 flex items-center gap-3 text-left min-w-0"
+                      className="flex-1  flex items-center gap-3 text-left min-w-0"
                     >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${selectedFolderId === folder._id ? 'bg-indigo-500 text-white' : 'bg-white text-slate-400'}`}>
-                        <Folder className="w-5 h-5" />
-                      </div>
                       <div className="min-w-0">
                         <div className={`font-bold text-sm truncate ${selectedFolderId === folder._id ? 'text-indigo-900' : 'text-slate-700'}`}>{folder.folderName}</div>
                         <div className="text-[10px] text-slate-400">{folder.count} Songs</div>
@@ -422,13 +415,13 @@ const MixMaker = () => {
                         <div className="p-1.5 bg-slate-100 rounded-2xl flex gap-1">
                           <button
                             onClick={() => setCrossfadeType('auto')}
-                            className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${crossfadeType === 'auto' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${crossfadeType === 'auto' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700 cursor-pointer'}`}
                           >
                             Auto
                           </button>
                           <button
                             onClick={() => setCrossfadeType('custom')}
-                            className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${crossfadeType === 'custom' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${crossfadeType === 'custom' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700 cursor-pointer'}`}
                           >
                             Custom
                           </button>
@@ -478,7 +471,7 @@ const MixMaker = () => {
                           </div>
                           <div>
                             <div className="text-white font-bold text-sm">Tracks Selected</div>
-                            <div className="text-slate-400 text-xs">Total Time: {mixSongs.reduce((acc, s) => acc + parseInt(s.duration.split(':')[0]), 0) * 1} mins</div>
+                            {/* <div className="text-slate-400 text-xs">Total Time: {mixSongs.reduce((acc, s) => acc + parseInt(s.duration.split(':')[0]), 0) * 1} mins</div> */}
                           </div>
                         </div>
                         <button
@@ -493,7 +486,7 @@ const MixMaker = () => {
                     {/* Droppable Area */}
                     <div className="flex-1 bg-slate-900 p-4 overflow-y-scroll custom-scrollbar min-h-[300px]">
                       {mixSongs.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-600 border-2 border-dashed border-slate-700 rounded-2xl p-8">
+                        <div className="h-full flex flex-col items-center justify-center  text-slate-600 border-2 border-dashed border-slate-700 rounded-2xl p-8">
                           <p className="font-bold mb-2">Mix Custom Songs Empty</p>
                           <p className="text-xs text-center max-w-[200px]">Add songs from the library to make them in starting of mix.</p>
                         </div>
@@ -503,11 +496,11 @@ const MixMaker = () => {
                             <div key={song.id} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl border border-slate-700 animate-in slide-in-from-bottom-2 duration-200">
                               <div className="text-slate-500 cursor-grab"><GripVertical className="w-4 h-4" /></div>
                               <div className="w-6 h-6 rounded bg-slate-700 text-slate-400 flex items-center justify-center text-xs font-bold">{idx + 1}</div>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-white text-sm font-bold truncate">{songNameExtractor(song.name)}</div>
+                              <div className="flex-1 min-w-0 ">
+                                <div className="text-white text-sm font-bold truncate ">{songNameExtractor(song.name)}</div>
                                 <div className="text-slate-500 text-xs truncate">{artistNameExtractor(song.name)}</div>
                               </div>
-                              <button onClick={() => removeFromMix(song.uniqueId)} className="text-slate-500 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
+                              <button onClick={() => removeFromMix(song.uniqueId)} className="text-slate-500 hover:text-red-400 p-1"><X className="w-4 h-4 cursor-pointer" /></button>
                             </div>
                           ))}
                         </div>
@@ -520,13 +513,30 @@ const MixMaker = () => {
 
 
             {/* === BOX 2: SOURCE SONGS (SECONDARY) === */}
-            <section className="bg-white/80 backdrop-blur-lg rounded-[2rem] border border-white shadow-sm overflow-hidden">
+            <section className="bg-white/80 backdrop-blur-lg rounded-4xl border border-white shadow-sm overflow-hidden">
               <div className="p-6 md:px-10 md:py-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <h3 className="text-xl font-black text-slate-800 flex items-center gap-3">
                   <span className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600">
                     <Music className="w-5 h-5" />
                   </span>
-                  <span>Songs in "{folders.find(f => f._id === selectedFolderId)?.folderName}"</span>
+                  <div className="flex items-center gap-6">
+                    <button
+                      onClick={() => setIsPlaying(!isPlaying)}
+                      className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:scale-105 hover:shadow-lg hover:shadow-indigo-500/30 transition-all"
+                    >
+                      {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
+                    </button>
+                    <div className="flex items-center gap-3 bg-slate-100 rounded-xl p-2 px-4">
+                      <Volume2 className="w-4 h-4 text-slate-500" />
+                      <input
+                        type="range"
+                        min="0" max="100"
+                        value={volume}
+                        onChange={(e) => setVolume(Number(e.target.value))}
+                        className="w-24 h-1.5 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                      />
+                    </div>
+                  </div>
                 </h3>
 
                 {/* Search */}
@@ -542,43 +552,80 @@ const MixMaker = () => {
                 </div>
               </div>
 
-              <div className="max-h-[500px] overflow-y-auto custom-scrollbar p-4 md:p-6">
-                {filteredFolderSongs.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                    {filteredFolderSongs.map((song, i) => (
-                      <div key={song.id} className="group flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-white border border-slate-100 hover:border-indigo-200 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-200">
-                        <div className="flex items-center gap-4 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-white text-slate-400 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-                            {i + 1}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-800 text-sm truncate pr-2">{songNameExtractor(song.name)}</div>
-                            <div className="text-xs text-slate-500 truncate">{artistNameExtractor(song.name)}</div>
-                          </div>
-                        </div>
+              <div className="h-[400px] overflow-y-auto custom-scrollbar p-4 md:p-6">
+  {filteredFolderSongs.length > 0 ? (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      {filteredFolderSongs.map((song, i) => (
+        <div 
+          key={song.id} 
+          className={`group flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-200 ${
+            currentSelectedSong.id === song.id 
+              ? "border-[#edd4ff] border bg-linear-to-r from-indigo-50 to-purple-50 shadow-xl shadow-indigo-200/50 animate-pulse-slow" 
+              : "border border-slate-100 hover:border-indigo-200"
+          }`}
+        >
+          <div className="flex items-center gap-4 min-w-0">
+            <div
+              onClick={() => {
+                // Changing Song
+                if (currentSelectedSong.id !== song.id) {
+                  setCurrentSelectedSong(song);
+                  setIsPlaying(true); // Play the song by default
+                } else {
+                  // Toggle play/pause
+                  setIsPlaying(!isPlaying);
+                }
+              }}
+              className="w-10 cursor-pointer h-10 rounded-xl bg-white text-slate-400 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-indigo-500 group-hover:text-white transition-colors relative"
+            >
+              {/* Show pause button if this song is currently selected and playing */}
+              {currentSelectedSong.id === song.id && isPlaying ? (
+                <Pause className="w-4 h-4" />
+              ) : currentSelectedSong.id === song.id && !isPlaying ? (
+                // Show play button if this song is selected but paused
+                <Play className="w-4 h-4" />
+              ) : (
+                // Show number by default, play button on hover
+                <>
+                  <span className="group-hover:hidden">{i + 1}</span>
+                  <Play className="w-4 h-4 hidden group-hover:block" />
+                </>
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="font-bold text-slate-800 text-sm truncate pr-2">{songNameExtractor(song.name)}</div>
+              <div className="text-xs text-slate-500 truncate">{artistNameExtractor(song.name)}</div>
+            </div>
+          </div>
 
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <span className="text-xs font-mono text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-100 hidden sm:block">{song.duration}</span>
-                          <button
-                            onClick={() => addToMix(song)}
-                            className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm active:scale-95"
-                            title="Add to end of mix"
-                          >
-                            <Plus className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-16 text-center text-slate-400">
-                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Search className="w-6 h-6 text-slate-300" />
-                    </div>
-                    <p>No songs found matching your search.</p>
-                  </div>
-                )}
-              </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={() => {
+                const songExists = mixSongs.some(mixSong => mixSong.id === song.id);
+                songExists ? removeFromMix2(song) : addToMix(song);
+              }}
+              className="w-9 h-9 rounded-xl cursor-pointer bg-white border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm active:scale-95"
+              title={mixSongs.some(mixSong => mixSong.id === song.id) ? "Remove from mix" : "Add to end of mix"}
+            >
+              {mixSongs.some(mixSong => mixSong.id === song.id) ? (
+                <Minus className="w-5 h-5" />
+              ) : (
+                <Plus className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div className="py-16 text-center text-slate-400">
+      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <Search className="w-6 h-6 text-slate-300" />
+      </div>
+      <p>No songs found matching your search.</p>
+    </div>
+  )}
+</div>
             </section>
 
           </div>
@@ -587,7 +634,7 @@ const MixMaker = () => {
 
       {/* --- DELETE CONFIRMATION MODAL --- */}
       {deleteConfirmModal.isOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setDeleteConfirmModal({ isOpen: false, folderId: null, folderName: null })}>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-100 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setDeleteConfirmModal({ isOpen: false, folderId: null, folderName: null })}>
           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="bg-red-50 p-8 text-center border-b border-red-100">
               <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
@@ -626,8 +673,8 @@ const MixMaker = () => {
 
       {/* --- IMPORT MODAL --- */}
       {isImportModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setIsImportModalOpen(false)}>
-          <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-100 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setIsImportModalOpen(false)}>
+          <div className="bg-white w-full max-w-md rounded-4xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="bg-slate-900 p-8 text-center relative overflow-hidden">
               <div className="absolute top-[-50%] left-[-50%] w-full h-full bg-indigo-500/30 blur-3xl rounded-full" />
               <div className="relative z-10">
