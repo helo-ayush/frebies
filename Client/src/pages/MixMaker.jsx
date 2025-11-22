@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Music, Play, Pause, Plus, HardDrive, Folder, Search,
   Settings, Download, Zap, Clock, Sliders,
@@ -31,6 +31,9 @@ const MixMaker = () => {
   const [selectedFolderSongs, setSelectedFolderSongs] = useState([]);
   const [volume, setVolume] = useState(80);
   const [currentSelectedSong, setCurrentSelectedSong] = useState([]);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
 
   // --- Folder DATA ---
   const [folders, setFolders] = useState([]);
@@ -83,6 +86,7 @@ const MixMaker = () => {
 
     return 'Unknown Artist';
   }
+
 
   // Filter songs for the bottom box
   const filteredFolderSongs = selectedFolderSongs.filter(song =>
@@ -196,6 +200,60 @@ const MixMaker = () => {
     }
   }, [selectedFolderId, folders]) // Correct dependencies
 
+  // AUDIO PLAYBACK FUNCTIONS
+  const audioRef = useRef(null);
+
+  // When song changes, reset and load new source
+  useEffect(() => {
+    if (!audioRef.current || !currentSelectedSong?.id) return;
+
+    setIsLoading(true);
+
+    // USE PROXY URL instead of direct Google Drive link
+    const proxyUrl = `${import.meta.env.VITE_API_BASE_URL}/audio/${currentSelectedSong.id}`;
+
+    console.log('🎵 Loading song:', currentSelectedSong.name);
+
+    audioRef.current.src = proxyUrl;
+    audioRef.current.load();
+
+    // When audio is ready to play
+    const handleCanPlay = () => {
+      console.log('✅ Audio ready to play');
+      setIsLoading(false);
+      if (isPlaying) {
+        audioRef.current.play().catch(error => {
+          console.error("Error playing audio:", error);
+          setIsPlaying(false);
+        });
+      }
+    };
+
+    audioRef.current.addEventListener('canplay', handleCanPlay);
+
+    return () => {
+      audioRef.current?.removeEventListener('canplay', handleCanPlay);
+    };
+  }, [currentSelectedSong]);
+
+  // Handle play/pause state changes
+  useEffect(() => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.play().catch(error => {
+        console.error("Error playing audio:", error);
+        setIsPlaying(false);
+      });
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying]);
+
+
+
+
+
   return (
     <div className="relative min-h-screen w-full bg-[#F5F6F9] text-slate-800 font-sans overflow-x-hidden">
 
@@ -204,6 +262,27 @@ const MixMaker = () => {
         <div className="absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-indigo-300/20 rounded-full blur-[120px] mix-blend-multiply animate-blob" />
         <div className="absolute bottom-[-10%] right-[10%] w-[500px] h-[500px] bg-purple-300/20 rounded-full blur-[120px] mix-blend-multiply animate-blob animation-delay-2000" />
       </div>
+
+      <audio
+        ref={audioRef}
+        crossOrigin="anonymous"
+        onTimeUpdate={() => {
+          if (audioRef.current) {
+            setCurrentTime(audioRef.current.currentTime);
+          }
+        }}
+        onLoadedMetadata={() => {
+          if (audioRef.current) {
+            setDuration(audioRef.current.duration);
+          }
+        }}
+        onEnded={() => setIsPlaying(false)}
+        onError={(e) => {
+          console.error("Audio error:", e);
+          setIsPlaying(false);
+          setIsLoading(false);
+        }}
+      />
 
       {/* --- LAYOUT --- */}
       <div className="relative z-10 flex h-screen pt-0">
@@ -553,79 +632,79 @@ const MixMaker = () => {
               </div>
 
               <div className="h-[400px] overflow-y-auto custom-scrollbar p-4 md:p-6">
-  {filteredFolderSongs.length > 0 ? (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-      {filteredFolderSongs.map((song, i) => (
-        <div 
-          key={song.id} 
-          className={`group flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-200 ${
-            currentSelectedSong.id === song.id 
-              ? "border-[#edd4ff] border bg-linear-to-r from-indigo-50 to-purple-50 shadow-xl shadow-indigo-200/50 animate-pulse-slow" 
-              : "border border-slate-100 hover:border-indigo-200"
-          }`}
-        >
-          <div className="flex items-center gap-4 min-w-0">
-            <div
-              onClick={() => {
-                // Changing Song
-                if (currentSelectedSong.id !== song.id) {
-                  setCurrentSelectedSong(song);
-                  setIsPlaying(true); // Play the song by default
-                } else {
-                  // Toggle play/pause
-                  setIsPlaying(!isPlaying);
-                }
-              }}
-              className="w-10 cursor-pointer h-10 rounded-xl bg-white text-slate-400 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-indigo-500 group-hover:text-white transition-colors relative"
-            >
-              {/* Show pause button if this song is currently selected and playing */}
-              {currentSelectedSong.id === song.id && isPlaying ? (
-                <Pause className="w-4 h-4" />
-              ) : currentSelectedSong.id === song.id && !isPlaying ? (
-                // Show play button if this song is selected but paused
-                <Play className="w-4 h-4" />
-              ) : (
-                // Show number by default, play button on hover
-                <>
-                  <span className="group-hover:hidden">{i + 1}</span>
-                  <Play className="w-4 h-4 hidden group-hover:block" />
-                </>
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="font-bold text-slate-800 text-sm truncate pr-2">{songNameExtractor(song.name)}</div>
-              <div className="text-xs text-slate-500 truncate">{artistNameExtractor(song.name)}</div>
-            </div>
-          </div>
+                {filteredFolderSongs.length > 0 ? (
+                  <div className="grid select-none cursor-pointer grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {filteredFolderSongs.map((song, i) => (
+                      <div onClick={() => {
+                        // Changing Song
+                        if (currentSelectedSong.id !== song.id) {
+                          setCurrentSelectedSong(song);
+                          setIsPlaying(true); // Play the song by default
+                        } else {
+                          // Toggle play/pause
+                          setIsPlaying(!isPlaying);
+                        }
+                      }}
+                        key={song.id}
+                        className={`group flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-200 ${currentSelectedSong.id === song.id
+                          ? "border-[#edd4ff] border bg-linear-to-r from-indigo-50 to-purple-50 shadow-xl shadow-indigo-200/50 animate-pulse-slow"
+                          : "border border-slate-100 hover:border-indigo-200"
+                          }`}
+                      >
+                        <div
+                          className="flex items-center gap-4 min-w-0">
+                          <div
+                            className="w-10  h-10 rounded-xl bg-white text-slate-400 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-indigo-500 group-hover:text-white transition-colors relative"
+                          >
+                            {/* Show pause button if this song is currently selected and playing */}
+                            {currentSelectedSong.id === song.id && isPlaying ? (
+                              <Pause className="w-4 h-4" />
+                            ) : currentSelectedSong.id === song.id && !isPlaying ? (
+                              // Show play button if this song is selected but paused
+                              <Play className="w-4 h-4" />
+                            ) : (
+                              // Show number by default, play button on hover
+                              <>
+                                <span className="group-hover:hidden">{i + 1}</span>
+                                <Play className="w-4 h-4 hidden group-hover:block" />
+                              </>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-800 text-sm truncate pr-2">{songNameExtractor(song.name)}</div>
+                            <div className="text-xs text-slate-500 truncate">{artistNameExtractor(song.name)}</div>
+                          </div>
+                        </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              onClick={() => {
-                const songExists = mixSongs.some(mixSong => mixSong.id === song.id);
-                songExists ? removeFromMix2(song) : addToMix(song);
-              }}
-              className="w-9 h-9 rounded-xl cursor-pointer bg-white border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm active:scale-95"
-              title={mixSongs.some(mixSong => mixSong.id === song.id) ? "Remove from mix" : "Add to end of mix"}
-            >
-              {mixSongs.some(mixSong => mixSong.id === song.id) ? (
-                <Minus className="w-5 h-5" />
-              ) : (
-                <Plus className="w-5 h-5" />
-              )}
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  ) : (
-    <div className="py-16 text-center text-slate-400">
-      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <Search className="w-6 h-6 text-slate-300" />
-      </div>
-      <p>No songs found matching your search.</p>
-    </div>
-  )}
-</div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <button
+                            onClick={(e) => {
+                              const songExists = mixSongs.some(mixSong => mixSong.id === song.id);
+                              songExists ? removeFromMix2(song) : addToMix(song);
+                              e.stopPropagation()
+                            }}
+                            className="w-9 h-9 rounded-xl cursor-pointer bg-white border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm active:scale-95"
+                            title={mixSongs.some(mixSong => mixSong.id === song.id) ? "Remove from mix" : "Add to end of mix"}
+                          >
+                            {mixSongs.some(mixSong => mixSong.id === song.id) ? (
+                              <Minus className="w-5 h-5" />
+                            ) : (
+                              <Plus className="w-5 h-5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-16 text-center text-slate-400">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Search className="w-6 h-6 text-slate-300" />
+                    </div>
+                    <p>No songs found matching your search.</p>
+                  </div>
+                )}
+              </div>
             </section>
 
           </div>
