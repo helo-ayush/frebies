@@ -35,12 +35,14 @@ const MixMaker = () => {
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isSongsLoading, setIsSongsLoading] = useState(false);
+  const [isFoldersLoading, setIsFoldersLoading] = useState(false);
 
   // --- Folder DATA ---
   const [folders, setFolders] = useState([]);
 
   useEffect(() => {
     const fetchFolders = async () => {
+      setIsFoldersLoading(true);
       try {
         const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/getFolders`, {
           method: 'POST',
@@ -60,6 +62,8 @@ const MixMaker = () => {
         }
       } catch (err) {
         console.error("Error fetching folders:", err);
+      } finally {
+        setIsFoldersLoading(false);
       }
     };
 
@@ -320,7 +324,14 @@ const MixMaker = () => {
           <div className="px-2 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider">My Folders</div>
 
           <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-2">
-            {folders.map(folder => (
+            {isFoldersLoading ? (
+              <div className="flex flex-col gap-2 p-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-16 bg-slate-200 rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              folders.map(folder => (
               <div
                 key={folder._id}
                 className={`group w-full border-2 border-[#1717170b] flex items-center gap-3 p-3.5 rounded-2xl transition-all duration-300 ${selectedFolderId === folder._id
@@ -348,7 +359,8 @@ const MixMaker = () => {
                   <BrushCleaning className="w-4 h-4" />
                 </button>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </aside>
 
@@ -374,7 +386,14 @@ const MixMaker = () => {
               </div>
 
               <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
-                {folders.map(folder => (
+                {isFoldersLoading ? (
+                  <div className="flex flex-col gap-2">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-14 bg-slate-200 rounded-2xl animate-pulse" />
+                    ))}
+                  </div>
+                ) : (
+                  folders.map(folder => (
                   <div
                     key={folder._id}
                     className={`group w-full border flex items-center gap-3 p-3 rounded-2xl transition-all ${selectedFolderId === folder._id
@@ -398,7 +417,8 @@ const MixMaker = () => {
                       <BrushCleaning className="w-4 h-4" />
                     </button>
                   </div>
-                ))}
+                  ))
+                )}
               </div>
             </section>
 
