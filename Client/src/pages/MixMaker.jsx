@@ -255,6 +255,12 @@ const MixMaker = () => {
     }
   }, [isPlaying]);
 
+   // Handle volume changes
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume / 100; // Convert 0-100 to 0-1
+    }
+  }, [volume]);
 
 
   return (
