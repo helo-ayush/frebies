@@ -16,7 +16,6 @@ const Folder = require('./models/Folder')
 const getFolder = require('./routes/getFolders')
 const audioProxy = require('./routes/audioProxy');
 
-
 app.use(express.json());
 
 app.use('/data', driveData);

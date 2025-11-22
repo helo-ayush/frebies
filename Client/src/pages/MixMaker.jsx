@@ -252,8 +252,6 @@ const MixMaker = () => {
 
 
 
-
-
   return (
     <div className="relative min-h-screen w-full bg-[#F5F6F9] text-slate-800 font-sans overflow-x-hidden">
 
