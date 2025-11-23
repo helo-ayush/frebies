@@ -16,6 +16,7 @@ const MixMaker = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [mixSongs, setMixSongs] = useState([]);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState({ isOpen: false, folderId: null, folderName: null });
+  const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
   const [clearMixModal, setClearMixModal] = useState(false); // New state for clear mix
   const { user } = useUser();
 
@@ -699,15 +700,57 @@ const MixMaker = () => {
                       <label className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wide">
                         <Folder className="w-4 h-4 text-indigo-500" /> Source Folder
                       </label>
-                      <div className="relative group">
-                        <select
-                          value={selectedFolderId}
-                          onChange={(e) => setSelectedFolderId(e.target.value)}
-                          className="w-full appearance-none bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-2xl px-5 py-4 pr-12 text-slate-700 font-bold text-lg focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer shadow-sm"
+                      <div className="relative">
+                        {/* Custom Dropdown Button */}
+                        <button
+                          type="button"
+                          onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
+                          className="w-full appearance-none bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-2xl px-5 py-4 pr-12 text-slate-700 font-bold text-lg focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer shadow-sm text-left"
                         >
-                          {folders.map(f => <option key={f._id} value={f._id}>{f.folderName}</option>)}
-                        </select>
-                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" />
+                          {folders.find(f => f._id === selectedFolderId)?.folderName || 'Select a folder'}
+                        </button>
+                        <ChevronDown className={`absolute right-5 top-1/2 -translate-y-1/2 w-6 h-6 transition-all ${isFolderDropdownOpen ? 'rotate-180 text-indigo-500' : 'text-slate-400'}`} />
+
+                        {/* Custom Dropdown Panel */}
+                        {isFolderDropdownOpen && (
+                          <>
+                            {/* Backdrop to close on outside click */}
+                            <div
+                              className="fixed inset-0 z-10"
+                              onClick={() => setIsFolderDropdownOpen(false)}
+                            />
+
+                            {/* Dropdown Options Panel */}
+                            <div className="absolute z-20 w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl shadow-indigo-500/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                              <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                                {folders.map((folder) => (
+                                  <button
+                                    key={folder._id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedFolderId(folder._id);
+                                      setIsFolderDropdownOpen(false);
+                                    }}
+                                    className={`w-full px-5 py-4 text-left font-bold text-lg transition-all ${selectedFolderId === folder._id
+                                        ? 'bg-indigo-50 text-indigo-600'
+                                        : 'text-slate-700 hover:bg-slate-50'
+                                      }`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <Folder className={`w-5 h-5 ${selectedFolderId === folder._id ? 'text-indigo-500' : 'text-slate-400'}`} />
+                                      <span className="truncate">{folder.folderName}</span>
+                                      {selectedFolderId === folder._id && (
+                                        <svg className="w-5 h-5 ml-auto text-indigo-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
