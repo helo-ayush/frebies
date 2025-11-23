@@ -632,14 +632,14 @@ const MixMaker = () => {
                       <div className="flex flex-wrap gap-2 w-full lg:w-auto animate-in fade-in zoom-in duration-300">
                         <a
                           href={downloadUrls.audio}
-                          download={`Mix_${new Date().toISOString().slice(0, 10)}.wav`}
+                          download={`${folders.find(f => f._id === selectedFolderId)?.folderName || 'Mix'} Mix.wav`}
                           className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl font-bold text-sm hover:bg-indigo-100 transition-colors"
                         >
                           <FileAudio className="w-4 h-4" /> Download Audio
                         </a>
                         <a
                           href={downloadUrls.timecode}
-                          download={`Timecodes_${new Date().toISOString().slice(0, 10)}.txt`}
+                          download={`${folders.find(f => f._id === selectedFolderId)?.folderName || 'Mix'} Timecode.txt`}
                           className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl font-bold text-sm hover:bg-indigo-100 transition-colors"
                         >
                           <AlignLeft className="w-4 h-4" /> Timecode
@@ -732,8 +732,8 @@ const MixMaker = () => {
                                       setIsFolderDropdownOpen(false);
                                     }}
                                     className={`w-full px-5 py-4 text-left font-bold text-lg transition-all ${selectedFolderId === folder._id
-                                        ? 'bg-indigo-50 text-indigo-600'
-                                        : 'text-slate-700 hover:bg-slate-50'
+                                      ? 'bg-indigo-50 text-indigo-600'
+                                      : 'text-slate-700 hover:bg-slate-50'
                                       }`}
                                   >
                                     <div className="flex items-center gap-3">
