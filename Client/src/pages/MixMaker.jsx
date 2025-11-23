@@ -21,7 +21,7 @@ const MixMaker = () => {
   const { user } = useUser();
 
   // Mix Configuration State
-  const [mixDuration, setMixDuration] = useState(60);
+  const [mixDuration, setMixDuration] = useState(65);
   const [crossfadeType, setCrossfadeType] = useState('auto');
   const [crossfadeSeconds, setCrossfadeSeconds] = useState(4);
   const [normalizeAudio, setNormalizeAudio] = useState(true);
