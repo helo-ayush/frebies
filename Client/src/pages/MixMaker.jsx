@@ -65,8 +65,7 @@ const MixMaker = () => {
         const data = await res.json();
 
         if (data.ok) {
-          await setFolders(data.folders);
-          console.log(data.folders);
+          setFolders(data.folders);
         }
       } catch (err) {
         console.error("Error fetching folders:", err);
@@ -108,7 +107,6 @@ const MixMaker = () => {
 
   const addToMix = (song) => {
     setMixSongs([...mixSongs, { ...song, uniqueId: song.id }]);
-    console.log(song)
   };
 
   const removeFromMix = (uniqueId) => {
@@ -244,6 +242,10 @@ const MixMaker = () => {
       });
 
       currentDuration += songDuration;
+
+      // Update status with download count
+      const downloadedCount = newMix.length - currentMix.length;
+      setProcessingStatus(`Downloaded ${downloadedCount} ${downloadedCount === 1 ? 'track' : 'tracks'}`);
     }
 
     return newMix;
@@ -626,7 +628,7 @@ const MixMaker = () => {
                   {/* Export Button Group */}
                   <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                     {exportComplete ? (
-                      <div className="flex gap-2 w-full lg:w-auto animate-in fade-in zoom-in duration-300">
+                      <div className="flex flex-wrap gap-2 w-full lg:w-auto animate-in fade-in zoom-in duration-300">
                         <a
                           href={downloadUrls.audio}
                           download={`Mix_${new Date().toISOString().slice(0, 10)}.wav`}

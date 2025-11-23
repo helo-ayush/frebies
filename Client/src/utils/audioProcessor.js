@@ -26,7 +26,7 @@ export async function generateMix(songs, config, onProgress) {
         // 1. Process each song individually (Fetch -> Decode -> Trim -> Normalize)
         for (let i = 0; i < songs.length; i++) {
             const song = songs[i];
-            onProgress(`Processing ${i + 1}/${songs.length} songs`, (i / songs.length) * 50);
+            onProgress(`Processing ${i + 1}/${songs.length} songs`, (i / songs.length) * 90);
 
             // A. Fetch Audio Data
             const response = await fetch(song.proxyUrl || song.url);
@@ -127,10 +127,11 @@ export async function generateMix(songs, config, onProgress) {
             timecodes.push(`${timeString} - ${cleanName}`);
         });
 
-        onProgress("Encoding audio...", 80);
+        onProgress("Encoding audio...", 90);
 
         // 5. Render the mix
         const renderedBuffer = await offlineCtx.startRendering();
+        onProgress("Encoding audio...", 95);
 
         // 6. Convert to WAV Blob
         const wavBlob = bufferToWave(renderedBuffer, renderedBuffer.length);
