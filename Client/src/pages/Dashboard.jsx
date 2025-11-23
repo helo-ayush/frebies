@@ -60,11 +60,11 @@ const Dashboard = () => {
                 className="group relative bg-white/60 backdrop-blur-md border border-gray-200/50 rounded-3xl p-8 shadow-lg hover:shadow-2xl transition-all duration-500 cursor-pointer hover:-translate-y-2"
               >
                 {/* Gradient background on hover */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${feature.bgGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl`} />
+                <div className={`absolute inset-0 bg-linear-to-br ${feature.bgGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl`} />
 
                 <div className="relative z-10">
                   {/* Icon */}
-                  <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br ${feature.gradient} shadow-lg shadow-purple-500/30 mb-6 group-hover:scale-110 transition-transform duration-500`}>
+                  <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-linear-to-br ${feature.gradient} shadow-lg shadow-purple-500/30 mb-6 group-hover:scale-110 transition-transform duration-500`}>
                     <Icon className="w-8 h-8 text-white" />
                   </div>
 
@@ -80,7 +80,7 @@ const Dashboard = () => {
                   <div className="grid grid-cols-2 gap-3 mb-6">
                     {feature.features.map((item, index) => (
                       <div key={index} className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-purple-500 to-pink-500" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-linear-to-br from-purple-500 to-pink-500" />
                         <span className="text-sm font-medium text-gray-700">{item}</span>
                       </div>
                     ))}
@@ -94,7 +94,7 @@ const Dashboard = () => {
                 </div>
 
                 {/* Decorative corner element */}
-                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${feature.gradient} opacity-5 rounded-bl-full -mr-4 -mt-4 group-hover:opacity-10 transition-opacity duration-500`} />
+                <div className={`absolute top-0 right-0 w-32 h-32 bg-linear-to-br ${feature.gradient} opacity-5 rounded-bl-full -mr-4 -mt-4 group-hover:opacity-10 transition-opacity duration-500`} />
               </div>
             );
           })}

@@ -16,9 +16,9 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-8 p-24 md:py-24 relative overflow-hidden">
         {/* Decorative floating shapes */}
-        <div className="absolute top-20 left-10 w-24 h-24 bg-gradient-to-br from-yellow-400 to-yellow-300 rounded-full blur-2xl opacity-60 animate-pulse"></div>
-        <div className="absolute top-40 right-20 w-32 h-32 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full blur-3xl opacity-50"></div>
-        <div className="absolute bottom-20 left-1/4 w-20 h-20 bg-gradient-to-br from-pink-400 to-pink-300 rounded-full blur-xl opacity-40"></div>
+        <div className="absolute top-20 left-10 w-24 h-24 bg-linear-to-br from-yellow-400 to-yellow-300 rounded-full blur-2xl opacity-60 animate-pulse"></div>
+        <div className="absolute top-40 right-20 w-32 h-32 bg-linear-to-br from-blue-400 to-purple-400 rounded-full blur-3xl opacity-50"></div>
+        <div className="absolute bottom-20 left-1/4 w-20 h-20 bg-linear-to-br from-pink-400 to-pink-300 rounded-full blur-xl opacity-40"></div>
 
         <div className="text-center max-w-5xl mx-auto relative z-10">
           {/* Large rounded geometric headline */}
@@ -27,7 +27,7 @@ export default function HomePage() {
               👋
             </span></span>
             <br />
-            <span className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">Explore tools For free!!</span>
+            <span className="bg-linear-to-r from-blue-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">Explore tools For free!!</span>
           </h1>
 
           <p className="text-xl md:text-2xl text-gray-600 mb-16 max-w-3xl mx-auto leading-relaxed font-medium">
@@ -39,7 +39,7 @@ export default function HomePage() {
             <div onClick={() => { isSignedIn ? navigate("/dashboard") : openLogin({ redirectUrl: '/dashboard' }) }} className="group relative w-full sm:w-auto bg-gray-900 cursor-pointer text-white px-10 py-5 rounded-full font-bold text-lg hover:shadow-2xl hover:shadow-gray-900/30 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3">
               <span>Get Started Free</span>
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="absolute inset-0 bg-linear-to-r from-purple-600/20 to-pink-600/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
             </div>
             <button className="w-full sm:w-auto cursor-pointer bg-white text-gray-900 px-10 py-5 rounded-full font-bold text-lg shadow-lg shadow-gray-200/50 hover:shadow-xl hover:scale-105 transition-all duration-300">
               Watch Demo
@@ -50,9 +50,9 @@ export default function HomePage() {
         {/* Dashboard Preview with decorative elements */}
         <div className="mt-32 relative">
           {/* Ambient glow behind */}
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-200 via-pink-200 to-blue-200 blur-[100px] opacity-40"></div>
+          <div className="absolute inset-0 bg-linear-to-r from-purple-200 via-pink-200 to-blue-200 blur-[100px] opacity-40"></div>
 
-          <div className="relative bg-white rounded-[2rem] p-10 shadow-[0_20px_80px_-20px_rgba(0,0,0,0.15)]">
+          <div className="relative bg-white rounded-4xl p-10 shadow-[0_20px_80px_-20px_rgba(0,0,0,0.15)]">
             {/* Window controls */}
             <div className="flex items-center gap-2 mb-8">
               <div className="w-3 h-3 bg-red-400 rounded-full shadow-sm"></div>
@@ -62,8 +62,8 @@ export default function HomePage() {
 
             {/* Feature cards with playful colors */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="group bg-gradient-to-br from-purple-50 to-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:scale-105 transition-all duration-300">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-200 group-hover:shadow-xl group-hover:shadow-purple-300 transition-all">
+              <div className="group bg-linear-to-br from-purple-50 to-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:scale-105 transition-all duration-300">
+                <div className="w-16 h-16 bg-linear-to-br from-purple-400 to-purple-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-200 group-hover:shadow-xl group-hover:shadow-purple-300 transition-all">
                   <Zap className="w-8 h-8 text-white" />
 
                 </div>
@@ -71,16 +71,16 @@ export default function HomePage() {
                 <p className="text-gray-600 leading-relaxed">Speed based on your computer specs</p>
               </div>
 
-              <div className="group bg-gradient-to-br from-blue-50 to-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:scale-105 transition-all duration-300">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200 group-hover:shadow-xl group-hover:shadow-blue-300 transition-all">
+              <div className="group bg-linear-to-br from-blue-50 to-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:scale-105 transition-all duration-300">
+                <div className="w-16 h-16 bg-linear-to-br from-blue-400 to-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200 group-hover:shadow-xl group-hover:shadow-blue-300 transition-all">
                   <Shield className="w-8 h-8 text-white" />
                 </div>
                 <h3 className="text-xl font-black mb-3 text-gray-900">Google Drive</h3>
                 <p className="text-gray-600 leading-relaxed">Can use google drive for data transfer</p>
               </div>
 
-              <div className="group bg-gradient-to-br from-pink-50 to-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:scale-105 transition-all duration-300">
-                <div className="w-16 h-16 bg-gradient-to-br from-pink-400 to-pink-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-pink-200 group-hover:shadow-xl group-hover:shadow-pink-300 transition-all">
+              <div className="group bg-linear-to-br from-pink-50 to-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:scale-105 transition-all duration-300">
+                <div className="w-16 h-16 bg-linear-to-br from-pink-400 to-pink-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-pink-200 group-hover:shadow-xl group-hover:shadow-pink-300 transition-all">
                   <Sparkles className="w-8 h-8 text-white" />
                 </div>
                 <h3 className="text-xl font-black mb-3 text-gray-900">Whisper</h3>
@@ -100,8 +100,8 @@ export default function HomePage() {
 
         <div className="grid md:grid-cols-2 gap-8">
 
-          <div className="group bg-white p-10 rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(59,130,246,0.15)] hover:scale-105 transition-all duration-300">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-400 to-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
+          <div className="group bg-white p-10 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(59,130,246,0.15)] hover:scale-105 transition-all duration-300">
+            <div className="w-14 h-14 bg-linear-to-br from-blue-400 to-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
               <div className='text-4xl'>📑</div>
             </div>
             <h3 className="text-3xl font-black mb-4 text-gray-900">Transcribe</h3>
@@ -111,8 +111,8 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="group bg-white p-10 rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(34,197,94,0.15)] hover:scale-105 transition-all duration-300">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-400 to-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
+          <div className="group bg-white p-10 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(34,197,94,0.15)] hover:scale-105 transition-all duration-300">
+            <div className="w-14 h-14 bg-linear-to-br from-blue-400 to-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
               <div className='text-4xl'>🎧</div>
             </div>
             <h3 className="text-3xl font-black mb-4 text-gray-900">Mix Creator</h3>
@@ -122,8 +122,8 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="group bg-white p-10 rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(147,51,234,0.15)] hover:scale-105 transition-all duration-300">
-            <div className="w-14 h-14 bg-gradient-to-br from-purple-400 to-purple-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-200">
+          <div className="group bg-white p-10 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(147,51,234,0.15)] hover:scale-105 transition-all duration-300">
+            <div className="w-14 h-14 bg-linear-to-br from-purple-400 to-purple-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-200">
               <Users className="w-7 h-7 text-white" />
             </div>
             <h3 className="text-3xl font-black mb-4 text-gray-900">Real-time Collaboration</h3>
@@ -133,8 +133,8 @@ export default function HomePage() {
             </a>
           </div>
 
-          <div className="group bg-white p-10 rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(236,72,153,0.15)] hover:scale-105 transition-all duration-300">
-            <div className="w-14 h-14 bg-gradient-to-br from-pink-400 to-pink-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-pink-200">
+          <div className="group bg-white p-10 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(236,72,153,0.15)] hover:scale-105 transition-all duration-300">
+            <div className="w-14 h-14 bg-linear-to-br from-pink-400 to-pink-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-pink-200">
               <TrendingUp className="w-7 h-7 text-white" />
             </div>
             <h3 className="text-3xl font-black mb-4 text-gray-900">Advanced Analytics</h3>
@@ -156,17 +156,17 @@ export default function HomePage() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
-          <div className="bg-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] hover:scale-105 transition-all duration-300">
+          <div className="bg-white p-8 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] hover:scale-105 transition-all duration-300">
             <div className="flex items-center gap-1 mb-6">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-sm">
+                <div key={i} className="w-8 h-8 bg-linear-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-sm">
                   <Star className="w-4 h-4 text-white fill-white" />
                 </div>
               ))}
             </div>
             <p className="text-gray-700 mb-8 text-lg leading-relaxed font-medium">"Somenody paid me to write this review, i am not even an video editor"</p>
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-purple-400 to-purple-500 rounded-full flex items-center justify-center font-black text-white text-lg shadow-lg">
+              <div className="w-14 h-14 bg-linear-to-br from-purple-400 to-purple-500 rounded-full flex items-center justify-center font-black text-white text-lg shadow-lg">
                 JD
               </div>
               <div>
@@ -176,17 +176,17 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="bg-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] hover:scale-105 transition-all duration-300">
+          <div className="bg-white p-8 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] hover:scale-105 transition-all duration-300">
             <div className="flex items-center gap-1 mb-6">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-sm">
+                <div key={i} className="w-8 h-8 bg-linear-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-sm">
                   <Star className="w-4 h-4 text-white fill-white" />
                 </div>
               ))}
             </div>
             <p className="text-gray-700 mb-8 text-lg leading-relaxed font-medium">"How much money do you want to sell this website?💰"</p>
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-blue-400 to-blue-500 rounded-full flex items-center justify-center font-black text-white text-lg shadow-lg">
+              <div className="w-14 h-14 bg-linear-to-br from-blue-400 to-blue-500 rounded-full flex items-center justify-center font-black text-white text-lg shadow-lg">
                 MS
               </div>
               <div>
@@ -196,17 +196,17 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="bg-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] hover:scale-105 transition-all duration-300">
+          <div className="bg-white p-8 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] hover:scale-105 transition-all duration-300">
             <div className="flex items-center gap-1 mb-6">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-sm">
+                <div key={i} className="w-8 h-8 bg-linear-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-sm">
                   <Star className="w-4 h-4 text-white fill-white" />
                 </div>
               ))}
             </div>
             <p className="text-gray-700 mb-8 text-lg leading-relaxed font-medium">"Hi👋, are you by yourself? ahem!!"</p>
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-pink-400 to-pink-500 rounded-full flex items-center justify-center font-black text-white text-lg shadow-lg">
+              <div className="w-14 h-14 bg-linear-to-br from-pink-400 to-pink-500 rounded-full flex items-center justify-center font-black text-white text-lg shadow-lg">
                 SJ
               </div>
               <div>
@@ -220,10 +220,10 @@ export default function HomePage() {
 
       {/* CTA Section */}
       <section className="max-w-7xl mx-auto px-8 py-32">
-        <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-[3rem] p-16 md:p-24 text-center relative overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.3)]">
-          {/* Decorative gradient orbs */}
-          <div className="absolute top-0 left-1/4 w-64 h-64 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full blur-[100px] opacity-30"></div>
-          <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full blur-[100px] opacity-30"></div>
+        <div className="bg-linear-to-br from-gray-900 via-gray-800 to-gray-900 rounded-[3rem] p-16 md:p-24 text-center relative overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.3)]">
+          {/* Decorative linear orbs */}
+          <div className="absolute top-0 left-1/4 w-64 h-64 bg-linear-to-br from-purple-500 to-pink-500 rounded-full blur-[100px] opacity-30"></div>
+          <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-linear-to-br from-blue-500 to-purple-500 rounded-full blur-[100px] opacity-30"></div>
 
           <div className="relative z-10">
             <h2 className="text-5xl md:text-7xl font-black mb-6 text-white leading-tight">Ready to get started?</h2>

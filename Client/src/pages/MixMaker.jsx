@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 import { SignedIn, useUser } from '@clerk/clerk-react';
+import { generateMix } from '../utils/audioProcessor';
 
 const MixMaker = () => {
   // --- STATE ---
@@ -15,6 +16,7 @@ const MixMaker = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [mixSongs, setMixSongs] = useState([]);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState({ isOpen: false, folderId: null, folderName: null });
+  const [clearMixModal, setClearMixModal] = useState(false); // New state for clear mix
   const { user } = useUser();
 
   // Mix Configuration State
@@ -24,6 +26,7 @@ const MixMaker = () => {
   const [normalizeAudio, setNormalizeAudio] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [exportComplete, setExportComplete] = useState(false);
+  const [downloadUrls, setDownloadUrls] = useState({ audio: null, timecode: null }); // New state for downloads
   const [isPlaying, setIsPlaying] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [driveLink, setDriveLink] = useState('');
@@ -36,6 +39,11 @@ const MixMaker = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSongsLoading, setIsSongsLoading] = useState(false);
   const [isFoldersLoading, setIsFoldersLoading] = useState(false);
+
+  // --- MIX GENERATION STATE ---
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
+  const [processingProgress, setProcessingProgress] = useState(0);
 
   // --- Folder DATA ---
   const [folders, setFolders] = useState([]);
@@ -111,14 +119,195 @@ const MixMaker = () => {
     setMixSongs(mixSongs.filter(mixSong => mixSong.id !== song.id));
   };
 
-  const handleExport = () => {
-    setIsExporting(true);
-    setTimeout(() => {
-      setIsExporting(false);
-      setExportComplete(true);
-    }, 2000);
+  // Helper to parse "MM:SS" or "HH:MM:SS" to seconds
+  const parseDuration = (durationStr) => {
+    if (!durationStr) return 0;
+
+    // If it's already a number, return it
+    if (typeof durationStr === 'number') return durationStr;
+
+    // If it's a string number "300", return it
+    if (!durationStr.includes(':')) {
+      const num = Number(durationStr);
+      return isNaN(num) ? 0 : num;
+    }
+
+    const parts = durationStr.split(':').map(Number);
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return 0;
   };
 
+  // Helper to get duration (parses or fetches)
+  const getSongDuration = async (song) => {
+    // 1. Try existing duration property
+    const parsed = parseDuration(song.duration);
+    if (parsed > 0) return parsed;
+
+    // 2. If missing, fetch metadata via Audio element
+    return new Promise((resolve) => {
+      const audio = new Audio(`${import.meta.env.VITE_API_BASE_URL}/audio/${song.id}`);
+      // Mute it just in case
+      audio.muted = true;
+
+      const timeout = setTimeout(() => {
+        console.warn(`Timeout fetching metadata for ${song.name}`);
+        resolve(0);
+      }, 5000); // 5s timeout
+
+      audio.addEventListener('loadedmetadata', () => {
+        clearTimeout(timeout);
+        const dur = audio.duration;
+        resolve(dur);
+      });
+
+      audio.addEventListener('error', (e) => {
+        clearTimeout(timeout);
+        console.warn(`Error loading metadata for ${song.name}`, e);
+        resolve(0);
+      });
+    });
+  };
+
+  const fillMixWithRandomSongs = async (currentMix, targetDurationSeconds) => {
+
+    // Recalculate current duration (handling missing durations)
+    let currentDuration = 0;
+    for (const s of currentMix) {
+      currentDuration += await getSongDuration(s);
+    }
+
+    let newMix = [...currentMix];
+
+    // If we already have enough, return
+    if (currentDuration >= targetDurationSeconds) {
+      return newMix;
+    }
+
+    setProcessingStatus('Downloading audio files...');
+
+    // We need the full list of songs from the folder to pick from
+    let availableSongs = selectedFolderSongs;
+
+    if (availableSongs.length === 0 && selectedFolderId) {
+      const selectedFolder = folders.find(f => f._id === selectedFolderId);
+      if (selectedFolder) {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/data`, {
+          method: 'POST',
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: `https://drive.google.com/drive/folders/${selectedFolder.folderId}` })
+        });
+        availableSongs = await res.json();
+      } else {
+        console.warn("Selected folder not found in folders list");
+      }
+    }
+
+    if (availableSongs.length === 0) {
+      console.warn("No songs available to fill mix");
+      alert("No songs available in source folder to fill the mix!");
+      return newMix;
+    }
+
+    setProcessingStatus('Finding the perfect tracks...');
+
+    // Random selection loop
+    let attempts = 0;
+    const maxAttempts = 1000; // Prevent infinite loop
+
+    while (currentDuration < targetDurationSeconds && attempts < maxAttempts) {
+      attempts++;
+      const randomSong = availableSongs[Math.floor(Math.random() * availableSongs.length)];
+
+      // Check if already in mix (avoid duplicates if possible, unless we run out)
+      const isDuplicate = newMix.some(s => s.id === randomSong.id);
+      if (isDuplicate && newMix.length < availableSongs.length * 0.8) {
+        continue;
+      }
+
+      // Get duration (async)
+      const songDuration = await getSongDuration(randomSong);
+
+      if (songDuration <= 0) {
+        console.warn("Skipping song with invalid duration:", randomSong.name);
+        continue;
+      }
+
+      // Add to mix
+      const proxyUrl = `${import.meta.env.VITE_API_BASE_URL}/audio/${randomSong.id}`;
+
+      newMix.push({
+        ...randomSong,
+        duration: songDuration, // Save it so we don't refetch if we used it again (though we try to avoid dupes)
+        uniqueId: Math.random().toString(36).substr(2, 9),
+        proxyUrl: proxyUrl
+      });
+
+      currentDuration += songDuration;
+    }
+
+    return newMix;
+  };
+
+  const handleExport = async () => {
+    if (mixSongs.length === 0 && !selectedFolderId) {
+      alert("Please select a source folder or add songs manually.");
+      return;
+    }
+
+    setIsGenerating(true);
+    setProcessingProgress(0);
+    setExportComplete(false);
+    setDownloadUrls({ audio: null, timecode: null });
+
+    try {
+      // 1. Auto-fill logic
+      const targetSeconds = mixDuration * 60;
+      const finalMixSongs = await fillMixWithRandomSongs(mixSongs, targetSeconds);
+
+      // Update UI to show the filled songs
+      setMixSongs(finalMixSongs);
+
+      // 2. Generate Mix
+      const { audioBlob, timecodes } = await generateMix(
+        finalMixSongs.map(s => ({
+          ...s,
+          proxyUrl: s.proxyUrl || `${import.meta.env.VITE_API_BASE_URL}/audio/${s.id}`
+        })),
+        {
+          crossfadeDuration: crossfadeType === 'auto' ? 4 : crossfadeSeconds,
+          normalize: normalizeAudio,
+          targetDuration: targetSeconds
+        },
+        (status, percent) => {
+          setProcessingStatus(status);
+          setProcessingProgress(percent);
+        }
+      );
+
+      // 3. Create Download URLs (Manual Download)
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const textBlob = new Blob([timecodes], { type: 'text/plain' });
+      const textUrl = URL.createObjectURL(textBlob);
+
+      setDownloadUrls({ audio: audioUrl, timecode: textUrl });
+      setExportComplete(true);
+
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Failed to generate mix. See console for details.");
+    } finally {
+      setIsGenerating(false);
+      setProcessingStatus('');
+    }
+  };
+
+  const clearMix = () => {
+    setMixSongs([]);
+    setExportComplete(false);
+    setDownloadUrls({ audio: null, timecode: null });
+    setClearMixModal(false);
+  };
 
   useEffect(() => {
     setFolderName('');
@@ -259,7 +448,7 @@ const MixMaker = () => {
     }
   }, [isPlaying]);
 
-   // Handle volume changes
+  // Handle volume changes
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume / 100; // Convert 0-100 to 0-1
@@ -332,33 +521,33 @@ const MixMaker = () => {
               </div>
             ) : (
               folders.map(folder => (
-              <div
-                key={folder._id}
-                className={`group w-full border-2 border-[#1717170b] flex items-center gap-3 p-3.5 rounded-2xl transition-all duration-300 ${selectedFolderId === folder._id
-                  ? 'bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-1 ring-white/50 border-[#17171717]'
-                  : 'hover:bg-white/40'
-                  }`}
-              >
-                <button
-                  onClick={() => setSelectedFolderId(folder._id)}
-                  className="flex-1 cursor-pointer flex items-center gap-3 text-left"
+                <div
+                  key={folder._id}
+                  className={`group w-full border-2 border-[#1717170b] flex items-center gap-3 p-3.5 rounded-2xl transition-all duration-300 ${selectedFolderId === folder._id
+                    ? 'bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-1 ring-white/50 border-[#17171717]'
+                    : 'hover:bg-white/40'
+                    }`}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className={`font-black text-sm truncate ${selectedFolderId === folder._id ? 'text-slate-900' : 'text-slate-700'}`}>{folder.folderName}</div>
-                    <div className="text-[10px] text-slate-400">{folder.count} Songs</div>
-                  </div>
-                  {selectedFolderId === folder._id && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                  )}
-                </button>
-                <button
-                  onClick={() => { setDeleteConfirmModal({ isOpen: true, folderId: folder._id, folderName: folder.folderName }) }}
-                  className="p-2 cursor-pointer rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 text-red-500 hover:text-red-600"
-                  title="Delete folder"
-                >
-                  <BrushCleaning className="w-4 h-4" />
-                </button>
-              </div>
+                  <button
+                    onClick={() => setSelectedFolderId(folder._id)}
+                    className="flex-1 cursor-pointer flex items-center gap-3 text-left"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className={`font-black text-sm truncate ${selectedFolderId === folder._id ? 'text-slate-900' : 'text-slate-700'}`}>{folder.folderName}</div>
+                      <div className="text-[10px] text-slate-400">{folder.count} Songs</div>
+                    </div>
+                    {selectedFolderId === folder._id && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => { setDeleteConfirmModal({ isOpen: true, folderId: folder._id, folderName: folder.folderName }) }}
+                    className="p-2 cursor-pointer rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 text-red-500 hover:text-red-600"
+                    title="Delete folder"
+                  >
+                    <BrushCleaning className="w-4 h-4" />
+                  </button>
+                </div>
               ))
             )}
           </div>
@@ -394,29 +583,29 @@ const MixMaker = () => {
                   </div>
                 ) : (
                   folders.map(folder => (
-                  <div
-                    key={folder._id}
-                    className={`group w-full border flex items-center gap-3 p-3 rounded-2xl transition-all ${selectedFolderId === folder._id
-                      ? 'bg-indigo-50 border-indigo-200 shadow-sm'
-                      : 'bg-slate-50 border-slate-100'
-                      }`}
-                  >
-                    <button
-                      onClick={() => setSelectedFolderId(folder._id)}
-                      className="flex-1  flex items-center gap-3 text-left min-w-0"
+                    <div
+                      key={folder._id}
+                      className={`group w-full border flex items-center gap-3 p-3 rounded-2xl transition-all ${selectedFolderId === folder._id
+                        ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                        : 'bg-slate-50 border-slate-100'
+                        }`}
                     >
-                      <div className="min-w-0">
-                        <div className={`font-bold text-sm truncate ${selectedFolderId === folder._id ? 'text-indigo-900' : 'text-slate-700'}`}>{folder.folderName}</div>
-                        <div className="text-[10px] text-slate-400">{folder.count} Songs</div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => { setDeleteConfirmModal({ isOpen: true, folderId: folder._id, folderName: folder.folderName }) }}
-                      className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                    >
-                      <BrushCleaning className="w-4 h-4" />
-                    </button>
-                  </div>
+                      <button
+                        onClick={() => setSelectedFolderId(folder._id)}
+                        className="flex-1  flex items-center gap-3 text-left min-w-0"
+                      >
+                        <div className="min-w-0">
+                          <div className={`font-bold text-sm truncate ${selectedFolderId === folder._id ? 'text-indigo-900' : 'text-slate-700'}`}>{folder.folderName}</div>
+                          <div className="text-[10px] text-slate-400">{folder.count} Songs</div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => { setDeleteConfirmModal({ isOpen: true, folderId: folder._id, folderName: folder.folderName }) }}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      >
+                        <BrushCleaning className="w-4 h-4" />
+                      </button>
+                    </div>
                   ))
                 )}
               </div>
@@ -438,34 +627,63 @@ const MixMaker = () => {
                   <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                     {exportComplete ? (
                       <div className="flex gap-2 w-full lg:w-auto animate-in fade-in zoom-in duration-300">
-                        <button className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl font-bold text-sm hover:bg-indigo-100 transition-colors">
+                        <a
+                          href={downloadUrls.audio}
+                          download={`Mix_${new Date().toISOString().slice(0, 10)}.wav`}
+                          className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl font-bold text-sm hover:bg-indigo-100 transition-colors"
+                        >
                           <FileAudio className="w-4 h-4" /> Download Audio
-                        </button>
-                        <button className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl font-bold text-sm hover:bg-indigo-100 transition-colors">
+                        </a>
+                        <a
+                          href={downloadUrls.timecode}
+                          download={`Timecodes_${new Date().toISOString().slice(0, 10)}.txt`}
+                          className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl font-bold text-sm hover:bg-indigo-100 transition-colors"
+                        >
                           <AlignLeft className="w-4 h-4" /> Timecode
+                        </a>
+                        <button
+                          onClick={() => setClearMixModal(true)}
+                          className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-red-50 text-red-500 rounded-2xl font-bold text-sm hover:bg-red-100 transition-colors"
+                        >
+                          <BrushCleaning className="w-4 h-4" /> Clear
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={handleExport}
-                        disabled={isExporting}
-                        className={`
-                            flex-1 lg:flex-none relative overflow-hidden group flex items-center justify-center gap-3 px-8 py-4 rounded-2xl font-black text-lg text-white shadow-xl transition-all min-w-[200px]
-                            ${isExporting ? 'bg-slate-800 cursor-wait' : 'bg-slate-900 hover:scale-105 hover:shadow-2xl hover:shadow-indigo-500/20'}
-                          `}
-                      >
-                        {isExporting ? (
-                          <>
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            <span>Processing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Download className="w-5 h-5 group-hover:animate-bounce" />
-                            <span>Export Mix</span>
-                          </>
+                      <div className="flex gap-2">
+                        {mixSongs.length > 0 && (
+                          <button
+                            onClick={() => setClearMixModal(true)}
+                            className="px-4 py-3 bg-slate-100 text-slate-500 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-colors"
+
+                            title="Clear current mix"
+                          >
+                            <BrushCleaning className="w-5 h-5" />
+                          </button>
                         )}
-                      </button>
+                        <button
+                          onClick={handleExport}
+                          disabled={isExporting || isGenerating}
+                          className={`
+                              flex-1 lg:flex-none relative overflow-hidden group flex items-center justify-center gap-3 px-8 rounded-2xl font-black text-lg text-white shadow-xl transition-all w-[240px] h-[64px]
+                              ${(isExporting || isGenerating) ? 'bg-slate-800 cursor-wait' : 'bg-slate-900 hover:scale-105 hover:shadow-2xl hover:shadow-indigo-500/20'}
+                            `}
+                        >
+                          {(isExporting || isGenerating) ? (
+                            <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                              <div className="flex flex-col items-start text-xs min-w-0">
+                                <span className="truncate max-w-[140px]">{processingStatus || 'Processing...'}</span>
+                                {processingProgress > 0 && <span className="text-white/50">{Math.round(processingProgress)}%</span>}
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <Download className="w-5 h-5 group-hover:animate-bounce" />
+                              <span>Export Mix</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -482,7 +700,7 @@ const MixMaker = () => {
                       <div className="relative group">
                         <select
                           value={selectedFolderId}
-                          onChange={(e) => setSelectedFolderId(Number(e.target.value))}
+                          onChange={(e) => setSelectedFolderId(e.target.value)}
                           className="w-full appearance-none bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-2xl px-5 py-4 pr-12 text-slate-700 font-bold text-lg focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer shadow-sm"
                         >
                           {folders.map(f => <option key={f._id} value={f._id}>{f.folderName}</option>)}
@@ -661,7 +879,7 @@ const MixMaker = () => {
               </div>
 
               <div className="h-[400px] overflow-y-auto custom-scrollbar p-4 md:p-6">
-                
+
                 {isSongsLoading ? (
                   <div className="h-full flex flex-col items-center justify-center text-slate-400">
                     <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mb-4" />
@@ -789,6 +1007,39 @@ const MixMaker = () => {
         </div>
       )}
 
+      {/* --- CLEAR MIX CONFIRMATION MODAL --- */}
+      {clearMixModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-100 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setClearMixModal(false)}>
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="bg-amber-50 p-8 text-center border-b border-amber-100">
+              <div className="w-16 h-16 mx-auto bg-amber-100 rounded-full flex items-center justify-center mb-4 text-amber-600">
+                <BrushCleaning className="w-8 h-8" />
+              </div>
+              <h2 className="text-2xl font-black text-slate-900">Clear Current Mix?</h2>
+              <p className="text-slate-600 text-sm mt-2">
+                {exportComplete
+                  ? "Warning: Your generated mix files will be lost if you haven't downloaded them."
+                  : "This will remove all songs from your current mix."}
+              </p>
+            </div>
+            <div className="p-6 flex gap-3">
+              <button
+                onClick={() => setClearMixModal(false)}
+                className="flex-1 py-3 font-bold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={clearMix}
+                className="flex-1 py-3 font-bold bg-slate-900 text-white rounded-xl hover:scale-[1.02] hover:shadow-lg transition-all"
+              >
+                Clear Mix
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- IMPORT MODAL --- */}
       {isImportModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-100 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setIsImportModalOpen(false)}>
@@ -822,22 +1073,22 @@ const MixMaker = () => {
       )}
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.05); border-radius: 20px; }
-        .custom-scrollbar:hover::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.1); }
-        @keyframes blob {
-          0% { transform: translate(0px, 0px) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-          100% { transform: translate(0px, 0px) scale(1); }
-        }
-        .animate-blob { animation: blob 10s infinite; }
-        .animation-delay-2000 { animation-delay: 2s; }
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
-        }
-      `}</style>
+          .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+          .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.05); border-radius: 20px; }
+          .custom-scrollbar:hover::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.1); }
+          @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+          }
+          .animate-blob { animation: blob 10s infinite; }
+          .animation-delay-2000 { animation-delay: 2s; }
+          @keyframes shimmer {
+            100% { transform: translateX(100%); }
+          }
+        `}</style>
     </div>
   );
 };
