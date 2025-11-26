@@ -155,6 +155,7 @@ const MixMaker = () => {
         resolve(0);
       }, 20000); // 20s timeout
 
+
       audio.addEventListener('loadedmetadata', () => {
         clearTimeout(timeout);
         const dur = audio.duration;
@@ -211,39 +212,57 @@ const MixMaker = () => {
 
     setProcessingStatus('Finding the perfect tracks...');
 
-    // Random selection loop
+    // Random selection loop with BATCH PROCESSING
     let attempts = 0;
-    const maxAttempts = 1000; // Prevent infinite loop
+    const maxAttempts = 200; // Reduced max attempts since we process in batches
+    const BATCH_SIZE = 5; // Check 5 songs at a time
 
     while (currentDuration < targetDurationSeconds && attempts < maxAttempts) {
       attempts++;
-      const randomSong = availableSongs[Math.floor(Math.random() * availableSongs.length)];
 
-      // Check if already in mix (avoid duplicates if possible, unless we run out)
-      const isDuplicate = newMix.some(s => s.id === randomSong.id);
-      if (isDuplicate && newMix.length < availableSongs.length * 0.8) {
-        continue;
+      // 1. Select a batch of candidates
+      const batchCandidates = [];
+      for (let i = 0; i < BATCH_SIZE; i++) {
+        const randomSong = availableSongs[Math.floor(Math.random() * availableSongs.length)];
+
+        // Avoid immediate duplicates in this batch or existing mix
+        const isDuplicateInMix = newMix.some(s => s.id === randomSong.id);
+        const isDuplicateInBatch = batchCandidates.some(s => s.id === randomSong.id);
+
+        if ((!isDuplicateInMix || newMix.length >= availableSongs.length * 0.8) && !isDuplicateInBatch) {
+          batchCandidates.push(randomSong);
+        }
       }
 
-      // Get duration (async)
-      const songDuration = await getSongDuration(randomSong);
+      if (batchCandidates.length === 0) continue;
 
-      if (songDuration <= 0) {
-        console.warn("Skipping song with invalid duration:", randomSong.name);
-        continue;
+      // 2. Fetch durations in PARALLEL
+      const durations = await Promise.all(batchCandidates.map(song => getSongDuration(song)));
+
+      // 3. Process results
+      for (let i = 0; i < batchCandidates.length; i++) {
+        if (currentDuration >= targetDurationSeconds) break;
+
+        const song = batchCandidates[i];
+        const duration = durations[i];
+
+        if (duration <= 0) {
+          console.warn("Skipping song with invalid duration:", song.name);
+          continue;
+        }
+
+        // Add to mix
+        const proxyUrl = `${import.meta.env.VITE_API_BASE_URL}/audio/${song.id}`;
+
+        newMix.push({
+          ...song,
+          duration: duration,
+          uniqueId: Math.random().toString(36).substr(2, 9),
+          proxyUrl: proxyUrl
+        });
+
+        currentDuration += duration;
       }
-
-      // Add to mix
-      const proxyUrl = `${import.meta.env.VITE_API_BASE_URL}/audio/${randomSong.id}`;
-
-      newMix.push({
-        ...randomSong,
-        duration: songDuration, // Save it so we don't refetch if we used it again (though we try to avoid dupes)
-        uniqueId: Math.random().toString(36).substr(2, 9),
-        proxyUrl: proxyUrl
-      });
-
-      currentDuration += songDuration;
 
       // Update status with download count
       const downloadedCount = newMix.length - currentMix.length;
@@ -682,7 +701,7 @@ const MixMaker = () => {
                             </div>
                           ) : (
                             <>
-                              <Download className="w-5 h-5 group-hover:animate-bounce" />
+                              <Download className="w-6 h-5 group-hover:animate-bounce" />
                               <span>Export Mix</span>
                             </>
                           )}

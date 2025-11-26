@@ -23,44 +23,65 @@ export async function generateMix(songs, config, onProgress) {
     const timecodes = [];
 
     try {
-        // 1. Process each song individually (Fetch -> Decode -> Trim -> Normalize)
-        for (let i = 0; i < songs.length; i++) {
-            const song = songs[i];
-            onProgress(`Processing ${i + 1}/${songs.length} songs`, (i / songs.length) * 90);
+        // 1. Process all songs in PARALLEL (Fetch -> Decode -> Trim -> Normalize)
+        onProgress("Processing songs...", 0);
 
-            // A. Fetch Audio Data
-            const response = await fetch(song.proxyUrl || song.url);
-            const arrayBuffer = await response.arrayBuffer();
+        let completedCount = 0;
+        const totalSongs = songs.length;
 
-            // B. Decode Audio Data
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        const processSong = async (song, index) => {
+            try {
+                // A. Fetch Audio Data
+                const response = await fetch(song.proxyUrl || song.url);
+                const arrayBuffer = await response.arrayBuffer();
 
-            // C. Detect and Trim Silence
-            const { buffer: trimmedBuffer, trimStart, trimEnd } = trimSilence(audioBuffer, SILENCE_THRESHOLD, audioContext);
+                // B. Decode Audio Data
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-            // D. Normalize (if enabled)
-            let finalBuffer = trimmedBuffer;
-            if (config.normalize) {
-                finalBuffer = normalizeAudio(trimmedBuffer, audioContext);
+                // C. Detect and Trim Silence
+                const { buffer: trimmedBuffer } = trimSilence(audioBuffer, SILENCE_THRESHOLD, audioContext);
+
+                // D. Normalize (if enabled)
+                let finalBuffer = trimmedBuffer;
+                if (config.normalize) {
+                    finalBuffer = normalizeAudio(trimmedBuffer, audioContext);
+                }
+
+                // Update Progress
+                completedCount++;
+                const percent = Math.round((completedCount / totalSongs) * 80); // 0% to 80%
+                onProgress(`Processing (${completedCount}/${totalSongs})...`, percent);
+
+                return {
+                    buffer: finalBuffer,
+                    name: song.name,
+                    originalDuration: audioBuffer.duration
+                };
+            } catch (err) {
+                console.error(`Error processing song ${song.name}:`, err);
+                // Even if failed, we count it as processed for progress bar
+                completedCount++;
+                const percent = Math.round((completedCount / totalSongs) * 80);
+                onProgress(`Processing songs (${completedCount}/${totalSongs})...`, percent);
+                return null;
             }
+        };
 
-            processedBuffers.push({
-                buffer: finalBuffer,
-                name: song.name,
-                originalDuration: audioBuffer.duration
-            });
-        }
+        // Run all concurrently
+        const results = await Promise.all(songs.map((song, i) => processSong(song, i)));
 
-        onProgress("Rendering final mix...", 60);
+        // Filter out failures
+        results.forEach(res => {
+            if (res) processedBuffers.push(res);
+        });
+
+        onProgress("Rendering final mix...", 80);
 
         // 2. Calculate total duration and offsets for the mix
         let totalDuration = 0;
         const trackInfos = []; // Store start times for timecodes
 
         // Calculate layout
-        // Track 1 starts at 0.
-        // Track 2 starts at (Track 1 Duration - Crossfade)
-        // ...
         let currentStartTime = 0;
 
         for (let i = 0; i < processedBuffers.length; i++) {
@@ -72,9 +93,6 @@ export async function generateMix(songs, config, onProgress) {
                 startTime: currentStartTime
             });
 
-            // Update total duration of the mix
-            // If it's the last track, add its full remaining duration
-            // Otherwise, add the duration minus the crossfade overlap
             if (i < processedBuffers.length - 1) {
                 currentStartTime += (duration - config.crossfadeDuration);
             } else {
@@ -121,7 +139,6 @@ export async function generateMix(songs, config, onProgress) {
             source.start(startTime);
 
             // Generate Timecode String
-            // Format: HH:MM:SS Artist - Song
             const cleanName = track.name.replace(/\.[^/.]+$/, ""); // Remove extension
             const timeString = formatTimecode(startTime);
             timecodes.push(`${timeString} - ${cleanName}`);
@@ -133,7 +150,7 @@ export async function generateMix(songs, config, onProgress) {
         const renderedBuffer = await offlineCtx.startRendering();
         onProgress("Encoding audio...", 95);
 
-        // 6. Convert to WAV Blob
+        // 6. Convert to WAV Blob (Optimized)
         const wavBlob = bufferToWave(renderedBuffer, renderedBuffer.length);
 
         onProgress("Finalizing...", 100);
@@ -247,7 +264,7 @@ function formatTimecode(seconds) {
 
 /**
  * Converts an AudioBuffer to a WAV Blob.
- * (Standard WAV header construction)
+ * OPTIMIZED: Uses Int16Array for direct memory access instead of DataView loop.
  */
 function bufferToWave(abuffer, len) {
     const numOfChan = abuffer.numberOfChannels;
@@ -277,23 +294,7 @@ function bufferToWave(abuffer, len) {
     setUint32(0x61746164); // "data" - chunk
     setUint32(length - pos - 4); // chunk length
 
-    // write interleaved data
-    for (i = 0; i < abuffer.numberOfChannels; i++)
-        channels.push(abuffer.getChannelData(i));
-
-    while (pos < len) {
-        for (i = 0; i < numOfChan; i++) {
-            // interleave channels
-            sample = Math.max(-1, Math.min(1, channels[i][pos])); // clamp
-            sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0; // scale to 16-bit signed int
-            view.setInt16(44 + offset, sample, true); // write 16-bit sample
-            offset += 2;
-        }
-        pos++;
-    }
-
-    return new Blob([buffer], { type: "audio/wav" });
-
+    // Helper to write header
     function setUint16(data) {
         view.setUint16(pos, data, true);
         pos += 2;
@@ -303,4 +304,27 @@ function bufferToWave(abuffer, len) {
         view.setUint32(pos, data, true);
         pos += 4;
     }
+
+    // --- OPTIMIZED DATA WRITING ---
+    // Get channel data
+    for (i = 0; i < abuffer.numberOfChannels; i++)
+        channels.push(abuffer.getChannelData(i));
+
+    // Create Int16Array view starting after the header (44 bytes)
+    const dataView = new Int16Array(buffer, 44);
+
+    // Interleave and convert to 16-bit PCM
+    let dataIndex = 0;
+    for (let i = 0; i < len; i++) {
+        for (let ch = 0; ch < numOfChan; ch++) {
+            let sample = channels[ch][i];
+            // Clamp
+            sample = Math.max(-1, Math.min(1, sample));
+            // Scale to 16-bit (0.5 + sample < 0 handles negative rounding correctly)
+            sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
+            dataView[dataIndex++] = sample;
+        }
+    }
+
+    return new Blob([buffer], { type: "audio/wav" });
 }
