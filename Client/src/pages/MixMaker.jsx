@@ -148,11 +148,12 @@ const MixMaker = () => {
       const audio = new Audio(`${import.meta.env.VITE_API_BASE_URL}/audio/${song.id}`);
       // Mute it just in case
       audio.muted = true;
+      audio.preload = 'metadata'; // Optimize for metadata only
 
       const timeout = setTimeout(() => {
         console.warn(`Timeout fetching metadata for ${song.name}`);
         resolve(0);
-      }, 5000); // 5s timeout
+      }, 20000); // 20s timeout
 
       audio.addEventListener('loadedmetadata', () => {
         clearTimeout(timeout);
