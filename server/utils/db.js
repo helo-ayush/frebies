@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-let isConnected = false; // global cache for serverless environments
+let isConnected = false; // global cache for serverless  environments
 
 async function connectDB() {
   if (isConnected) return mongoose;

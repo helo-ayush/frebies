@@ -53,7 +53,7 @@ const Layout = () => {
 
           <div className="w-px h-6 bg-gray-300 mx-1"></div>
 
-          {/* Auth Buttons */}
+          {/* Auth Buttons  */}
           <SignedOut>
             <div className='flex gap-2 items-center'>
               <button onClick={openLogin} className='text-sm text-gray-700 font-bold transition-all duration-300 cursor-pointer hover:text-purple-600 px-3 py-1.5 rounded-full hover:bg-gray-100'>
