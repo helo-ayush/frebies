@@ -62,7 +62,7 @@ export async function generateMix(songs, config, onProgress) {
                 // Even if failed, we count it as processed for progress bar
                 completedCount++;
                 const percent = Math.round((completedCount / totalSongs) * 80);
-                onProgress(`Processing songs (${completedCount}/${totalSongs})...`, percent);
+                onProgress(`Processing (${completedCount}/${totalSongs})...`, percent);
                 return null;
             }
         };
