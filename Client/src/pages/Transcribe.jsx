@@ -87,8 +87,7 @@ const Transcribe = () => {
          // 2. Send Request
          const apiUrl = renderMode === 'local'
             ? 'http://localhost:8000/transcribe'
-            : 'https://helo-ayush-frebies-transcribe.hf.space/transcribe';
-
+            : `${import.meta.env.HUGGING_FACE_TRANSCRIBER}/transcribe`;
          const response = await fetch(apiUrl, {
             method: 'POST',
             body: formData,
@@ -281,7 +280,8 @@ const Transcribe = () => {
                            { value: 'base', label: `Whisper Base ${renderMode === 'local' ? '(Default)' : ''}` },
                            ...(renderMode === 'cloud' ? [
                               { value: 'small', label: 'Whisper Small' },
-                              { value: 'large', label: 'Whisper Large' }
+                              { value: 'large-v3', label: 'Whisper Large V3' },
+                              { value: 'large-v3-turbo', label: 'Whisper Turbo' }
                            ] : [])
                         ]}
                      />

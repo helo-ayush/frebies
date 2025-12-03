@@ -10,6 +10,7 @@ import asyncio
 from pathlib import Path
 import subprocess
 import gc
+import traceback
 
 app = FastAPI(title="Whisper Transcription API")
 
@@ -28,12 +29,14 @@ model_cache = {}
 def get_model(model_size: str = "base"):
     """Load and cache Whisper model"""
     if model_size not in model_cache:
+        print(f"Initializing model: {model_size}", flush=True)
         # Use CPU with int8 quantization for efficiency
         model_cache[model_size] = WhisperModel(
             model_size, 
             device="cpu", 
             compute_type="int8"
         )
+        print(f"Model {model_size} initialized.", flush=True)
     return model_cache[model_size]
 
 def format_timestamp(seconds: float) -> str:
@@ -157,6 +160,7 @@ def convert_audio_to_wav(input_path: str) -> str:
     """Convert audio to 16kHz mono WAV using FFmpeg for Whisper compatibility"""
     output_path = input_path + ".wav"
     try:
+        print(f"Converting {input_path} to WAV...", flush=True)
         # ffmpeg -i input -ar 16000 -ac 1 -c:a pcm_s16le output.wav
         subprocess.run([
             "ffmpeg", "-y",
@@ -166,9 +170,10 @@ def convert_audio_to_wav(input_path: str) -> str:
             "-c:a", "pcm_s16le",
             output_path
         ], check=True, stderr=subprocess.DEVNULL)
+        print(f"Conversion successful: {output_path}", flush=True)
         return output_path
     except subprocess.CalledProcessError as e:
-        print(f"FFmpeg conversion failed: {e}")
+        print(f"FFmpeg conversion failed: {e}", flush=True)
         return input_path  # Fallback to original if conversion fails
 
 async def transcribe_stream(
@@ -185,6 +190,7 @@ async def transcribe_stream(
     converted_file = None
     
     try:
+        print(f"Starting upload for file: {file.filename}", flush=True)
         # Send initial progress
         yield json.dumps({
             "type": "progress",
@@ -197,6 +203,7 @@ async def transcribe_stream(
         file_suffix = Path(file.filename).suffix if file.filename else ".tmp"
         with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as temp:
             temp_file = temp.name
+            print(f"Saving to temp file: {temp_file}", flush=True)
             # Read and write in chunks
             while True:
                 chunk = await file.read(50 * 1024 * 1024)  # 50MB chunks for faster upload
@@ -205,8 +212,10 @@ async def transcribe_stream(
                 temp.write(chunk)
                 # Check for disconnection during upload
                 if await request.is_disconnected():
-                    print("Client disconnected during upload")
+                    print("Client disconnected during upload", flush=True)
                     return
+        
+        print(f"File saved. Size: {os.path.getsize(temp_file)} bytes", flush=True)
         
         yield json.dumps({
             "type": "progress",
@@ -216,7 +225,9 @@ async def transcribe_stream(
         await asyncio.sleep(0.1)
         
         # Acquire lock to ensure exclusive access to CPU/RAM
+        print("Waiting for transcription lock...", flush=True)
         async with transcription_lock:
+            print("Lock acquired.", flush=True)
             yield json.dumps({
                 "type": "progress",
                 "progress": 0,
@@ -225,10 +236,12 @@ async def transcribe_stream(
             await asyncio.sleep(0.1)
             
             # Convert audio to standard format
+            print("Converting audio to WAV...", flush=True)
             converted_file = await asyncio.to_thread(convert_audio_to_wav, temp_file)
+            print(f"Conversion complete: {converted_file}", flush=True)
             
             if await request.is_disconnected():
-                print("Client disconnected during conversion")
+                print("Client disconnected during conversion", flush=True)
                 return
 
             yield json.dumps({
@@ -240,11 +253,13 @@ async def transcribe_stream(
             
             # Check disconnect before loading model
             if await request.is_disconnected():
-                print("Client disconnected before model load")
+                print("Client disconnected before model load", flush=True)
                 return
 
             # Load model
+            print(f"Loading model: {model_size}", flush=True)
             model = get_model(model_size)
+            print("Model loaded.", flush=True)
             
             yield json.dumps({
                 "type": "progress",
@@ -259,10 +274,13 @@ async def transcribe_stream(
                 "best_of": beam_size, # Usually best_of is similar to beam_size
                 "word_timestamps": True,
                 "vad_filter": False,  # Disabled VAD as it was filtering out valid speech
+                "condition_on_previous_text": False, # Prevent model from getting stuck in loops
             }
             
             if language != "auto":
                 transcribe_options["language"] = language
+            
+            print(f"Starting transcription with options: {transcribe_options}", flush=True)
             
             # Run transcription in a way that allows checking for cancellation
             # faster-whisper's transcribe returns a generator, so it doesn't block immediately
@@ -271,6 +289,8 @@ async def transcribe_stream(
                 **transcribe_options
             )
             
+            print(f"Transcription started. Detected language: {info.language}, Duration: {info.duration}", flush=True)
+            
             # Process segments as they are generated
             segments_list = []
             total_duration = info.duration
@@ -278,25 +298,30 @@ async def transcribe_stream(
             # Create an iterator from the generator
             segments_iter = iter(segments)
             
+            segment_count = 0
             while True:
                 # Check if client disconnected before waiting for next segment
                 if await request.is_disconnected():
-                    print("Client disconnected during transcription")
+                    print("Client disconnected during transcription", flush=True)
                     return
 
                 try:
                     # Run the blocking next() in a thread to prevent blocking the event loop
                     # Set a timeout (e.g., 300 seconds per segment) to detect stuck model
                     # Large model on CPU can be very slow, so we need a generous timeout
+                    print(f"Waiting for segment {segment_count + 1}...", flush=True)
                     segment = await asyncio.wait_for(
                         asyncio.to_thread(next, segments_iter, None),
                         timeout=300.0
                     )
                     
                     if segment is None:
+                        print("End of segments.", flush=True)
                         break  # End of transcription
                         
                     segments_list.append(segment)
+                    segment_count += 1
+                    print(f"Segment {segment_count} processed. End time: {segment.end}", flush=True)
                     
                     # Calculate progress based on time processed
                     if total_duration > 0:
@@ -315,16 +340,17 @@ async def transcribe_stream(
                     await asyncio.sleep(0.1)
                     
                 except asyncio.TimeoutError:
-                    print("Segment processing timed out (stuck), aborting to free resources")
+                    print("Segment processing timed out (stuck), aborting to free resources", flush=True)
                     yield json.dumps({
                         "type": "error",
                         "message": "Transcription stuck on a segment. Aborting to free resources."
                     }) + "\n"
                     break
                 except Exception as e:
-                    print(f"Error processing segment: {e}")
+                    print(f"Error processing segment: {e}", flush=True)
                     break
             
+            print("Formatting transcription...", flush=True)
             yield json.dumps({
                 "type": "progress",
                 "progress": 100,
@@ -339,6 +365,8 @@ async def transcribe_stream(
                 timestamps
             )
             
+            print("Transcription complete. Sending result.", flush=True)
+            
             # Send final result
             yield json.dumps({
                 "type": "result",
@@ -350,29 +378,32 @@ async def transcribe_stream(
             }) + "\n"
         
     except Exception as e:
-        print(f"Error during transcription: {e}")
+        print(f"Error during transcription: {e}", flush=True)
+        traceback.print_exc()
         yield json.dumps({
             "type": "error",
             "message": str(e)
         }) + "\n"
     
     finally:
+        print("Cleaning up resources...", flush=True)
         # Cleanup temporary file
         if temp_file and os.path.exists(temp_file):
             try:
                 os.unlink(temp_file)
             except Exception as e:
-                print(f"Error cleaning up temp file: {e}")
+                print(f"Error cleaning up temp file: {e}", flush=True)
         
         # Cleanup converted file
         if converted_file and os.path.exists(converted_file) and converted_file != temp_file:
             try:
                 os.unlink(converted_file)
             except Exception as e:
-                print(f"Error cleaning up converted file: {e}")
+                print(f"Error cleaning up converted file: {e}", flush=True)
         
         # Explicit garbage collection
         gc.collect()
+        print("Cleanup complete.", flush=True)
 
 @app.post("/transcribe")
 async def transcribe_audio(
@@ -403,7 +434,7 @@ async def root():
     return {
         "status": "running",
         "message": "Whisper Transcription API",
-        "available_models": ["base", "small", "large"]
+        "available_models": ["base", "small", "large-v3", "large-v3-turbo"]
     }
 
 if __name__ == "__main__":
