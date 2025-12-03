@@ -1,34 +1,34 @@
-# Use Python 3.9 slim image
-FROM python:3.9-slim
+FROM python:3.10-slim
 
-# Copy requirements first to leverage Docker cache
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies for audio processing and PyAV building
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    pkg-config \
+    build-essential \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
+    libavdevice-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Install Python dependencies
-# We install ffmpeg because Whisper needs it to process audio files
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy application code
+COPY app.py .
 
-# --- THE CRITICAL OPTIMIZATION ---
-# We create a specific cache directory and set permissions
-# Then we run a python script to DOWNLOAD the model during the build.
-# This ensures the 3GB model is saved inside the image, not downloaded at runtime.
-RUN mkdir -p /app/cache && chmod 777 /app/cache
-ENV XDG_CACHE_HOME=/app/cache
-
-RUN python3 -c "from faster_whisper import WhisperModel; WhisperModel('large-v3', device='cpu', compute_type='int8'); WhisperModel('base', device='cpu', compute_type='int8'); WhisperModel('small', device='cpu', compute_type='int8')"
-
-# Copy the rest of the application
-COPY . .
-
-# Create a non-root user (Security best practice & often required by HF)
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \
-	PATH=/home/user/.local/bin:$PATH
-
-# Expose port 7860 (Hugging Face default)
+# Expose Hugging Face Spaces default port
 EXPOSE 7860
 
-# Start the server
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+# Set environment variables for optimal CPU performance
+ENV OMP_NUM_THREADS=4
+ENV MKL_NUM_THREADS=4
+
+# Run the application
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860", "--timeout-keep-alive", "300"]

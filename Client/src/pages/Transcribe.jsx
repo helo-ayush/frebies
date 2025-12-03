@@ -1,65 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-   UploadCloud, FileAudio, Settings, Download,
-   Cpu, Languages, Play, Pause, Eraser, Wand2,
-   ChevronDown, ChevronUp, Type, AlignLeft, UserCheck,
-   Split, Save, FileText, FileCode, Film, Copy, Check,
-   Maximize2, MoreHorizontal, History
-} from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { UploadCloud, FileAudio, Settings, Wand2, FileText, Type, AlignLeft, Split, Download, Lock, Unlock, Trash2, Copy } from 'lucide-react';
 
-// --- CUSTOM DROPDOWN COMPONENT ---
-const CustomSelect = ({ label, value, options, onChange, disabled }) => {
-   const [isOpen, setIsOpen] = useState(false);
-   const dropdownRef = useRef(null);
-
-   useEffect(() => {
-      const handleClickOutside = (event) => {
-         if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-            setIsOpen(false);
-         }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-   }, []);
-
-   const selectedOption = options.find(opt => opt.value === value);
-
-   return (
-      <div className="space-y-2" ref={dropdownRef}>
-         <label className="text-xs font-bold text-slate-600">{label}</label>
-         <div className="relative">
-            <button
-               onClick={() => !disabled && setIsOpen(!isOpen)}
-               disabled={disabled}
-               className={`w-full flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer hover:bg-slate-100 hover:border-indigo-200 ${disabled ? 'opacity-60 cursor-not-allowed hover:bg-slate-50 hover:border-slate-200' : ''}`}
-            >
-               <span>{selectedOption?.label || value}</span>
-               {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-indigo-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
-            </button>
-
-            {isOpen && !disabled && (
-               <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                  <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
-                     {options.map((option) => (
-                        <button
-                           key={option.value}
-                           onClick={() => {
-                              onChange(option.value);
-                              setIsOpen(false);
-                           }}
-                           className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-between ${value === option.value ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
-                        >
-                           {option.label}
-                           {value === option.value && <Check className="w-3.5 h-3.5" />}
-                        </button>
-                     ))}
-                  </div>
-               </div>
-            )}
+// Custom Select Component
+const CustomSelect = ({ label, value, onChange, options, disabled }) => (
+   <div className="space-y-2">
+      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{label}</label>
+      <div className="relative">
+         <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+            className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl py-3 px-4 pr-8 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:border-indigo-200 cursor-pointer"
+         >
+            {options.map((opt) => (
+               <option key={opt.value} value={opt.value}>
+                  {opt.label}
+               </option>
+            ))}
+         </select>
+         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
          </div>
       </div>
-   );
-};
+   </div>
+);
 
 const Transcribe = () => {
    // --- STATE ---
@@ -67,15 +31,30 @@ const Transcribe = () => {
    const [hasResult, setHasResult] = useState(false);
    const [isPlaying, setIsPlaying] = useState(false);
    const [copied, setCopied] = useState(false);
+   const [file, setFile] = useState(null);
+   const [progress, setProgress] = useState(0);
+   const [transcription, setTranscription] = useState('');
+   const [isLocked, setIsLocked] = useState(true); // Default locked
 
    // Configuration
    const [selectedModel, setSelectedModel] = useState('base');
    const [selectedLanguage, setSelectedLanguage] = useState('auto');
    const [timestamps, setTimestamps] = useState(true);
-   const [diarization, setDiarization] = useState(false);
    const [wordsPerLine, setWordsPerLine] = useState(8);
-   const [maxChars, setMaxChars] = useState(42);
+   const [beamSize, setBeamSize] = useState(5);
    const [renderMode, setRenderMode] = useState('cloud'); // 'cloud' | 'local'
+   const fileInputRef = useRef(null);
+
+   const handleUploadClick = () => {
+      fileInputRef.current.click();
+   };
+
+   const handleFileChange = (event) => {
+      const selectedFile = event.target.files[0];
+      if (selectedFile) {
+         setFile(selectedFile);
+      }
+   };
 
    // Effect to handle model selection based on render mode
    useEffect(() => {
@@ -84,23 +63,128 @@ const Transcribe = () => {
       }
    }, [renderMode]);
 
-   // Mock Transcription Data
-   const [transcription, setTranscription] = useState(
-      `[00:00:00] Speaker A: Welcome to the future of audio processing. This interface is designed to be clean, efficient, and powerful.\n\n[00:00:08] Speaker B: Absolutely. The glassmorphism effects really add a layer of depth that feels modern and professional.\n\n[00:00:15] Speaker A: We've removed all the green accents and replaced them with a neutral slate and subtle indigo palette. It's much easier on the eyes for long editing sessions.`
-   );
+   const [statusMessage, setStatusMessage] = useState('Initializing...');
 
-   const handleTranscribe = () => {
+   const handleTranscribe = async () => {
+      if (!file) {
+         alert("Please select a file first!");
+         return;
+      }
       setIsProcessing(true);
-      setTimeout(() => {
+      setProgress(0);
+      setStatusMessage('Initializing...');
+
+      try {
+         // 1. Create FormData
+         const formData = new FormData();
+         formData.append('file', file);
+         formData.append('model_size', selectedModel);
+         formData.append('language', selectedLanguage);
+         formData.append('timestamps', timestamps);
+         formData.append('words_per_line', wordsPerLine);
+         formData.append('beam_size', beamSize);
+
+         // 2. Send Request
+         const apiUrl = renderMode === 'local'
+            ? 'http://localhost:8000/transcribe'
+            : 'https://helo-ayush-frebies-transcribe.hf.space/transcribe';
+
+         const response = await fetch(apiUrl, {
+            method: 'POST',
+            body: formData,
+         });
+
+         if (!response.ok) {
+            throw new Error(`Error: ${response.statusText}`);
+         }
+
+         // 3. Handle Streaming Response
+         const reader = response.body.getReader();
+         const decoder = new TextDecoder();
+         let buffer = '';
+
+         while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+
+            // Process all complete lines
+            buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
+
+            for (const line of lines) {
+               if (!line.trim()) continue;
+               try {
+                  const event = JSON.parse(line);
+
+                  if (event.type === 'progress') {
+                     setProgress(event.progress);
+                     setStatusMessage(event.message || 'Processing...');
+                  } else if (event.type === 'result') {
+                     const data = event.data;
+                     setTranscription(data.formatted_text || data.text);
+                     setHasResult(true);
+                     setStatusMessage('Complete!');
+                  } else if (event.type === 'error') {
+                     throw new Error(event.message);
+                  }
+               } catch (e) {
+                  console.warn("Error parsing stream chunk:", e);
+               }
+            }
+         }
+      } catch (error) {
+         console.error("Transcription failed:", error);
+         alert("Transcription failed. Please try again.");
+      } finally {
          setIsProcessing(false);
-         setHasResult(true);
-      }, 2000);
+         setProgress(0);
+      }
    };
 
    const handleCopy = () => {
       navigator.clipboard.writeText(transcription);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+   };
+
+   const handleExportSRT = () => {
+      if (!transcription) return;
+      const blob = new Blob([transcription], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'transcription.srt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+   };
+
+   const handleExportTXT = () => {
+      if (!transcription) return;
+      // Simple strip of timestamps for TXT export if needed, or just dump raw
+      // For now, let's dump raw as requested, or maybe a simple cleanup?
+      // Let's just dump the current view.
+      const blob = new Blob([transcription], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'transcription.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+   };
+
+   const handleClear = () => {
+      if (window.confirm("Are you sure you want to clear the transcription?")) {
+         setTranscription('');
+         setHasResult(false);
+         setProgress(0);
+         setStatusMessage('Initializing...');
+      }
    };
 
    return (
@@ -116,21 +200,46 @@ const Transcribe = () => {
          <div className="relative z-10 flex flex-col md:flex-row h-auto md:h-full min-h-screen md:min-h-0">
 
             {/* ==========================================
-            LEFT SIDEBAR (Fixed Width)
-            Fits beneath the navbar (approx 80px top padding)
-           ========================================== */}
+               LEFT SIDEBAR (Fixed Width)
+               Fits beneath the navbar (approx 80px top padding)
+              ========================================== */}
             <div className="w-full md:w-[400px] h-auto md:h-full flex flex-col pt-24 md:pt-28 pb-6 px-6 gap-6 shrink-0 border-r-0 md:border-r border-b md:border-b-0 border-slate-200/50 bg-white/30 md:rounded-r-[2rem] backdrop-blur-sm overflow-y-visible md:overflow-y-auto custom-scrollbar">
 
                {/* Upload Card */}
                <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-1 shadow-sm border border-white/60 shrink-0 transition-transform hover:scale-[1.02] duration-300">
-                  <div className="border-2 border-dashed border-slate-200 rounded-[1.8rem] p-6 text-center hover:bg-slate-50 hover:border-indigo-300 transition-all cursor-pointer group flex flex-col items-center gap-3">
-                     <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 group-hover:bg-indigo-50 group-hover:shadow-md">
-                        <UploadCloud className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
-                     </div>
-                     <div>
-                        <p className="text-sm font-bold text-slate-700 group-hover:text-indigo-700 transition-colors">Upload Audio</p>
-                        <p className="text-[10px] text-slate-400 font-medium">MP3, WAV (Max 500MB)</p>
-                     </div>
+                  <div
+                     onClick={handleUploadClick}
+                     className={`border-2 border-dashed rounded-[1.8rem] p-6 text-center transition-all cursor-pointer group flex flex-col items-center gap-3 ${file ? 'border-indigo-300 bg-indigo-50/30' : 'border-slate-200 hover:bg-slate-50 hover:border-indigo-300'}`}
+                  >
+                     <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        className="hidden"
+                        accept="audio/*"
+                     />
+
+                     {file ? (
+                        <>
+                           <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                              <FileAudio className="w-6 h-6 text-indigo-600" />
+                           </div>
+                           <div className="w-full overflow-hidden">
+                              <p className="text-sm font-bold text-indigo-700 truncate px-2">{file.name}</p>
+                              <p className="text-[10px] text-indigo-400 font-medium">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                           </div>
+                        </>
+                     ) : (
+                        <>
+                           <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 group-hover:bg-indigo-50 group-hover:shadow-md">
+                              <UploadCloud className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                           </div>
+                           <div>
+                              <p className="text-sm font-bold text-slate-700 group-hover:text-indigo-700 transition-colors">Upload Audio</p>
+                              <p className="text-[10px] text-slate-400 font-medium">MP3, WAV, AAC...</p>
+                           </div>
+                        </>
+                     )}
                   </div>
                </div>
 
@@ -185,11 +294,39 @@ const Transcribe = () => {
                         options={[
                            { value: 'auto', label: 'Auto Detect' },
                            { value: 'en', label: 'English' },
+                           { value: 'hi', label: 'Hindi' },
                            { value: 'es', label: 'Spanish' },
                            { value: 'fr', label: 'French' },
                            { value: 'de', label: 'German' }
                         ]}
                      />
+
+                     {/* Words Per Line */}
+                     <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                           <label className="text-xs font-bold text-slate-600">Words per Line</label>
+                           <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600">{wordsPerLine}</span>
+                        </div>
+                        <input
+                           type="range" min="1" max="20"
+                           value={wordsPerLine} onChange={(e) => setWordsPerLine(Number(e.target.value))}
+                           className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        />
+                     </div>
+
+                     {/* Beam Size */}
+                     <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                           <label className="text-xs font-bold text-slate-600">Beam Size</label>
+                           <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600">{beamSize}</span>
+                        </div>
+                        <input
+                           type="range" min="1" max="10"
+                           value={beamSize} onChange={(e) => setBeamSize(Number(e.target.value))}
+                           className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        />
+                        <p className="text-[10px] text-slate-400">Lower = Faster, Higher = More Accurate</p>
+                     </div>
 
                      {/* Toggles */}
                      <div className="space-y-3 pt-2">
@@ -201,42 +338,6 @@ const Transcribe = () => {
                            >
                               <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform duration-300 shadow-sm ${timestamps ? 'translate-x-5' : ''}`} />
                            </button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                           <span className="text-xs font-bold text-slate-600">Speaker ID</span>
-                           <button
-                              onClick={() => setDiarization(!diarization)}
-                              className={`w-10 h-5 rounded-full transition-all duration-300 relative cursor-pointer hover:shadow-md ${diarization ? 'bg-indigo-500 ring-2 ring-indigo-200' : 'bg-slate-300 hover:bg-slate-400'}`}
-                           >
-                              <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform duration-300 shadow-sm ${diarization ? 'translate-x-5' : ''}`} />
-                           </button>
-                        </div>
-                     </div>
-
-                     {/* Formatting Sliders */}
-                     <div className="space-y-4 pt-4 border-t border-slate-100">
-                        <div className="space-y-2">
-                           <div className="flex justify-between items-center">
-                              <label className="text-xs font-bold text-slate-600">Words per Line</label>
-                              <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600">{wordsPerLine}</span>
-                           </div>
-                           <input
-                              type="range" min="1" max="20"
-                              value={wordsPerLine} onChange={(e) => setWordsPerLine(Number(e.target.value))}
-                              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                           />
-                        </div>
-
-                        <div className="space-y-2">
-                           <div className="flex justify-between items-center">
-                              <label className="text-xs font-bold text-slate-600">Max Characters</label>
-                              <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600">{maxChars}</span>
-                           </div>
-                           <input
-                              type="range" min="10" max="100" step="2"
-                              value={maxChars} onChange={(e) => setMaxChars(Number(e.target.value))}
-                              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                           />
                         </div>
                      </div>
                   </div>
@@ -255,27 +356,56 @@ const Transcribe = () => {
             </div>
 
             {/* ==========================================
-            RIGHT MAIN AREA (Editor)
-            No top padding, fills the rest
-           ========================================== */}
+               RIGHT MAIN AREA (Editor)
+               No top padding, fills the rest
+              ========================================== */}
             <div className="flex-1 min-h-[600px] md:min-h-0 md:h-full p-4 md:p-6 flex flex-col gap-4 min-w-0">
 
                {/* Editor Card */}
                <div className="flex-1 bg-white/70 backdrop-blur-xl rounded-[2.5rem] border border-white/60 shadow-sm flex flex-col overflow-hidden relative">
 
                   {/* Toolbar */}
-                  <div className="px-6 py-3 border-b border-slate-100 flex items-center justify-between bg-white/30">
+                  <div className="px-6 py-3 border-b border-slate-100 flex items-center justify-between bg-white/30 relative z-50 pointer-events-auto">
                      <div className="flex items-center gap-1">
-                        <button className="p-2 rounded-lg hover:bg-white/80 text-slate-500 hover:text-slate-800 transition-all cursor-pointer hover:shadow-sm"><Type className="w-4 h-4" /></button>
-                        <button className="p-2 rounded-lg hover:bg-white/80 text-slate-500 hover:text-slate-800 transition-all cursor-pointer hover:shadow-sm"><AlignLeft className="w-4 h-4" /></button>
+                        {/* Lock / Unlock */}
+                        <button
+                           onClick={() => setIsLocked(!isLocked)}
+                           className={`p-2 rounded-lg transition-all cursor-pointer hover:shadow-sm ${isLocked ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 hover:bg-white/80 hover:text-slate-800'}`}
+                           title={isLocked ? "Unlock Editing" : "Lock Editing"}
+                        >
+                           {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                        </button>
+
+                        {/* Download TXT */}
+                        <button
+                           onClick={handleExportTXT}
+                           className="p-2 rounded-lg hover:bg-white/80 text-slate-500 hover:text-slate-800 transition-all cursor-pointer hover:shadow-sm"
+                           title="Download as .txt"
+                        >
+                           <FileText className="w-4 h-4" />
+                        </button>
+
                         <div className="w-px h-4 bg-slate-300 mx-2" />
-                        <button className="p-2 rounded-lg hover:bg-white/80 text-slate-500 hover:text-slate-800 transition-all cursor-pointer hover:shadow-sm"><Split className="w-4 h-4" /></button>
+
+                        {/* Clear */}
+                        <button
+                           onClick={handleClear}
+                           className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-all cursor-pointer hover:shadow-sm"
+                           title="Clear Transcription"
+                        >
+                           <Trash2 className="w-4 h-4" />
+                        </button>
                      </div>
                      <div className="flex items-center gap-2">
-                        <button onClick={handleCopy} className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-all px-3 py-1.5 rounded-lg hover:bg-indigo-50 cursor-pointer active:scale-95">
-                           {copied ? 'Copied!' : 'Copy Text'}
+                        <button onClick={handleCopy} className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-all px-3 py-1.5 rounded-lg hover:bg-indigo-50 cursor-pointer active:scale-95 flex items-center gap-2">
+                           {copied ? 'Copied!' : <><Copy className="w-3.5 h-3.5" /> Copy Text</>}
                         </button>
-                        <button className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all cursor-pointer hover:shadow-sm"><Eraser className="w-4 h-4" /></button>
+                        <button
+                           onClick={handleExportSRT}
+                           className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-bold shadow-sm hover:border-indigo-200 hover:text-indigo-600 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                           <Download className="w-3.5 h-3.5" /> Export SRT
+                        </button>
                      </div>
                   </div>
 
@@ -290,37 +420,44 @@ const Transcribe = () => {
                         </div>
                      )}
                      <textarea
-                        className="w-full h-full resize-none bg-transparent p-8 outline-none text-lg leading-loose text-slate-700 font-medium custom-scrollbar"
+                        className={`w-full h-full resize-none bg-transparent p-8 outline-none text-lg leading-loose text-slate-700 font-medium custom-scrollbar ${isLocked ? 'cursor-default' : ''}`}
                         value={hasResult ? transcription : ''}
-                        onChange={(e) => setTranscription(e.target.value)}
+                        onChange={(e) => !isLocked && setTranscription(e.target.value)}
+                        readOnly={isLocked}
                         spellCheck={false}
                      />
                   </div>
 
-                  {/* Footer / Player */}
-                  <div className="p-4 bg-white/40 border-t border-slate-100 flex items-center gap-4">
-                     <button
-                        onClick={() => setIsPlaying(!isPlaying)}
-                        className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center hover:scale-110 hover:shadow-lg active:scale-95 transition-all duration-300 shadow-md shrink-0 cursor-pointer group"
-                     >
-                        {isPlaying ? <Pause className="w-4 h-4 fill-current group-hover:scale-90 transition-transform" /> : <Play className="w-4 h-4 fill-current ml-0.5 group-hover:scale-110 transition-transform" />}
-                     </button>
-
-                     <div className="flex-1 flex flex-col justify-center gap-1 cursor-pointer group">
-                        <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden w-full group-hover:h-2 transition-all">
-                           <div className="h-full bg-indigo-500 w-[30%] rounded-full group-hover:bg-indigo-600 transition-colors" />
+                  {/* Footer / Progress Area */}
+                  <div className="p-4 bg-white/40 border-t border-slate-100">
+                     {isProcessing ? (
+                        <div className="flex flex-col gap-2 animate-in fade-in duration-300">
+                           <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                              <span className="flex items-center gap-2">
+                                 <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+                                 {statusMessage}
+                              </span>
+                              <span>{Math.round(progress)}%</span>
+                           </div>
+                           <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                              <div
+                                 className="h-full bg-indigo-500 rounded-full transition-all duration-300 ease-out relative overflow-hidden"
+                                 style={{ width: `${Math.max(2, progress)}%` }}
+                              >
+                                 <div className="absolute inset-0 bg-white/20 animate-[shimmer_1s_infinite] skew-x-12" />
+                              </div>
+                           </div>
                         </div>
-                        <div className="flex justify-between text-[10px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">
-                           <span>00:12</span>
-                           <span>03:45</span>
+                     ) : (
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-400">
+                           <span className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${hasResult ? 'bg-green-500' : 'bg-slate-300'}`} />
+                              {hasResult ? 'Transcription Complete' : 'Ready to Start'}
+                              {isLocked && hasResult && <Lock className="w-3 h-3 ml-1 opacity-50" />}
+                           </span>
+                           {hasResult && <span>{transcription.length} chars</span>}
                         </div>
-                     </div>
-
-                     <div className="flex items-center gap-2 pl-4 border-l border-slate-200">
-                        <button className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold shadow-sm hover:border-indigo-200 hover:text-indigo-600 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm transition-all flex items-center gap-2 cursor-pointer">
-                           <Download className="w-3.5 h-3.5" /> Export
-                        </button>
-                     </div>
+                     )}
                   </div>
                </div>
 
@@ -329,20 +466,24 @@ const Transcribe = () => {
          </div>
 
          <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.2); border-radius: 20px; }
-        .custom-scrollbar:hover::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.4); }
-        
-        @keyframes blob {
-          0% { transform: translate(0px, 0px) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-          100% { transform: translate(0px, 0px) scale(1); }
-        }
-        .animate-blob { animation: blob 10s infinite; }
-        .animation-delay-2000 { animation-delay: 2s; }
-      `}</style>
+           .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+           .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+           .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.2); border-radius: 20px; }
+           .custom-scrollbar:hover::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.4); }
+           
+           @keyframes blob {
+             0% { transform: translate(0px, 0px) scale(1); }
+             33% { transform: translate(30px, -50px) scale(1.1); }
+             66% { transform: translate(-20px, 20px) scale(0.9); }
+             100% { transform: translate(0px, 0px) scale(1); }
+           }
+           @keyframes shimmer {
+             0% { transform: translateX(-100%) skewX(-12deg); }
+             100% { transform: translateX(200%) skewX(-12deg); }
+           }
+           .animate-blob { animation: blob 10s infinite; }
+           .animation-delay-2000 { animation-delay: 2s; }
+         `}</style>
       </div>
    );
 };

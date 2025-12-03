@@ -18,7 +18,7 @@ const Layout = () => {
   return (
     <div className="min-h-screen bg-[#F5F6F9]">
       {/* Navigation bar - minimal pill on left side */}
-      <nav className="fixed top-6 flex w-screen justify-center md:justify-start z-50">
+      <nav className="fixed top-6 flex w-auto justify-center md:justify-start z-50">
         <div className="bg-white/80 backdrop-blur-md rounded-4xl md:rounded-r-full border border-gray-200/50 shadow-lg px-4 py-3 flex items-center gap-2">
           {/* Logo */}
           <NavLink
