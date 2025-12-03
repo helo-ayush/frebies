@@ -87,7 +87,7 @@ const Transcribe = () => {
          // 2. Send Request
          const apiUrl = renderMode === 'local'
             ? 'http://localhost:8000/transcribe'
-            : `${import.meta.env.HUGGING_FACE_TRANSCRIBER}/transcribe`;
+            : `${import.meta.env.VITE_HUGGING_FACE_TRANSCRIBER}/transcribe`;
          const response = await fetch(apiUrl, {
             method: 'POST',
             body: formData,
