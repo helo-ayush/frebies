@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, FileAudio, Settings, Wand2, FileText, Type, AlignLeft, Split, Download, Lock, Unlock, Trash2, Copy } from 'lucide-react';
+import { UploadCloud, FileAudio, Settings, Wand2, FileText, Type, AlignLeft, Split, Download, Lock, Unlock, Trash2, Copy, Clock, CheckCircle2, History, Loader2, AlertCircle, Save, X } from 'lucide-react';
+import { useUser } from '@clerk/clerk-react';
 
 // Custom Select Component
 const CustomSelect = ({ label, value, onChange, options, disabled }) => (
@@ -26,15 +27,29 @@ const CustomSelect = ({ label, value, onChange, options, disabled }) => (
 );
 
 const Transcribe = () => {
+   const { user } = useUser();
+
    // --- STATE ---
    const [isProcessing, setIsProcessing] = useState(false);
-   const [hasResult, setHasResult] = useState(false);
-   const [isPlaying, setIsPlaying] = useState(false);
-   const [copied, setCopied] = useState(false);
    const [file, setFile] = useState(null);
+
+   // Active Job State (Preview Area)
+   const [activeJobId, setActiveJobId] = useState(null);
    const [progress, setProgress] = useState(0);
-   const [transcription, setTranscription] = useState('');
-   const [isLocked, setIsLocked] = useState(true); // Default locked
+   const [statusMessage, setStatusMessage] = useState('Idle');
+   const [transcriptionResult, setTranscriptionResult] = useState(null);
+   const [previewStatus, setPreviewStatus] = useState('idle'); // idle, loading, streaming, completed, error
+   const [activeJobError, setActiveJobError] = useState(null);
+
+   // History State
+   const [history, setHistory] = useState([]);
+   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+   // Editor State
+   const [isLocked, setIsLocked] = useState(true);
+   const [copied, setCopied] = useState(false);
+   const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, jobId: null });
+   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 
    // Configuration
    const [selectedModel, setSelectedModel] = useState('base');
@@ -42,8 +57,126 @@ const Transcribe = () => {
    const [timestamps, setTimestamps] = useState(true);
    const [wordsPerLine, setWordsPerLine] = useState(8);
    const [beamSize, setBeamSize] = useState(5);
-   const [renderMode, setRenderMode] = useState('cloud'); // 'cloud' | 'local'
+
    const fileInputRef = useRef(null);
+   const streamControllerRef = useRef(null);
+
+   // --- INITIAL FETCH ---
+   useEffect(() => {
+      if (user) {
+         fetchHistory();
+         const interval = setInterval(fetchHistory, 3000); // Poll for updates every 3s
+         return () => clearInterval(interval);
+      }
+   }, [user]);
+
+   const fetchHistory = async () => {
+      if (!user) return;
+      try {
+         const res = await fetch(`${import.meta.env.VITE_HUGGING_FACE_TRANSCRIBER}/transcriptions/${user.id}`);
+         if (res.ok) {
+            const data = await res.json();
+            setHistory(data);
+         }
+      } catch (err) {
+         console.error("Failed to fetch history", err);
+      }
+   };
+
+   // --- STREAMING LOGIC ---
+   useEffect(() => {
+      if (!activeJobId) {
+         setTranscriptionResult(null);
+         setProgress(0);
+         setStatusMessage('Idle');
+         setPreviewStatus('idle');
+         return;
+      }
+
+      const job = history.find(j => j._id === activeJobId);
+
+      if (job) {
+         if (job.status === 'completed' && job.result) {
+            setTranscriptionResult(job.result);
+            setPreviewStatus('completed');
+            setProgress(100);
+            setStatusMessage('Completed');
+            return;
+         }
+         if (job.status === 'failed') {
+            setPreviewStatus('error');
+            setActiveJobError(job.message || job.error);
+            return;
+         }
+      }
+
+      setPreviewStatus('streaming');
+      startStreaming(activeJobId);
+
+      return () => {
+         if (streamControllerRef.current) {
+            streamControllerRef.current.abort();
+         }
+      };
+   }, [activeJobId, history.length]);
+
+   const startStreaming = async (jobId) => {
+      if (streamControllerRef.current) {
+         streamControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      streamControllerRef.current = controller;
+
+      try {
+         const response = await fetch(`${import.meta.env.VITE_HUGGING_FACE_TRANSCRIBER}/stream/${jobId}`, {
+            signal: controller.signal
+         });
+
+         if (!response.ok) throw new Error("Stream connection failed");
+
+         const reader = response.body.getReader();
+         const decoder = new TextDecoder();
+         let buffer = '';
+
+         while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+               if (!line.trim()) continue;
+               try {
+                  const event = JSON.parse(line);
+                  if (event.type === 'progress') {
+                     setProgress(event.progress);
+                     setStatusMessage(event.message);
+                  } else if (event.type === 'result') {
+                     setTranscriptionResult(event.data);
+                     setPreviewStatus('completed');
+                     setProgress(100);
+                     setStatusMessage('Complete!');
+                     fetchHistory();
+                  } else if (event.type === 'error') {
+                     setPreviewStatus('error');
+                     setActiveJobError(event.message);
+                     fetchHistory();
+                  }
+               } catch (e) {
+                  // ignore
+               }
+            }
+         }
+      } catch (error) {
+         if (error.name !== 'AbortError') {
+            console.warn("Stream disconnected:", error.message);
+         }
+      }
+   };
+
+   // --- ACTIONS ---
 
    const handleUploadClick = () => {
       fileInputRef.current.click();
@@ -56,38 +189,26 @@ const Transcribe = () => {
       }
    };
 
-   // Effect to handle model selection based on render mode
-   useEffect(() => {
-      if (renderMode === 'local') {
-         setSelectedModel('base');
-      }
-   }, [renderMode]);
-
-   const [statusMessage, setStatusMessage] = useState('Initializing...');
-
    const handleTranscribe = async () => {
-      if (!file) {
-         alert("Please select a file first!");
+      if (!file || !user) {
+         alert("Please select a file and ensure you are logged in!");
          return;
       }
       setIsProcessing(true);
-      setProgress(0);
-      setStatusMessage('Initializing...');
 
       try {
-         // 1. Create FormData
+         const activeUserId = user.id;
+         const apiUrl = `${import.meta.env.VITE_HUGGING_FACE_TRANSCRIBER}/transcribe`;
+
          const formData = new FormData();
          formData.append('file', file);
+         formData.append('user_id', activeUserId);
          formData.append('model_size', selectedModel);
          formData.append('language', selectedLanguage);
          formData.append('timestamps', timestamps);
          formData.append('words_per_line', wordsPerLine);
          formData.append('beam_size', beamSize);
 
-         // 2. Send Request
-         const apiUrl = renderMode === 'local'
-            ? 'http://localhost:8000/transcribe'
-            : `${import.meta.env.VITE_HUGGING_FACE_TRANSCRIBER}/transcribe`;
          const response = await fetch(apiUrl, {
             method: 'POST',
             body: formData,
@@ -97,393 +218,507 @@ const Transcribe = () => {
             throw new Error(`Error: ${response.statusText}`);
          }
 
-         // 3. Handle Streaming Response
-         const reader = response.body.getReader();
-         const decoder = new TextDecoder();
-         let buffer = '';
+         const data = await response.json();
+         await fetchHistory();
+         setActiveJobId(data.jobId);
 
-         while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-
-            // Process all complete lines
-            buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
-
-            for (const line of lines) {
-               if (!line.trim()) continue;
-               try {
-                  const event = JSON.parse(line);
-
-                  if (event.type === 'progress') {
-                     setProgress(event.progress);
-                     setStatusMessage(event.message || 'Processing...');
-                  } else if (event.type === 'result') {
-                     const data = event.data;
-                     setTranscription(data.formatted_text || data.text);
-                     setHasResult(true);
-                     setStatusMessage('Complete!');
-                  } else if (event.type === 'error') {
-                     throw new Error(event.message);
-                  }
-               } catch (e) {
-                  console.warn("Error parsing stream chunk:", e);
-               }
-            }
-         }
       } catch (error) {
-         console.error("Transcription failed:", error);
-         alert("Transcription failed. Please try again.");
+         console.error("Submission failed:", error);
+         alert("Failed to submit job. Please try again.");
       } finally {
          setIsProcessing(false);
-         setProgress(0);
       }
    };
 
-   const handleCopy = () => {
-      navigator.clipboard.writeText(transcription);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+   // --- NEW ACTIONS ---
+   const showNotification = (message, type = 'success') => {
+      setNotification({ show: true, message, type });
+      setTimeout(() => setNotification(prev => ({ ...prev, show: false })), 3000);
    };
 
-   const handleExportSRT = () => {
-      if (!transcription) return;
-      const blob = new Blob([transcription], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'transcription.srt';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-   };
+   const handleSave = async () => {
+      if (!activeJobId || !transcriptionResult?.formatted_text) return;
+      try {
+         const response = await fetch(`${import.meta.env.VITE_HUGGING_FACE_TRANSCRIBER}/transcription/${activeJobId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: transcriptionResult.formatted_text })
+         });
 
-   const handleExportTXT = () => {
-      if (!transcription) return;
-      // Simple strip of timestamps for TXT export if needed, or just dump raw
-      // For now, let's dump raw as requested, or maybe a simple cleanup?
-      // Let's just dump the current view.
-      const blob = new Blob([transcription], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'transcription.txt';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-   };
-
-   const handleClear = () => {
-      if (window.confirm("Are you sure you want to clear the transcription?")) {
-         setTranscription('');
-         setHasResult(false);
-         setProgress(0);
-         setStatusMessage('Initializing...');
+         if (response.ok) {
+            showNotification("Transcription saved successfully!", "success");
+            fetchHistory();
+         } else {
+            showNotification("Failed to save transcription.", "error");
+         }
+      } catch (error) {
+         console.error("Save failed:", error);
+         showNotification("Error saving transcription.", "error");
       }
+   };
+
+   const handleDelete = (jobId, e) => {
+      e.stopPropagation();
+      setDeleteConfirmation({ isOpen: true, jobId });
+   };
+
+   const confirmDelete = async () => {
+      const jobId = deleteConfirmation.jobId;
+      if (!jobId) return;
+
+      try {
+         const response = await fetch(`${import.meta.env.VITE_HUGGING_FACE_TRANSCRIBER}/transcription/${jobId}`, {
+            method: 'DELETE'
+         });
+
+         if (response.ok) {
+            if (activeJobId === jobId) {
+               setActiveJobId(null);
+               setTranscriptionResult(null);
+            }
+            fetchHistory();
+         } else {
+            alert("Failed to delete transcription.");
+         }
+      } catch (error) {
+         console.error("Delete failed:", error);
+         alert("Error deleting transcription.");
+      } finally {
+         setDeleteConfirmation({ isOpen: false, jobId: null });
+      }
+   };
+
+   const handleDownloadSRT = () => {
+      if (!transcriptionResult?.formatted_text) return;
+
+      const element = document.createElement("a");
+      const file = new Blob([transcriptionResult.formatted_text], { type: 'text/plain' });
+      element.href = URL.createObjectURL(file);
+      element.download = `transcription-${activeJobId}.srt`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
    };
 
    return (
-      <div className="relative h-screen w-full bg-[#F0F4F8] text-slate-800 font-sans overflow-y-auto md:overflow-hidden selection:bg-indigo-200 selection:text-indigo-900">
+      <div className="h-[calc(100vh-2rem)] pt-24 md:pt-4 px-4 lg:px-6 max-w-[1920px] mx-auto overflow-x-hidden">
+         <div className="h-full flex flex-col lg:flex-row gap-6">
 
-         {/* --- BACKGROUND ACCENTS --- */}
-         <div className="fixed inset-0 pointer-events-none z-0">
-            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-200/40 rounded-full blur-[120px] mix-blend-multiply animate-blob" />
-            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-200/40 rounded-full blur-[120px] mix-blend-multiply animate-blob animation-delay-2000" />
-         </div>
+            {/* --- LEFT COLUMN: CONFIGURATION --- */}
+            <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-4 lg:mt-24 h-[calc(100%-6rem)]">
+               <div className="bg-white rounded-3xl p-6 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col gap-6 overflow-y-auto custom-scrollbar h-full">
 
-         {/* --- MAIN LAYOUT (Sidebar + Content) --- */}
-         <div className="relative z-10 flex flex-col md:flex-row h-auto md:h-full min-h-screen md:min-h-0">
+                  {/* Header */}
+                  <div className="flex items-center gap-3 shrink-0">
+                     <h2 className="text-2xl font-black text-slate-800 tracking-tight">Configuration</h2>
+                  </div>
 
-            {/* ==========================================
-               LEFT SIDEBAR (Fixed Width)
-               Fits beneath the navbar (approx 80px top padding)
-              ========================================== */}
-            <div className="w-full md:w-[400px] h-auto md:h-full flex flex-col pt-24 md:pt-28 pb-6 px-6 gap-6 shrink-0 border-r-0 md:border-r border-b md:border-b-0 border-slate-200/50 bg-white/30 md:rounded-r-[2rem] backdrop-blur-sm overflow-y-visible md:overflow-y-auto custom-scrollbar">
+                  {/* File Upload */}
+                  <div className="space-y-4 shrink-0">
+                     <div
+                        onClick={handleUploadClick}
+                        className={`
+                           relative group cursor-pointer overflow-hidden
+                           rounded-2xl border-2 border-dashed transition-all duration-300
+                           ${file ? 'border-indigo-400 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-400 hover:bg-slate-50'}
+                        `}
+                     >
+                        <input
+                           type="file"
+                           ref={fileInputRef}
+                           onChange={handleFileChange}
+                           accept="audio/*,video/*"
+                           className="hidden"
+                        />
+                        <div className="p-8 flex flex-col items-center justify-center text-center gap-3">
+                           <div className={`
+                              w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300
+                              ${file ? 'bg-indigo-100 text-indigo-600 shadow-indigo-200' : 'bg-slate-100 text-slate-400 group-hover:scale-110 group-hover:bg-indigo-50 group-hover:text-indigo-500'}
+                              shadow-lg
+                           `}>
+                              {file ? <FileAudio className="w-6 h-6" /> : <UploadCloud className="w-6 h-6" />}
+                           </div>
+                           <div className="space-y-1">
+                              <p className={`font-bold transition-colors ${file ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                 {file ? file.name : "Click to upload"}
+                              </p>
+                              {!file && <p className="text-xs text-slate-400 font-medium">MP3, WAV, M4A, MP4</p>}
+                           </div>
+                        </div>
+                     </div>
+                  </div>
 
-               {/* Upload Card */}
-               <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-1 shadow-sm border border-white/60 shrink-0 transition-transform hover:scale-[1.02] duration-300">
-                  <div
-                     onClick={handleUploadClick}
-                     className={`border-2 border-dashed rounded-[1.8rem] p-6 text-center transition-all cursor-pointer group flex flex-col items-center gap-3 ${file ? 'border-indigo-300 bg-indigo-50/30' : 'border-slate-200 hover:bg-slate-50 hover:border-indigo-300'}`}
+                  {/* Settings */}
+                  <div className="space-y-5 flex-1">
+                     <div className="space-y-4">
+                        <CustomSelect
+                           label="Model Size"
+                           options={[
+                              { value: 'tiny', label: 'Tiny (Fastest)' },
+                              { value: 'base', label: 'Base (Balanced)' },
+                              { value: 'small', label: 'Small (Better)' },
+                              { value: 'medium', label: 'Medium (Accurate)' },
+                              { value: 'large-v2', label: 'Large V2 (Best)' },
+                              { value: 'large-v3', label: 'Large V3 (SOTA)' },
+                           ]}
+                           value={selectedModel}
+                           onChange={setSelectedModel}
+                        />
+
+                        <CustomSelect
+                           label="Language"
+                           options={[
+                              { value: 'auto', label: 'Auto Detect' },
+                              { value: 'en', label: 'English' },
+                              { value: 'es', label: 'Spanish' },
+                              { value: 'fr', label: 'French' },
+                              { value: 'de', label: 'German' },
+                              { value: 'it', label: 'Italian' },
+                              { value: 'pt', label: 'Portuguese' },
+                              { value: 'nl', label: 'Dutch' },
+                              { value: 'ja', label: 'Japanese' },
+                              { value: 'zh', label: 'Chinese' },
+                              { value: 'hi', label: 'Hindi' },
+                           ]}
+                           value={selectedLanguage}
+                           onChange={setSelectedLanguage}
+                        />
+
+                        <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Words / Line</label>
+                              <input
+                                 type="number"
+                                 min="1"
+                                 max="50"
+                                 value={wordsPerLine}
+                                 onChange={(e) => setWordsPerLine(parseInt(e.target.value))}
+                                 className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                              />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Beam Size</label>
+                              <input
+                                 type="number"
+                                 min="1"
+                                 max="10"
+                                 value={beamSize}
+                                 onChange={(e) => setBeamSize(parseInt(e.target.value))}
+                                 className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                              />
+                           </div>
+                        </div>
+
+                        <div className="pt-2">
+                           <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:border-indigo-200 transition-all">
+                              <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${timestamps ? 'bg-indigo-500 border-indigo-500' : 'bg-white border-slate-300'}`}>
+                                 {timestamps && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                              </div>
+                              <input
+                                 type="checkbox"
+                                 checked={timestamps}
+                                 onChange={(e) => setTimestamps(e.target.checked)}
+                                 className="hidden"
+                              />
+                              <span className="text-sm font-bold text-slate-600">Include Timestamps</span>
+                           </label>
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* Transcribe Button */}
+                  <button
+                     onClick={handleTranscribe}
+                     disabled={isProcessing || !file}
+                     className={`
+                        w-full py-4 rounded-xl font-bold text-white shadow-lg shadow-indigo-200
+                        flex items-center justify-center gap-2 transition-all transform active:scale-[0.98]
+                        ${isProcessing || !file
+                           ? 'bg-slate-300 cursor-not-allowed shadow-none text-slate-500'
+                           : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-indigo-300'
+                        }
+                     `}
                   >
-                     <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        className="hidden"
-                        accept="audio/*"
-                     />
-
-                     {file ? (
+                     {isProcessing ? (
                         <>
-                           <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
-                              <FileAudio className="w-6 h-6 text-indigo-600" />
-                           </div>
-                           <div className="w-full overflow-hidden">
-                              <p className="text-sm font-bold text-indigo-700 truncate px-2">{file.name}</p>
-                              <p className="text-[10px] text-indigo-400 font-medium">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-                           </div>
+                           <Loader2 className="w-5 h-5 animate-spin" />
+                           <span>Processing...</span>
                         </>
                      ) : (
                         <>
-                           <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 group-hover:bg-indigo-50 group-hover:shadow-md">
-                              <UploadCloud className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
-                           </div>
-                           <div>
-                              <p className="text-sm font-bold text-slate-700 group-hover:text-indigo-700 transition-colors">Upload Audio</p>
-                              <p className="text-[10px] text-slate-400 font-medium">MP3, WAV, AAC...</p>
-                           </div>
+                           <Wand2 className="w-5 h-5" />
+                           <span>Start Transcription</span>
                         </>
                      )}
-                  </div>
-               </div>
-
-               {/* Settings Panel */}
-               <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] flex-1 border border-white/60 shadow-sm flex flex-col overflow-hidden min-h-[400px]">
-                  <div className="p-5 border-b border-slate-100 flex items-center gap-2">
-                     <Settings className="w-4 h-4 text-slate-400" />
-                     <span className="text-xs font-black uppercase tracking-widest text-slate-400">Settings</span>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
-
-                     {/* Render Mode Switch */}
-                     <div className="bg-slate-50 p-1 rounded-xl flex relative group/switch">
-                        <div
-                           className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-lg shadow-sm transition-all duration-300 ease-out ${renderMode === 'cloud' ? 'left-1' : 'left-[calc(50%+4px)]'}`}
-                        />
-                        <button
-                           onClick={() => setRenderMode('cloud')}
-                           className={`flex-1 relative z-10 text-xs font-bold py-2 text-center transition-colors cursor-pointer hover:text-indigo-700 ${renderMode === 'cloud' ? 'text-indigo-600' : 'text-slate-500'}`}
-                        >
-                           Cloud Render
-                        </button>
-                        <button
-                           onClick={() => setRenderMode('local')}
-                           className={`flex-1 relative z-10 text-xs font-bold py-2 text-center transition-colors cursor-pointer hover:text-indigo-700 ${renderMode === 'local' ? 'text-indigo-600' : 'text-slate-500'}`}
-                        >
-                           Local Render
-                        </button>
-                     </div>
-
-                     {/* Model */}
-                     <CustomSelect
-                        label="Model Size"
-                        value={selectedModel}
-                        onChange={setSelectedModel}
-                        disabled={renderMode === 'local'}
-                        options={[
-                           { value: 'base', label: `Whisper Base ${renderMode === 'local' ? '(Default)' : ''}` },
-                           ...(renderMode === 'cloud' ? [
-                              { value: 'small', label: 'Whisper Small' },
-                              { value: 'large-v3', label: 'Whisper Large V3' },
-                              { value: 'large-v3-turbo', label: 'Whisper Turbo' }
-                           ] : [])
-                        ]}
-                     />
-
-                     {/* Language */}
-                     <CustomSelect
-                        label="Language"
-                        value={selectedLanguage}
-                        onChange={setSelectedLanguage}
-                        options={[
-                           { value: 'auto', label: 'Auto Detect' },
-                           { value: 'en', label: 'English' },
-                           { value: 'hi', label: 'Hindi' },
-                           { value: 'es', label: 'Spanish' },
-                           { value: 'fr', label: 'French' },
-                           { value: 'de', label: 'German' }
-                        ]}
-                     />
-
-                     {/* Words Per Line */}
-                     <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                           <label className="text-xs font-bold text-slate-600">Words per Line</label>
-                           <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600">{wordsPerLine}</span>
-                        </div>
-                        <input
-                           type="range" min="1" max="20"
-                           value={wordsPerLine} onChange={(e) => setWordsPerLine(Number(e.target.value))}
-                           className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                        />
-                     </div>
-
-                     {/* Beam Size */}
-                     <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                           <label className="text-xs font-bold text-slate-600">Beam Size</label>
-                           <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600">{beamSize}</span>
-                        </div>
-                        <input
-                           type="range" min="1" max="10"
-                           value={beamSize} onChange={(e) => setBeamSize(Number(e.target.value))}
-                           className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                        />
-                        <p className="text-[10px] text-slate-400">Lower = Faster, Higher = More Accurate</p>
-                     </div>
-
-                     {/* Toggles */}
-                     <div className="space-y-3 pt-2">
-                        <div className="flex items-center justify-between">
-                           <span className="text-xs font-bold text-slate-600">Timestamps</span>
-                           <button
-                              onClick={() => setTimestamps(!timestamps)}
-                              className={`w-10 h-5 rounded-full transition-all duration-300 relative cursor-pointer hover:shadow-md ${timestamps ? 'bg-indigo-500 ring-2 ring-indigo-200' : 'bg-slate-300 hover:bg-slate-400'}`}
-                           >
-                              <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform duration-300 shadow-sm ${timestamps ? 'translate-x-5' : ''}`} />
-                           </button>
-                        </div>
-                     </div>
-                  </div>
-
-                  <div className="p-5 border-t border-slate-100 bg-slate-50/50">
-                     <button
-                        onClick={handleTranscribe}
-                        disabled={isProcessing}
-                        className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold shadow-lg hover:bg-slate-800 hover:shadow-xl hover:scale-[1.02] active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
-                     >
-                        {isProcessing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                        {isProcessing ? 'Processing...' : 'Start'}
-                     </button>
-                  </div>
+                  </button>
                </div>
             </div>
 
-            {/* ==========================================
-               RIGHT MAIN AREA (Editor)
-               No top padding, fills the rest
-              ========================================== */}
-            <div className="flex-1 min-h-[600px] md:min-h-0 md:h-full p-4 md:p-6 flex flex-col gap-4 min-w-0">
+            {/* --- CENTER COLUMN: PREVIEW --- */}
+            <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-[500px] lg:h-full">
+               <div className="bg-white rounded-3xl p-6 shadow-xl shadow-slate-200/50 border border-slate-100 flex-1 flex flex-col relative overflow-hidden h-full">
 
-               {/* Editor Card */}
-               <div className="flex-1 bg-white/70 backdrop-blur-xl rounded-[2.5rem] border border-white/60 shadow-sm flex flex-col overflow-hidden relative">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-6 shrink-0">
+                     <div className="flex items-center gap-3">
+                        <div>
+                           <div className='flex items-center gap-2'>
+                              <h2 className="text-xl font-black text-slate-800 tracking-tight">Transcription Preview</h2>
+                              {previewStatus !== 'idle' && (
+                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide
+                                              ${previewStatus === 'streaming' ? 'bg-amber-100 text-amber-600' : ''}
+                                              ${previewStatus === 'completed' ? 'bg-green-100 text-green-600' : ''}
+                                              ${previewStatus === 'error' ? 'bg-red-100 text-red-600' : ''}
+                                           `}>
+                                    {previewStatus}
+                                 </span>
+                              )}
+                           </div>
+                        </div>
+                     </div>
 
-                  {/* Toolbar */}
-                  <div className="px-6 py-3 border-b border-slate-100 flex items-center justify-between bg-white/30 relative z-50 pointer-events-auto">
-                     <div className="flex items-center gap-1">
-                        {/* Lock / Unlock */}
+                     <div className="flex items-center gap-2">
                         <button
                            onClick={() => setIsLocked(!isLocked)}
-                           className={`p-2 rounded-lg transition-all cursor-pointer hover:shadow-sm ${isLocked ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 hover:bg-white/80 hover:text-slate-800'}`}
-                           title={isLocked ? "Unlock Editing" : "Lock Editing"}
+                           className={`p-2 rounded-xl transition-all ${isLocked ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 ring-2 ring-indigo-200'}`}
+                           title={isLocked ? "Unlock to edit" : "Lock editing"}
                         >
                            {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
                         </button>
 
-                        {/* Download TXT */}
+                        {!isLocked && (
+                           <button
+                              onClick={handleSave}
+                              className="p-2 rounded-xl bg-green-50 text-green-600 hover:bg-green-100 border border-green-200 transition-all active:scale-95"
+                              title="Save Changes"
+                           >
+                              <Save className="w-4 h-4" />
+                           </button>
+                        )}
+
                         <button
-                           onClick={handleExportTXT}
-                           className="p-2 rounded-lg hover:bg-white/80 text-slate-500 hover:text-slate-800 transition-all cursor-pointer hover:shadow-sm"
-                           title="Download as .txt"
+                           onClick={() => {
+                              if (transcriptionResult?.formatted_text) {
+                                 navigator.clipboard.writeText(transcriptionResult.formatted_text);
+                                 setCopied(true);
+                                 setTimeout(() => setCopied(false), 2000);
+                              }
+                           }}
+                           className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all active:scale-95"
+                           title="Copy Text"
                         >
-                           <FileText className="w-4 h-4" />
+                           {copied ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                         </button>
 
-                        <div className="w-px h-4 bg-slate-300 mx-2" />
-
-                        {/* Clear */}
                         <button
-                           onClick={handleClear}
-                           className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-all cursor-pointer hover:shadow-sm"
-                           title="Clear Transcription"
+                           onClick={handleDownloadSRT}
+                           disabled={!transcriptionResult?.formatted_text}
+                           className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all active:scale-95 disabled:opacity-50"
+                           title="Export as SRT"
                         >
-                           <Trash2 className="w-4 h-4" />
-                        </button>
-                     </div>
-                     <div className="flex items-center gap-2">
-                        <button onClick={handleCopy} className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-all px-3 py-1.5 rounded-lg hover:bg-indigo-50 cursor-pointer active:scale-95 flex items-center gap-2">
-                           {copied ? 'Copied!' : <><Copy className="w-3.5 h-3.5" /> Copy Text</>}
-                        </button>
-                        <button
-                           onClick={handleExportSRT}
-                           className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-bold shadow-sm hover:border-indigo-200 hover:text-indigo-600 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm transition-all flex items-center gap-2 cursor-pointer"
-                        >
-                           <Download className="w-3.5 h-3.5" /> Export SRT
+                           <Download className="w-4 h-4" />
                         </button>
                      </div>
                   </div>
 
-                  {/* Text Area */}
-                  <div className="flex-1 relative">
-                     {!hasResult && !isProcessing && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 pointer-events-none select-none">
-                           <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-4 border border-slate-100">
-                              <FileText className="w-8 h-8 opacity-30" />
+                  {/* Progress Bar (Visible when streaming) */}
+                  {previewStatus === 'streaming' && (
+                     <div className="mb-6 bg-slate-50 rounded-xl p-4 border border-slate-100">
+                        <div className="flex justify-between items-center mb-2">
+                           <div className="flex items-center gap-2">
+                              <Loader2 className="w-3 h-3 text-indigo-500 animate-spin" />
+                              <span className="text-xs font-bold text-slate-700">{statusMessage}</span>
                            </div>
-                           <p className="font-bold text-lg text-slate-400">Ready to Transcribe</p>
+                           <span className="text-xs font-bold text-indigo-600">{progress}%</span>
                         </div>
-                     )}
-                     <textarea
-                        className={`w-full h-full resize-none bg-transparent p-8 outline-none text-lg leading-loose text-slate-700 font-medium custom-scrollbar ${isLocked ? 'cursor-default' : ''}`}
-                        value={hasResult ? transcription : ''}
-                        onChange={(e) => !isLocked && setTranscription(e.target.value)}
-                        readOnly={isLocked}
-                        spellCheck={false}
-                     />
-                  </div>
-
-                  {/* Footer / Progress Area */}
-                  <div className="p-4 bg-white/40 border-t border-slate-100">
-                     {isProcessing ? (
-                        <div className="flex flex-col gap-2 animate-in fade-in duration-300">
-                           <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-                              <span className="flex items-center gap-2">
-                                 <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-                                 {statusMessage}
-                              </span>
-                              <span>{Math.round(progress)}%</span>
+                        <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                           <div
+                              className="h-full bg-indigo-500 transition-all duration-300 ease-out rounded-full shadow-[0_0_12px_rgba(99,102,241,0.5)] relative overflow-hidden"
+                              style={{ width: `${progress}%` }}
+                           >
+                              <div className="absolute inset-0 bg-white/30 w-full animate-[shimmer_1.5s_infinite] -skew-x-12" />
                            </div>
-                           <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                              <div
-                                 className="h-full bg-indigo-500 rounded-full transition-all duration-300 ease-out relative overflow-hidden"
-                                 style={{ width: `${Math.max(2, progress)}%` }}
-                              >
-                                 <div className="absolute inset-0 bg-white/20 animate-[shimmer_1s_infinite] skew-x-12" />
+                        </div>
+                     </div>
+                  )}
+
+                  {/* Content Area */}
+                  <div className="flex-1 overflow-hidden relative rounded-2xl bg-slate-50 border border-slate-200 group/editor">
+                     {activeJobId ? (
+                        previewStatus === 'error' ? (
+                           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-4 p-8 text-center">
+                              <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+                                 <AlertCircle className="w-8 h-8 text-red-400" />
+                              </div>
+                              <div>
+                                 <p className="font-bold text-slate-600">Processing Failed</p>
+                                 <p className="text-sm mt-1">{activeJobError || "Unknown error occurred"}</p>
                               </div>
                            </div>
-                        </div>
+                        ) : (
+                           <textarea
+                              value={transcriptionResult?.formatted_text || ""}
+                              readOnly={isLocked}
+                              onChange={(e) => setTranscriptionResult(prev => ({ ...prev, formatted_text: e.target.value }))}
+                              className="w-full h-full p-6 bg-transparent border-0 resize-none focus:ring-0 text-slate-700 font-mono text-sm leading-relaxed outline-none"
+                              placeholder={previewStatus === 'streaming' ? "Transcription appearing here..." : "No result available..."}
+                              spellCheck="false"
+                           />
+                        )
                      ) : (
-                        <div className="flex items-center justify-between text-xs font-bold text-slate-400">
-                           <span className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${hasResult ? 'bg-green-500' : 'bg-slate-300'}`} />
-                              {hasResult ? 'Transcription Complete' : 'Ready to Start'}
-                              {isLocked && hasResult && <Lock className="w-3 h-3 ml-1 opacity-50" />}
-                           </span>
-                           {hasResult && <span>{transcription.length} chars</span>}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-4">
+                           <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
+                              <Split className="w-8 h-8 opacity-50" />
+                           </div>
+                           <p className="font-medium">Select a transcription from the history</p>
+                        </div>
+                     )}
+
+                     {/* Overlay when locked */}
+                     {isLocked && activeJobId && previewStatus !== 'error' && (
+                        <div className="absolute top-4 right-4 pointer-events-none">
+                           <div className="bg-slate-900/10 backdrop-blur-sm text-slate-500 text-[10px] font-bold px-2 py-1 rounded-md border border-slate-200/50 flex items-center gap-1.5">
+                              <Lock className="w-3 h-3" />
+                              Read Only
+                           </div>
                         </div>
                      )}
                   </div>
                </div>
+            </div>
 
+            {/* --- RIGHT COLUMN: HISTORY --- */}
+            <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-4">
+               <div className="bg-white rounded-3xl p-6 shadow-xl shadow-slate-200/50 border border-slate-100 flex-1 flex flex-col relative overflow-hidden h-full">
+                  <div className="flex items-center gap-3 mb-6 shrink-0">
+                     <div className="flex-1">
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Recent</h2>
+                     </div>
+                     <button onClick={fetchHistory} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
+                        <Clock className="w-4 h-4" />
+                     </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto custom-scrollbar -mr-2 pr-2 space-y-3">
+                     {history.length === 0 ? (
+                        <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                           <p className="text-sm">No recent transcriptions</p>
+                        </div>
+                     ) : (
+                        history.map((job) => (
+                           <div
+                              key={job._id}
+                              onClick={() => setActiveJobId(job._id)}
+                              className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 group relative overflow-hidden
+                                 ${activeJobId === job._id
+                                    ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                                    : 'bg-white border-slate-100 hover:border-indigo-100 hover:shadow-md'
+                                 }
+                              `}
+                           >
+                              {job.status === 'processing' && (
+                                 <div className="absolute bottom-0 left-0 h-1 bg-indigo-100 w-full">
+                                    <div
+                                       className="h-full bg-indigo-500 transition-all duration-1000"
+                                       style={{ width: `${job.progress}%` }}
+                                    />
+                                 </div>
+                              )}
+
+                              <div className="flex justify-between items-start mb-2 relative z-10">
+                                 <h3 className={`font-bold text-sm line-clamp-1 ${activeJobId === job._id ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                    {job.fileName}
+                                 </h3>
+                                 {job.status === 'completed' ? (
+                                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                 ) : job.status === 'processing' || job.status === 'queued' ? (
+                                    <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
+                                 ) : (
+                                    <AlertCircle className="w-4 h-4 text-red-400" />
+                                 )}
+                              </div>
+
+                              <div className="flex items-center justify-between text-xs relative z-10 mt-2">
+                                 <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-0.5 rounded-full font-medium capitalize
+                                               ${job.status === 'completed' ? 'bg-green-100 text-green-700' : ''}
+                                               ${job.status === 'processing' ? 'bg-amber-100 text-amber-700' : ''}
+                                               ${job.status === 'queued' ? 'bg-slate-100 text-slate-600' : ''}
+                                               ${job.status === 'failed' ? 'bg-red-100 text-red-600' : ''}
+                                           `}>
+                                       {job.status}
+                                    </span>
+                                    <span className="text-slate-400">
+                                       {new Date(job.createdAt).toLocaleDateString()}
+                                    </span>
+                                 </div>
+                                 <button
+                                    onClick={(e) => handleDelete(job._id, e)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                                    title="Delete"
+                                 >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                 </button>
+                              </div>
+                           </div>
+                        ))
+                     )}
+                  </div>
+               </div>
             </div>
 
          </div>
 
-         <style>{`
-           .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-           .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-           .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.2); border-radius: 20px; }
-           .custom-scrollbar:hover::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.4); }
-           
-           @keyframes blob {
-             0% { transform: translate(0px, 0px) scale(1); }
-             33% { transform: translate(30px, -50px) scale(1.1); }
-             66% { transform: translate(-20px, 20px) scale(0.9); }
-             100% { transform: translate(0px, 0px) scale(1); }
-           }
-           @keyframes shimmer {
-             0% { transform: translateX(-100%) skewX(-12deg); }
-             100% { transform: translateX(200%) skewX(-12deg); }
-           }
-           .animate-blob { animation: blob 10s infinite; }
-           .animation-delay-2000 { animation-delay: 2s; }
-         `}</style>
+         {/* Delete Confirmation Modal */}
+         {deleteConfirmation.isOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                  <div className="p-6 text-center">
+                     <div className="w-16 h-16 rounded-full bg-red-100 mx-auto flex items-center justify-center mb-4">
+                        <Trash2 className="w-8 h-8 text-red-500" />
+                     </div>
+                     <h3 className="text-xl font-bold text-slate-800 mb-2">Delete Transcription?</h3>
+                     <p className="text-slate-500 text-sm mb-6">
+                        Are you sure you want to delete this transcription? This action cannot be undone.
+                     </p>
+
+                     <div className="flex gap-3">
+                        <button
+                           onClick={() => setDeleteConfirmation({ isOpen: false, jobId: null })}
+                           className="flex-1 py-3 px-4 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+                        >
+                           Cancel
+                        </button>
+                        <button
+                           onClick={confirmDelete}
+                           className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200 transition-all active:scale-95"
+                        >
+                           Delete
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* Toast Notification */}
+         <div className={`fixed bottom-6 right-6 z-50 transition-all duration-500 transform ${notification.show ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0'}`}>
+            <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${notification.type === 'success'
+                  ? 'bg-white border-green-100 text-green-700'
+                  : 'bg-white border-red-100 text-red-700'
+               }`}>
+               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${notification.type === 'success' ? 'bg-green-100' : 'bg-red-100'
+                  }`}>
+                  {notification.type === 'success' ? (
+                     <CheckCircle2 className="w-5 h-5" />
+                  ) : (
+                     <AlertCircle className="w-5 h-5" />
+                  )}
+               </div>
+               <p className="font-bold pr-2">{notification.message}</p>
+            </div>
+         </div>
+
       </div>
    );
 };

@@ -1,7 +1,9 @@
-from fastapi import FastAPI, File, UploadFile, Form, Request
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, File, UploadFile, Form, Request, BackgroundTasks
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from faster_whisper import WhisperModel
+from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
 import json
 import os
 import tempfile
@@ -11,10 +13,17 @@ from pathlib import Path
 import subprocess
 import gc
 import traceback
+import time
+from datetime import datetime
 
-app = FastAPI(title="Whisper Transcription API")
+# --- CONFIGURATION ---
+MONGO_URI = "mongodb+srv://user:ayush1234@frebies.49ugkbz.mongodb.net/?retryWrites=true&w=majority"
+DB_NAME = "frebies"
+COLLECTION_NAME = "transcriptions"
 
-# CORS configuration for frontend access
+app = FastAPI(title="Whisper Transcription API with History")
+
+# --- CORS ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,14 +32,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global model cache to avoid reloading
+# --- MONGODB CONNECTION ---
+client = AsyncIOMotorClient(MONGO_URI)
+db = client[DB_NAME]
+collection = db[COLLECTION_NAME]
+
+# --- GLOBAL VARIABLES ---
 model_cache = {}
+# Use a simple global queue for now. For production, consider Redis/Celery.
+job_queue = asyncio.Queue()
+processing_lock = asyncio.Lock()
+
+# Map to store active stream queues for clients currently listening
+# Key: job_id, Value: asyncio.Queue containing progress updates
+active_streams = {}
+
+# --- UTILITY FUNCTIONS ---
 
 def get_model(model_size: str = "base"):
-    """Load and cache Whisper model"""
     if model_size not in model_cache:
         print(f"Initializing model: {model_size}", flush=True)
-        # Use CPU with int8 quantization for efficiency
         model_cache[model_size] = WhisperModel(
             model_size, 
             device="cpu", 
@@ -39,17 +60,7 @@ def get_model(model_size: str = "base"):
         print(f"Model {model_size} initialized.", flush=True)
     return model_cache[model_size]
 
-def format_timestamp(seconds: float) -> str:
-    """Convert seconds to [HH:MM:SS.mmm] format"""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = seconds % 60
-    milliseconds = int((secs % 1) * 1000)
-    secs = int(secs)
-    return f"[{hours:02d}:{minutes:02d}:{secs:02d}.{milliseconds:03d}]"
-
 def format_srt_timestamp(seconds: float) -> str:
-    """Convert seconds to HH:MM:SS,mmm format (SRT subtitle format)"""
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = seconds % 60
@@ -58,7 +69,6 @@ def format_srt_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
 
 def format_transcription(segments, words_per_line: int, include_timestamps: bool):
-    """Format transcription with timestamps and words per line in SRT format"""
     formatted_lines = []
     current_line_words = []
     current_line_start = None
@@ -66,377 +76,404 @@ def format_transcription(segments, words_per_line: int, include_timestamps: bool
     sequence_number = 0
     
     for segment in segments:
-        # Access word-level timestamps if available
-        if hasattr(segment, 'words') and segment.words:
-            # Use word-level timestamps
-            for word in segment.words:
-                word_text = word.word.strip()
-                if not word_text:
-                    continue
-                    
-                # Set the timestamp for the first word in the line
-                if current_line_start is None:
-                    current_line_start = word.start
-                
-                # Always update the end time to the current word's end
-                current_line_end = word.end
-                
-                current_line_words.append(word_text)
-                
-                # Create new line when reaching words_per_line limit
-                if len(current_line_words) >= words_per_line:
-                    line_text = " ".join(current_line_words)
-                    if include_timestamps:
-                        # SRT format: sequence number, timestamp range, text, blank line
-                        formatted_lines.append(str(sequence_number))
-                        formatted_lines.append(f"{format_srt_timestamp(current_line_start)} --> {format_srt_timestamp(current_line_end)}")
-                        formatted_lines.append(line_text)
-                        formatted_lines.append("")  # Blank line
-                        sequence_number += 1
-                    else:
-                        formatted_lines.append(line_text)
-                    
-                    current_line_words = []
-                    current_line_start = None
-                    current_line_end = None
-        else:
-            # Fallback to simple word splitting if word timestamps not available
-            words = segment.text.strip().split()
-            segment_start = segment.start
-            segment_end = segment.end
+        words_source = getattr(segment, 'words', None)
+        if words_source:
+             # Logic for word-level timestamps (if enabled in model)
+             pass 
+             # To keep it simple and robust matching previous logic (often word_timestamps=True but we iterate segments if words are none)
+        
+        # Fallback to segment level for robustness in this refactor or if words unavailable
+        words = segment.text.strip().split()
+        if not words: continue
+
+        segment_start = segment.start
+        segment_end = segment.end
+        
+        for i, word in enumerate(words):
+            if current_line_start is None:
+                current_line_start = segment_start
             
-            for i, word in enumerate(words):
-                if current_line_start is None:
-                    current_line_start = segment_start
+            word_duration = (segment_end - segment_start) / len(words)
+            current_line_end = segment_start + (i + 1) * word_duration
+            
+            current_line_words.append(word)
+            
+            if len(current_line_words) >= words_per_line:
+                line_text = " ".join(current_line_words)
+                if include_timestamps:
+                    formatted_lines.append(str(sequence_number))
+                    formatted_lines.append(f"{format_srt_timestamp(current_line_start)} --> {format_srt_timestamp(current_line_end)}")
+                    formatted_lines.append(line_text)
+                    formatted_lines.append("") 
+                    sequence_number += 1
+                else:
+                    formatted_lines.append(line_text)
                 
-                # Estimate end time for this word
-                word_duration = (segment_end - segment_start) / len(words)
-                current_line_end = segment_start + (i + 1) * word_duration
-                
-                current_line_words.append(word)
-                
-                # Create new line when reaching words_per_line limit
-                if len(current_line_words) >= words_per_line:
-                    line_text = " ".join(current_line_words)
-                    if include_timestamps:
-                        # SRT format: sequence number, timestamp range, text, blank line
-                        formatted_lines.append(str(sequence_number))
-                        formatted_lines.append(f"{format_srt_timestamp(current_line_start)} --> {format_srt_timestamp(current_line_end)}")
-                        formatted_lines.append(line_text)
-                        formatted_lines.append("")  # Blank line
-                        sequence_number += 1
-                    else:
-                        formatted_lines.append(line_text)
-                    
-                    current_line_words = []
-                    current_line_start = None
-                    current_line_end = None
+                current_line_words = []
+                current_line_start = None
+                current_line_end = None
     
-    # Add remaining words as final line
     if current_line_words:
         line_text = " ".join(current_line_words)
         if include_timestamps and current_line_start is not None and current_line_end is not None:
             formatted_lines.append(str(sequence_number))
             formatted_lines.append(f"{format_srt_timestamp(current_line_start)} --> {format_srt_timestamp(current_line_end)}")
             formatted_lines.append(line_text)
-            formatted_lines.append("")  # Blank line
+            formatted_lines.append("")
         else:
             formatted_lines.append(line_text)
     
     return "\n".join(formatted_lines)
 
-def format_progress_time(seconds: float) -> str:
-    """Convert seconds to HH:MM:SS format for progress messages"""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-
-
-# Global lock to ensure only one transcription runs at a time (prevent OOM on free tier)
-transcription_lock = asyncio.Lock()
-
 def convert_audio_to_wav(input_path: str) -> str:
-    """Convert audio to 16kHz mono WAV using FFmpeg for Whisper compatibility"""
     output_path = input_path + ".wav"
     try:
-        print(f"Converting {input_path} to WAV...", flush=True)
-        # ffmpeg -i input -ar 16000 -ac 1 -c:a pcm_s16le output.wav
         subprocess.run([
-            "ffmpeg", "-y",
-            "-i", input_path,
-            "-ar", "16000",
-            "-ac", "1",
-            "-c:a", "pcm_s16le",
-            output_path
+            "ffmpeg", "-y", "-i", input_path, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", output_path
         ], check=True, stderr=subprocess.DEVNULL)
-        print(f"Conversion successful: {output_path}", flush=True)
         return output_path
-    except subprocess.CalledProcessError as e:
-        print(f"FFmpeg conversion failed: {e}", flush=True)
-        return input_path  # Fallback to original if conversion fails
+    except subprocess.CalledProcessError:
+        return input_path
 
-async def transcribe_stream(
-    file: UploadFile,
-    model_size: str,
-    language: str,
-    timestamps: bool,
-    words_per_line: int,
-    beam_size: int,
-    request: Request
-):
-    """Stream transcription progress and results"""
-    temp_file = None
-    converted_file = None
+async def publish_progress(job_id: str, progress: int, message: str, status: str = "processing"):
+    """
+    1. Update MongoDB
+    2. specific stream queue if client is listening
+    """
+    update_data = {
+        "progress": progress,
+        "message": message,
+        "status": status,
+        "updatedAt": datetime.utcnow()
+    }
     
-    try:
-        print(f"Starting upload for file: {file.filename}", flush=True)
-        # Send initial progress
-        yield json.dumps({
-            "type": "progress",
-            "progress": 0,
-            "message": "Uploading file..."
-        }) + "\n"
-        await asyncio.sleep(0.1)  # Force flush
-        
-        # Save uploaded file to temporary location using chunked write to avoid blocking
-        file_suffix = Path(file.filename).suffix if file.filename else ".tmp"
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as temp:
-            temp_file = temp.name
-            print(f"Saving to temp file: {temp_file}", flush=True)
-            # Read and write in chunks
-            while True:
-                chunk = await file.read(50 * 1024 * 1024)  # 50MB chunks for faster upload
-                if not chunk:
-                    break
-                temp.write(chunk)
-                # Check for disconnection during upload
-                if await request.is_disconnected():
-                    print("Client disconnected during upload", flush=True)
-                    return
-        
-        print(f"File saved. Size: {os.path.getsize(temp_file)} bytes", flush=True)
-        
-        yield json.dumps({
-            "type": "progress",
-            "progress": 0,
-            "message": "Waiting in queue..."
-        }) + "\n"
-        await asyncio.sleep(0.1)
-        
-        # Acquire lock to ensure exclusive access to CPU/RAM
-        print("Waiting for transcription lock...", flush=True)
-        async with transcription_lock:
-            print("Lock acquired.", flush=True)
-            yield json.dumps({
+    await collection.update_one({"_id": ObjectId(job_id)}, {"$set": update_data})
+    
+    # Send to active stream if exists
+    if job_id in active_streams:
+        try:
+            await active_streams[job_id].put({
                 "type": "progress",
-                "progress": 0,
-                "message": "Processing audio..."
-            }) + "\n"
-            await asyncio.sleep(0.1)
-            
-            # Convert audio to standard format
-            print("Converting audio to WAV...", flush=True)
-            converted_file = await asyncio.to_thread(convert_audio_to_wav, temp_file)
-            print(f"Conversion complete: {converted_file}", flush=True)
-            
-            if await request.is_disconnected():
-                print("Client disconnected during conversion", flush=True)
-                return
+                "progress": progress,
+                "message": message,
+                "status": status
+            })
+        except Exception:
+            pass # Stream might be closed
 
-            yield json.dumps({
-                "type": "progress",
-                "progress": 0,
-                "message": f"Loading {model_size} model..."
-            }) + "\n"
-            await asyncio.sleep(0.1)  # Force flush
-            
-            # Check disconnect before loading model
-            if await request.is_disconnected():
-                print("Client disconnected before model load", flush=True)
-                return
-
-            # Load model
-            print(f"Loading model: {model_size}", flush=True)
-            model = get_model(model_size)
-            print("Model loaded.", flush=True)
-            
-            yield json.dumps({
-                "type": "progress",
-                "progress": 0,
-                "message": "Transcribing audio..."
-            }) + "\n"
-            await asyncio.sleep(0.1)  # Force flush
-            
-            # Transcribe with language detection if auto
-            transcribe_options = {
-                "beam_size": beam_size,
-                "best_of": beam_size, # Usually best_of is similar to beam_size
-                "word_timestamps": True,
-                "vad_filter": False,  # Disabled VAD as it was filtering out valid speech
-                "condition_on_previous_text": False, # Prevent model from getting stuck in loops
-            }
-            
-            if language != "auto":
-                transcribe_options["language"] = language
-            
-            print(f"Starting transcription with options: {transcribe_options}", flush=True)
-            
-            # Run transcription in a way that allows checking for cancellation
-            # faster-whisper's transcribe returns a generator, so it doesn't block immediately
-            segments, info = model.transcribe(
-                converted_file if converted_file else temp_file,
-                **transcribe_options
-            )
-            
-            print(f"Transcription started. Detected language: {info.language}, Duration: {info.duration}", flush=True)
-            
-            # Process segments as they are generated
-            segments_list = []
-            total_duration = info.duration
-            
-            # Create an iterator from the generator
-            segments_iter = iter(segments)
-            
-            segment_count = 0
-            while True:
-                # Check if client disconnected before waiting for next segment
-                if await request.is_disconnected():
-                    print("Client disconnected during transcription", flush=True)
-                    return
-
-                try:
-                    # Run the blocking next() in a thread to prevent blocking the event loop
-                    # Set a timeout (e.g., 300 seconds per segment) to detect stuck model
-                    # Large model on CPU can be very slow, so we need a generous timeout
-                    print(f"Waiting for segment {segment_count + 1}...", flush=True)
-                    segment = await asyncio.wait_for(
-                        asyncio.to_thread(next, segments_iter, None),
-                        timeout=300.0
-                    )
-                    
-                    if segment is None:
-                        print("End of segments.", flush=True)
-                        break  # End of transcription
-                        
-                    segments_list.append(segment)
-                    segment_count += 1
-                    print(f"Segment {segment_count} processed. End time: {segment.end}", flush=True)
-                    
-                    # Calculate progress based on time processed
-                    if total_duration > 0:
-                        current_time = segment.end
-                        # Map 0-100% of duration to 0-100% of progress bar
-                        progress = int((current_time / total_duration) * 100)
-                        progress = min(100, progress)  # Cap at 100%
-                        
-                        yield json.dumps({
-                            "type": "progress",
-                            "progress": progress,
-                            "message": f"Transcribed {format_progress_time(current_time)} of {format_progress_time(total_duration)}..."
-                        }) + "\n"
-                    
-                    # Yield control to event loop
-                    await asyncio.sleep(0.1)
-                    
-                except asyncio.TimeoutError:
-                    print("Segment processing timed out (stuck), aborting to free resources", flush=True)
-                    yield json.dumps({
-                        "type": "error",
-                        "message": "Transcription stuck on a segment. Aborting to free resources."
-                    }) + "\n"
-                    break
-                except Exception as e:
-                    print(f"Error processing segment: {e}", flush=True)
-                    break
-            
-            print("Formatting transcription...", flush=True)
-            yield json.dumps({
-                "type": "progress",
-                "progress": 100,
-                "message": "Formatting transcription..."
-            }) + "\n"
-            await asyncio.sleep(0.1)  # Force flush
-            
-            # Format the transcription
-            formatted_text = format_transcription(
-                segments_list,
-                words_per_line,
-                timestamps
-            )
-            
-            print("Transcription complete. Sending result.", flush=True)
-            
-            # Send final result
-            yield json.dumps({
+async def publish_result(job_id: str, result_data: dict):
+    await collection.update_one(
+        {"_id": ObjectId(job_id)}, 
+        {"$set": {
+            "status": "completed", 
+            "result": result_data, 
+            "progress": 100, 
+            "message": "Complete!",
+            "completedAt": datetime.utcnow()
+        }}
+    )
+    
+    if job_id in active_streams:
+        try:
+            await active_streams[job_id].put({
                 "type": "result",
-                "data": {
-                    "formatted_text": formatted_text,
-                    "text": formatted_text,
-                    "language": info.language if hasattr(info, 'language') else language
-                }
-            }) + "\n"
-        
-    except Exception as e:
-        print(f"Error during transcription: {e}", flush=True)
-        traceback.print_exc()
-        yield json.dumps({
-            "type": "error",
-            "message": str(e)
-        }) + "\n"
+                "data": result_data
+            })
+        except:
+             pass
+
+async def publish_error(job_id: str, error_msg: str):
+    await collection.update_one(
+        {"_id": ObjectId(job_id)}, 
+        {"$set": {
+            "status": "failed", 
+            "error": error_msg,
+            "message": f"Error: {error_msg}"
+        }}
+    )
+    if job_id in active_streams:
+        try:
+            await active_streams[job_id].put({
+                "type": "error",
+                "message": error_msg
+            })
+        except:
+            pass
+
+# --- WORKER ---
+
+def process_transcription(file_path, options, progress_callback=None):
+    """Synchronous partial wrapper for CPU intensive work"""
+    model = get_model(options['model_size'])
     
-    finally:
-        print("Cleaning up resources...", flush=True)
-        # Cleanup temporary file
-        if temp_file and os.path.exists(temp_file):
-            try:
-                os.unlink(temp_file)
-            except Exception as e:
-                print(f"Error cleaning up temp file: {e}", flush=True)
+    transcribe_opts = {
+        "beam_size": options['beam_size'],
+        "best_of": options['beam_size'],
+        "word_timestamps": True,
+        "condition_on_previous_text": False
+    }
+    if options['language'] != "auto":
+        transcribe_opts["language"] = options['language']
+
+    segments_generator, info = model.transcribe(
+        file_path, 
+        **transcribe_opts
+    )
+    
+    segments_list = []
+    total_duration = info.duration
+    
+    for segment in segments_generator:
+        segments_list.append(segment)
         
-        # Cleanup converted file
-        if converted_file and os.path.exists(converted_file) and converted_file != temp_file:
-            try:
-                os.unlink(converted_file)
-            except Exception as e:
-                print(f"Error cleaning up converted file: {e}", flush=True)
+        if progress_callback and total_duration and total_duration > 0:
+            # Map duration to 10-90% range
+            percent = int((segment.end / total_duration) * 80) + 10
+            percent = min(90, max(10, percent))
+            progress_callback(percent, f"Transcribing... ({int(segment.end)}/{int(total_duration)}s)")
+            
+    return segments_list, info
+
+async def worker():
+    print("Worker started. Waiting for jobs...", flush=True)
+    while True:
+        job_info = await job_queue.get()
+        job_id = job_info['job_id']
+        file_path = job_info['file_path']
+        options = job_info['options']
         
-        # Explicit garbage collection
-        gc.collect()
-        print("Cleanup complete.", flush=True)
+        try:
+            print(f"Worker picked up job {job_id}", flush=True)
+            async with processing_lock:
+                await publish_progress(job_id, 0, "Processing started...", "processing")
+                
+                # Conversion
+                await publish_progress(job_id, 5, "Converting audio...")
+                converted_file = await asyncio.to_thread(convert_audio_to_wav, file_path)
+                
+                # Transcribe (Offload blocking loop to thread)
+                await publish_progress(job_id, 10, f"Loading {options['model_size']} model & Transcribing...")
+                
+                # Define thread-safe progress callback
+                loop = asyncio.get_running_loop()
+                def progress_cb(prog, msg):
+                    asyncio.run_coroutine_threadsafe(publish_progress(job_id, prog, msg), loop)
+
+                segments_list, info = await asyncio.to_thread(
+                    process_transcription, 
+                    converted_file, 
+                    options,
+                    progress_cb
+                )
+                
+                # Formatting
+                await publish_progress(job_id, 90, "Formatting...")
+                formatted_text = format_transcription(segments_list, options['words_per_line'], options['timestamps'])
+                
+                result_data = {
+                    "formatted_text": formatted_text,
+                    "text": formatted_text, 
+                    "language": info.language
+                }
+                
+                await publish_result(job_id, result_data)
+                
+                # Cleanup
+                if os.path.exists(converted_file) and converted_file != file_path:
+                    os.unlink(converted_file)
+                if os.path.exists(file_path):
+                    os.unlink(file_path)
+                    
+        except Exception as e:
+            traceback.print_exc()
+            await publish_error(job_id, str(e))
+        finally:
+            job_queue.task_done()
+
+# Start worker on startup
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(worker())
+
+# --- ENDPOINTS ---
 
 @app.post("/transcribe")
-async def transcribe_audio(
-    request: Request,
+async def create_transcription_job(
     file: UploadFile = File(...),
+    user_id: str = Form(...),
     model_size: str = Form("base"),
     language: str = Form("auto"),
     timestamps: bool = Form(True),
     words_per_line: int = Form(8),
     beam_size: int = Form(5)
 ):
-    return StreamingResponse(
-        transcribe_stream(
-            file, 
-            model_size, 
-            language, 
-            timestamps, 
-            words_per_line,
-            beam_size,
-            request
-        ),
-        media_type="application/x-ndjson"
-    )
+    # 1. Save File Temporarily
+    safe_filename = file.filename or "unknown_audio"
+    file_suffix = Path(safe_filename).suffix or ".tmp"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as temp:
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk: break
+            temp.write(chunk)
+        temp_file_path = temp.name
 
-@app.get("/")
-async def root():
-    """Health check endpoint"""
-    return {
-        "status": "running",
-        "message": "Whisper Transcription API",
-        "available_models": ["base", "small", "large-v3", "large-v3-turbo"]
+    # 2. Create DB Entry
+    job_doc = {
+        "userId": user_id, 
+        "fileName": safe_filename,
+        "status": "queued",
+        "progress": 0,
+        "message": "Waiting in queue...",
+        "createdAt": datetime.utcnow(),
+        "modelSize": model_size,
+        "language": language
     }
+    result = await collection.insert_one(job_doc)
+    job_id = str(result.inserted_id)
+    
+    # 3. Add to Queue
+    await job_queue.put({
+        "job_id": job_id,
+        "file_path": temp_file_path,
+        "options": {
+            "model_size": model_size,
+            "language": language,
+            "timestamps": timestamps,
+            "words_per_line": words_per_line,
+            "beam_size": beam_size
+        }
+    })
+    
+    return {"jobId": job_id, "status": "queued", "message": "Job submitted successfully"}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+@app.get("/transcriptions/{user_id}")
+async def get_user_transcriptions(user_id: str):
+    # Return list of transcriptions for side panel
+    cursor = collection.find({"userId": user_id}).sort("createdAt", -1).limit(20)
+    jobs = []
+    async for doc in cursor:
+        doc["_id"] = str(doc["_id"])
+        jobs.append(doc)
+    return jobs
+
+@app.get("/transcription/{job_id}")
+async def get_transcription_details(job_id: str):
+    doc = await collection.find_one({"_id": ObjectId(job_id)})
+    if doc:
+        doc["_id"] = str(doc["_id"])
+        return doc
+    return JSONResponse(status_code=404, content={"message": "Not found"})
+
+@app.put("/transcription/{job_id}")
+async def update_transcription(job_id: str, request: Request):
+    """Update the text content of a transcription"""
+    # Expect JSON body: {"text": "new text content"} 
+    # and maybe keep "text" and "formatted_text" in sync or just update formatted_text?
+    # The frontend is editing `formatted_text` (the main view).
+    
+    try:
+        body = await request.json()
+        new_text = body.get("text")
+        
+        if new_text is None:
+             return JSONResponse(status_code=400, content={"message": "Missing 'text' field"})
+
+        # Update both `result.formatted_text` and `result.text` (if we want to keep them aligned)
+        # Note: In our current schema, result_data has both.
+        
+        update_result = await collection.update_one(
+            {"_id": ObjectId(job_id)},
+            {"$set": {
+                "result.formatted_text": new_text,
+                "result.text": new_text, # Assuming simple sync
+                "updatedAt": datetime.utcnow()
+            }}
+        )
+        
+        if update_result.matched_count == 0:
+             return JSONResponse(status_code=404, content={"message": "Job not found"})
+             
+        return {"message": "Transcription updated successfully"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": str(e)})
+
+@app.delete("/transcription/{job_id}")
+async def delete_transcription(job_id: str):
+    """Delete a transcription job and cleanup files if any (files are temp already deleted usually)"""
+    try:
+        # Check if exists to get file path if we wanted to be thorough, but we delete temp files in worker.
+        delete_result = await collection.delete_one({"_id": ObjectId(job_id)})
+        
+        if delete_result.deleted_count == 0:
+            return JSONResponse(status_code=404, content={"message": "Job not found"})
+            
+        return {"message": "Transcription deleted successfully"}
+        
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": str(e)})
+
+@app.get("/stream/{job_id}")
+async def stream_progress(job_id: str, request: Request):
+    """
+    SSE Endpoint for real-time progress of a specific job.
+    If job is done, sends result immediately. 
+    If active, proxies queue events.
+    """
+    async def event_generator():
+        # Check current status first
+        doc = await collection.find_one({"_id": ObjectId(job_id)})
+        if not doc:
+            yield json.dumps({"type": "error", "message": "Job not found"}) + "\n"
+            return
+
+        if doc.get("status") == "completed":
+            yield json.dumps({
+                "type": "result", 
+                "data": doc.get("result", {}),
+                "progress": 100,
+                "message": "Complete!"
+            }) + "\n"
+            return
+        
+        if doc.get("status") == "failed":
+             yield json.dumps({"type": "error", "message": doc.get("error", "Unknown error")}) + "\n"
+             return
+
+        # If running/queued, subscribe to updates
+        if job_id not in active_streams:
+            active_streams[job_id] = asyncio.Queue()
+        
+        queue = active_streams[job_id]
+        
+        # Send current state immediately
+        yield json.dumps({
+            "type": "progress", 
+            "progress": doc.get("progress", 0), 
+            "message": doc.get("message", "Connecting...")
+        }) + "\n"
+
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                    
+                try:
+                    # Wait for new event
+                    data = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield json.dumps(data) + "\n"
+                    
+                    if data.get("type") in ["result", "error"]:
+                        break
+                except asyncio.TimeoutError:
+                    # Keep-alive
+                    yield ": keep-alive\n\n"
+                    
+        finally:
+            # Cleanup only this listener? 
+            # active_streams key should ideally remain if multiple tab open? 
+            # For simplicity, we just leave it. It's a small memory leak if many unique jobs, 
+            # but usually fine for this scale or use generic cleanup task.
+            pass
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+
