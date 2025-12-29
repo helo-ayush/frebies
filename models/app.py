@@ -90,12 +90,16 @@ def format_transcription(segments, words_per_line: int, include_timestamps: bool
         segment_end = segment.end
         
         for i, word in enumerate(words):
-            if current_line_start is None:
-                current_line_start = segment_start
-            
+            # Calculate interpolated timestamps for this specific word
             word_duration = (segment_end - segment_start) / len(words)
-            current_line_end = segment_start + (i + 1) * word_duration
+            word_start = segment_start + (i * word_duration)
+            word_end = segment_start + ((i + 1) * word_duration)
+
+            if current_line_start is None:
+                current_line_start = word_start
             
+            # Update end time as we add words
+            current_line_end = word_end
             current_line_words.append(word)
             
             if len(current_line_words) >= words_per_line:
@@ -109,6 +113,7 @@ def format_transcription(segments, words_per_line: int, include_timestamps: bool
                 else:
                     formatted_lines.append(line_text)
                 
+                # Reset for next line
                 current_line_words = []
                 current_line_start = None
                 current_line_end = None

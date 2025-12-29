@@ -67,8 +67,17 @@ export async function generateMix(songs, config, onProgress) {
             }
         };
 
-        // Run all concurrently
-        const results = await Promise.all(songs.map((song, i) => processSong(song, i)));
+        // Run in chunks to prevent backend OOM (Out Of Memory)
+        const CONCURRENCY_LIMIT = 3;
+        const results = [];
+
+        for (let i = 0; i < songs.length; i += CONCURRENCY_LIMIT) {
+            const chunk = songs.slice(i, i + CONCURRENCY_LIMIT);
+            const chunkResults = await Promise.all(
+                chunk.map((song, index) => processSong(song, i + index))
+            );
+            results.push(...chunkResults);
+        }
 
         // Filter out failures
         results.forEach(res => {
