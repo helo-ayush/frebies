@@ -385,30 +385,16 @@ const Transcribe = () => {
                         />
 
                         <div className="grid grid-cols-2 gap-4">
-                           <div className="space-y-2">
-                              <div className="flex justify-between items-center">
-                                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Words / Line</label>
-                                 <label className="flex items-center gap-1.5 cursor-pointer">
-                                    <input
-                                       type="checkbox"
-                                       checked={wordsPerLine === 0}
-                                       onChange={(e) => setWordsPerLine(e.target.checked ? 0 : 8)}
-                                       className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20"
-                                    />
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Auto</span>
-                                 </label>
-                              </div>
-                              <input
-                                 type="number"
-                                 min="1"
-                                 max="50"
-                                 value={wordsPerLine === 0 ? '' : wordsPerLine}
-                                 onChange={(e) => setWordsPerLine(parseInt(e.target.value) || 0)}
-                                 placeholder="Auto"
-                                 disabled={wordsPerLine === 0}
-                                 className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                              />
-                           </div>
+                           <CustomSelect
+                              label="Segment Length"
+                              value={wordsPerLine}
+                              onChange={(val) => setWordsPerLine(parseInt(val))}
+                              options={[
+                                 { value: 5, label: 'Short (5 words)' },
+                                 { value: 8, label: 'Medium (8 words)' },
+                                 { value: 0, label: 'Long (Natural/Auto)' },
+                              ]}
+                           />
                            <div className="space-y-2">
                               <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Beam Size</label>
                               <input

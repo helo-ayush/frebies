@@ -188,14 +188,12 @@ def format_srt_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
 
 def format_transcription(segments, words_per_line: int, include_timestamps: bool):
-    formatted_lines = []
-    
-    # Auto mode: Use original segments (sentences/phrases)
+    # 1. Natural/Auto Mode (Safe Fallback)
     if words_per_line == 0:
+        formatted_lines = []
         for i, segment in enumerate(segments):
             text = segment.text.strip()
             if not text: continue
-            
             if include_timestamps:
                 formatted_lines.append(str(i + 1))
                 formatted_lines.append(f"{format_srt_timestamp(segment.start)} --> {format_srt_timestamp(segment.end)}")
@@ -205,55 +203,97 @@ def format_transcription(segments, words_per_line: int, include_timestamps: bool
                 formatted_lines.append(text)
         return "\n".join(formatted_lines)
 
-    # Legacy mode: Forced word count splitting
-    current_line_words = []
-    current_line_start = None
-    current_line_end = None
-    sequence_number = 0
-    
+    # 2. Flatten all segments into a single stream of timed words
+    timed_words = []
     for segment in segments:
         words = segment.text.strip().split()
         if not words: continue
-
-        segment_start = segment.start
-        segment_end = segment.end
+        
+        # Linearly interpolate timestamps for each word
+        duration = segment.end - segment.start
+        word_duration = duration / len(words)
         
         for i, word in enumerate(words):
-            word_duration = (segment_end - segment_start) / len(words)
-            word_start = segment_start + (i * word_duration)
-            word_end = segment_start + ((i + 1) * word_duration)
+            start = segment.start + (i * word_duration)
+            end = start + word_duration
+            timed_words.append({
+                "word": word,
+                "start": start,
+                "end": end
+            })
 
-            if current_line_start is None:
-                current_line_start = word_start
-            
-            current_line_end = word_end
-            current_line_words.append(word)
-            
-            if len(current_line_words) >= words_per_line:
-                line_text = " ".join(current_line_words)
-                if include_timestamps:
-                    formatted_lines.append(str(sequence_number))
-                    formatted_lines.append(f"{format_srt_timestamp(current_line_start)} --> {format_srt_timestamp(current_line_end)}")
-                    formatted_lines.append(line_text)
-                    formatted_lines.append("") 
-                    sequence_number += 1
-                else:
-                    formatted_lines.append(line_text)
-                
-                current_line_words = []
-                current_line_start = None
-                current_line_end = None
+    # 3. Smart Grouping
+    formatted_lines = []
+    sequence_number = 1
     
-    if current_line_words:
-        line_text = " ".join(current_line_words)
-        if include_timestamps and current_line_start is not None and current_line_end is not None:
+    current_line = []
+    
+    i = 0
+    while i < len(timed_words):
+        current_line.append(timed_words[i])
+        i += 1
+        
+        # Check if we reached the limit
+        if len(current_line) >= words_per_line:
+            # SMART CUT LOGIC:
+            # Look for punctuation in the "candidate break zone" (last 40% of the line)
+            # If found, break early at punctuation to preserve sentiment
+            break_index = -1
+            
+            # Only look back a few words to find a "better" break point
+            lookback_limit = max(1, int(words_per_line * 0.4)) 
+            
+            for j in range(len(current_line) - 1, len(current_line) - lookback_limit - 1, -1):
+                raw_word = current_line[j]["word"]
+                # Check for sentence endings or major pauses
+                if raw_word.endswith('.') or raw_word.endswith('?') or raw_word.endswith('!') or raw_word.endswith(','):
+                    break_index = j + 1 # Include the punctuated word in this line
+                    break
+            
+            # If no good break found, and we are just at the limit, break exactly here
+            # But if we haven't exhausted the buffer (meaning there are future words), we break.
+            # Actually, standard behavior is just to flush 'current_line' when it's full.
+            # But if we found a break_index (early break), we must push remaining back to queue? 
+            # Easier: Just slice `current_line` up to `break_index`, commit that, and decrement `i` to "rewind".
+            
+            if break_index != -1 and break_index < len(current_line):
+                # We found a smart break point earlier in the line
+                line_to_commit = current_line[:break_index]
+                # Rewind i to process the leftovers again
+                backtrack_count = len(current_line) - break_index
+                i -= backtrack_count
+                current_line = line_to_commit
+            
+            # Commit the line
+            text = " ".join([w["word"] for w in current_line])
+            start_time = current_line[0]["start"]
+            end_time = current_line[-1]["end"]
+            
+            if include_timestamps:
+                formatted_lines.append(str(sequence_number))
+                formatted_lines.append(f"{format_srt_timestamp(start_time)} --> {format_srt_timestamp(end_time)}")
+                formatted_lines.append(text)
+                formatted_lines.append("") 
+                sequence_number += 1
+            else:
+                formatted_lines.append(text)
+            
+            current_line = []
+
+    # Commit any leftovers
+    if current_line:
+        text = " ".join([w["word"] for w in current_line])
+        start_time = current_line[0]["start"]
+        end_time = current_line[-1]["end"]
+        
+        if include_timestamps:
             formatted_lines.append(str(sequence_number))
-            formatted_lines.append(f"{format_srt_timestamp(current_line_start)} --> {format_srt_timestamp(current_line_end)}")
-            formatted_lines.append(line_text)
+            formatted_lines.append(f"{format_srt_timestamp(start_time)} --> {format_srt_timestamp(end_time)}")
+            formatted_lines.append(text)
             formatted_lines.append("")
         else:
-            formatted_lines.append(line_text)
-    
+            formatted_lines.append(text)
+
     return "\n".join(formatted_lines)
 
 def convert_audio_to_wav(input_path: str) -> str:
