@@ -1,15 +1,4 @@
 import os
-import sys
-
-# --- DEBUGGING ---
-print(f"Current Working Directory: {os.getcwd()}", flush=True)
-try:
-    print(f"Directory Contents: {os.listdir(os.getcwd())}", flush=True)
-except Exception as e:
-    print(f"Error listing dir: {e}", flush=True)
-print(f"System Path: {sys.path}", flush=True)
-# -----------------
-
 import re
 import json
 import asyncio
@@ -18,32 +7,100 @@ import traceback
 import subprocess
 import gc
 import time
+import urllib.parse
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, File, UploadFile, Form, Request, HTTPException, Response, Depends
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from dotenv import load_dotenv
-
-# Import utilities and models
-# Ensure current dir is in path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-try:
-    from server_utils import list_all_files, pick_audio_files
-    print("Successfully imported server_utils", flush=True)
-except ImportError as e:
-    print(f"FAILED to import server_utils: {e}", flush=True)
-    # Continue to let the app crash with the real error, or standard error
-    raise e
-
-from models import DriveUrlRequest, SaveFolderRequest, RemoveFolderRequest, GetFoldersRequest
 import httpx
+
+# Load environment variables
+load_dotenv()
+
+# --- MODELS (Merged from models.py) ---
+class DriveUrlRequest(BaseModel):
+    url: str
+
+class SaveFolderRequest(BaseModel):
+    url: str
+    userId: str
+    folderName: Optional[str] = None
+
+class RemoveFolderRequest(BaseModel):
+    userId: str
+    folderId: str # This corresponds to the MongoDB _id of the folder document
+
+class GetFoldersRequest(BaseModel):
+    userId: str
+
+# --- UTILS (Merged from server_utils.py) ---
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+
+async def list_drive_folder_files(folder_id: str, page_token: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Fetches files from a Google Drive folder.
+    """
+    q = urllib.parse.quote(f"'{folder_id}' in parents and trashed=false")
+    fields = urllib.parse.quote('nextPageToken, files(id,name,mimeType,size,webContentLink,webViewLink,createdTime)')
+    key = f"&key={GOOGLE_API_KEY}" if GOOGLE_API_KEY else ""
+    page = f"&pageToken={page_token}" if page_token else ""
+    
+    url = f"https://www.googleapis.com/drive/v3/files?q={q}&fields={fields}&pageSize=100{key}{page}"
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        if response.status_code != 200:
+            raise Exception(f"Drive API error: {response.status_code} {response.text}")
+        return response.json()
+
+async def list_all_files(folder_id: str) -> List[Dict[str, Any]]:
+    """
+    Recursively fetches all files from a folder (handling pagination).
+    """
+    all_files = []
+    page_token = None
+    
+    while True:
+        res = await list_drive_folder_files(folder_id, page_token)
+        files = res.get('files', [])
+        all_files.extend(files)
+        page_token = res.get('nextPageToken')
+        if not page_token:
+            break
+            
+    return all_files
+
+def is_audio_file(file: Dict[str, Any]) -> bool:
+    """
+    Checks if a file is an audio file based on mimeType or extension.
+    """
+    if not file:
+        return False
+        
+    mime = (file.get('mimeType') or '').lower()
+    if mime.startswith('audio/'):
+        return True
+        
+    name = (file.get('name') or '').lower()
+    return bool(re.search(r'\.(mp3|m4a|wav|flac|ogg|aac|opus)$', name, re.IGNORECASE))
+
+def pick_audio_files(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Filters a list of files to return only audio files.
+    """
+    audio = []
+    for file in files:
+        if is_audio_file(file):
+            audio.append(file)
+    return audio
 
 # Load environment variables
 load_dotenv()
