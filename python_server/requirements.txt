@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+motor
+httpx
+python-dotenv
+faster-whisper
+python-multipart
+aiofiles
+requests

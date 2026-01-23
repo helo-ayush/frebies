@@ -386,14 +386,27 @@ const Transcribe = () => {
 
                         <div className="grid grid-cols-2 gap-4">
                            <div className="space-y-2">
-                              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Words / Line</label>
+                              <div className="flex justify-between items-center">
+                                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Words / Line</label>
+                                 <label className="flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                       type="checkbox"
+                                       checked={wordsPerLine === 0}
+                                       onChange={(e) => setWordsPerLine(e.target.checked ? 0 : 8)}
+                                       className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20"
+                                    />
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Auto</span>
+                                 </label>
+                              </div>
                               <input
                                  type="number"
                                  min="1"
                                  max="50"
-                                 value={wordsPerLine}
-                                 onChange={(e) => setWordsPerLine(parseInt(e.target.value))}
-                                 className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                                 value={wordsPerLine === 0 ? '' : wordsPerLine}
+                                 onChange={(e) => setWordsPerLine(parseInt(e.target.value) || 0)}
+                                 placeholder="Auto"
+                                 disabled={wordsPerLine === 0}
+                                 className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                               />
                            </div>
                            <div className="space-y-2">
@@ -704,8 +717,8 @@ const Transcribe = () => {
          {/* Toast Notification */}
          <div className={`fixed bottom-6 right-6 z-50 transition-all duration-500 transform ${notification.show ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0'}`}>
             <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${notification.type === 'success'
-                  ? 'bg-white border-green-100 text-green-700'
-                  : 'bg-white border-red-100 text-red-700'
+               ? 'bg-white border-green-100 text-green-700'
+               : 'bg-white border-red-100 text-red-700'
                }`}>
                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${notification.type === 'success' ? 'bg-green-100' : 'bg-red-100'
                   }`}>
