@@ -387,12 +387,17 @@ const Transcribe = () => {
                         <div className="grid grid-cols-2 gap-4">
                            <CustomSelect
                               label="Segment Length"
-                              value={wordsPerLine}
-                              onChange={(val) => setWordsPerLine(parseInt(val))}
+                              value={[0, 5, 8].includes(wordsPerLine) ? wordsPerLine : -1}
+                              onChange={(val) => {
+                                 const newVal = parseInt(val);
+                                 if (newVal === -1) setWordsPerLine(10); // Default custom
+                                 else setWordsPerLine(newVal);
+                              }}
                               options={[
-                                 { value: 5, label: 'Short (5 words)' },
-                                 { value: 8, label: 'Medium (8 words)' },
-                                 { value: 0, label: 'Long (Natural/Auto)' },
+                                 { value: 5, label: 'Short (Smart 5)' },
+                                 { value: 8, label: 'Medium (Smart 8)' },
+                                 { value: 0, label: 'Long (Natural)' },
+                                 { value: -1, label: 'Custom' },
                               ]}
                            />
                            <div className="space-y-2">
@@ -407,6 +412,19 @@ const Transcribe = () => {
                               />
                            </div>
                         </div>
+
+                        {![0, 5, 8].includes(wordsPerLine) && (
+                           <div className="pt-0">
+                              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Custom Word Count</label>
+                              <input
+                                 type="number"
+                                 min="1"
+                                 value={wordsPerLine}
+                                 onChange={(e) => setWordsPerLine(parseInt(e.target.value) || 0)}
+                                 className="mt-1 w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                              />
+                           </div>
+                        )}
 
                         <div className="pt-2">
                            <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:border-indigo-200 transition-all">

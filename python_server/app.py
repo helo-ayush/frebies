@@ -236,12 +236,12 @@ def format_transcription(segments, words_per_line: int, include_timestamps: bool
         # Check if we reached the limit
         if len(current_line) >= words_per_line:
             # SMART CUT LOGIC:
-            # Look for punctuation in the "candidate break zone" (last 40% of the line)
-            # If found, break early at punctuation to preserve sentiment
+            # Look for punctuation in the "candidate break zone"
+            # We want to check a larger portion of the line to find a natural break
             break_index = -1
             
-            # Only look back a few words to find a "better" break point
-            lookback_limit = max(1, int(words_per_line * 0.4)) 
+            # Check up to 75% of the line back from the end
+            lookback_limit = max(1, int(words_per_line * 0.75)) 
             
             for j in range(len(current_line) - 1, len(current_line) - lookback_limit - 1, -1):
                 raw_word = current_line[j]["word"]
