@@ -570,7 +570,7 @@ async def create_transcription_job(
     words_per_line: int = Form(8),
     beam_size: int = Form(5)
 ):
-    if db_folders is None:
+    if db_transcriptions is None:
         raise HTTPException(status_code=503, detail="Database not initialized")
 
     safe_filename = file.filename or "unknown_audio"
