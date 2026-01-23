@@ -1,4 +1,15 @@
 import os
+import sys
+
+# --- DEBUGGING ---
+print(f"Current Working Directory: {os.getcwd()}", flush=True)
+try:
+    print(f"Directory Contents: {os.listdir(os.getcwd())}", flush=True)
+except Exception as e:
+    print(f"Error listing dir: {e}", flush=True)
+print(f"System Path: {sys.path}", flush=True)
+# -----------------
+
 import re
 import json
 import asyncio
@@ -20,7 +31,17 @@ from bson import ObjectId
 from dotenv import load_dotenv
 
 # Import utilities and models
-from server_utils import list_all_files, pick_audio_files
+# Ensure current dir is in path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from server_utils import list_all_files, pick_audio_files
+    print("Successfully imported server_utils", flush=True)
+except ImportError as e:
+    print(f"FAILED to import server_utils: {e}", flush=True)
+    # Continue to let the app crash with the real error, or standard error
+    raise e
+
 from models import DriveUrlRequest, SaveFolderRequest, RemoveFolderRequest, GetFoldersRequest
 import httpx
 
