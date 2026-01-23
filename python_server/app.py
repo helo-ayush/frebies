@@ -292,7 +292,7 @@ async def publish_progress(job_id: str, progress: int, message: str, status: str
 
 async def publish_result(job_id: str, result_data: dict):
     if db_transcriptions is None: return
-    await db[TRANSCRIPTION_COLLECTION].update_one(
+    await db_transcriptions[TRANSCRIPTION_COLLECTION].update_one(
         {"_id": ObjectId(job_id)}, 
         {"$set": {
             "status": "completed", 
@@ -313,7 +313,7 @@ async def publish_result(job_id: str, result_data: dict):
 
 async def publish_error(job_id: str, error_msg: str):
     if db_transcriptions is None: return
-    await db[TRANSCRIPTION_COLLECTION].update_one(
+    await db_transcriptions[TRANSCRIPTION_COLLECTION].update_one(
         {"_id": ObjectId(job_id)}, 
         {"$set": {
             "status": "failed", 
