@@ -54,7 +54,7 @@ const Transcribe = () => {
    // Configuration
    const [selectedModel, setSelectedModel] = useState('base');
    const [selectedLanguage, setSelectedLanguage] = useState('auto');
-   const [timestamps, setTimestamps] = useState(true);
+   const [segmentMode, setSegmentMode] = useState('medium'); // 'short', 'medium', 'long', 'custom'
    const [wordsPerLine, setWordsPerLine] = useState(8);
    const [beamSize, setBeamSize] = useState(5);
 
@@ -387,17 +387,19 @@ const Transcribe = () => {
                         <div className="grid grid-cols-2 gap-4">
                            <CustomSelect
                               label="Segment Length"
-                              value={[0, 5, 8].includes(wordsPerLine) ? wordsPerLine : -1}
+                              value={segmentMode}
                               onChange={(val) => {
-                                 const newVal = parseInt(val);
-                                 if (newVal === -1) setWordsPerLine(10); // Default custom
-                                 else setWordsPerLine(newVal);
+                                 setSegmentMode(val);
+                                 if (val === 'short') setWordsPerLine(5);
+                                 else if (val === 'medium') setWordsPerLine(8);
+                                 else if (val === 'long') setWordsPerLine(0);
+                                 // If custom, leave wordsPerLine as is (or default if you want)
                               }}
                               options={[
-                                 { value: 5, label: 'Short (Smart 5)' },
-                                 { value: 8, label: 'Medium (Smart 8)' },
-                                 { value: 0, label: 'Long (Natural)' },
-                                 { value: -1, label: 'Custom' },
+                                 { value: 'short', label: 'Short (Smart 5)' },
+                                 { value: 'medium', label: 'Medium (Smart 8)' },
+                                 { value: 'long', label: 'Long (Natural)' },
+                                 { value: 'custom', label: 'Custom' },
                               ]}
                            />
                            <div className="space-y-2">
@@ -413,7 +415,7 @@ const Transcribe = () => {
                            </div>
                         </div>
 
-                        {![0, 5, 8].includes(wordsPerLine) && (
+                        {segmentMode === 'custom' && (
                            <div className="pt-0">
                               <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Custom Word Count</label>
                               <input
