@@ -54,6 +54,7 @@ const Transcribe = () => {
    // Configuration
    const [selectedModel, setSelectedModel] = useState('base');
    const [selectedLanguage, setSelectedLanguage] = useState('auto');
+   const [timestamps, setTimestamps] = useState(true);
    const [segmentMode, setSegmentMode] = useState('medium'); // 'short', 'medium', 'long', 'custom'
    const [wordsPerLine, setWordsPerLine] = useState(8);
    const [beamSize, setBeamSize] = useState(5);
