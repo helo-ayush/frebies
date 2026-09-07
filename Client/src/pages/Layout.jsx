@@ -1,79 +1,38 @@
-import React, { useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom';
-import Logo from '../assets/Logo.png'
-import { Menu, X } from 'lucide-react';
-import { useClerk, SignedIn, SignedOut, UserButton, useUser } from '@clerk/clerk-react';
-
-
+import React from 'react'
+import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { SignedIn, SignedOut, UserButton, useClerk } from '@clerk/clerk-react'
 
 const Layout = () => {
-  const clerk = useClerk();
-  const { user } = useUser();
-  
-  const openLogin = () => clerk.openSignIn({ redirectUrl: "/dashboard" });
-  const openSignup = () => clerk.openSignUp({ redirectUrl: "/dashboard" });
-
-  const { openUserProfile } = useClerk();
+  const { openSignIn, openSignUp } = useClerk()
+  const location = useLocation()
+  const isHome = location.pathname === '/'
 
   return (
-    <div className="min-h-screen bg-[#F5F6F9]">
-      {/* Navigation bar - minimal pill on left side */}
-      <nav className="fixed top-6 flex w-full lg:w-auto justify-center md:justify-start z-50">
-        <div className="bg-white/80 backdrop-blur-md rounded-4xl md:rounded-r-full border border-gray-200/50 shadow-lg px-4 py-3 flex items-center gap-2">
-          {/* Logo */}
-          <NavLink
-            to='/'
-            className='flex items-center gap-2 group transition-all duration-300'
-          >
-            <img
-              src={Logo}
-              alt="Logo"
-              className="h-7 w-auto transition-all duration-300 group-hover:scale-110"
-            />
-            <div className='text-lg font-black text-gray-900 transition-all duration-300 group-hover:text-gray-700'>
-              frebies
-            </div>
-          </NavLink>
-
-          <div className="w-px h-6 bg-gray-300 mx-1"></div>
-
-          {/* Dashboard Link */}
-          <NavLink
-            to='/dashboard'
-            className={({ isActive }) =>
-              `text-sm font-bold px-3 py-1.5 rounded-full transition-all duration-300
-              ${isActive
-                ? 'bg-purple-100 text-purple-700'
-                : 'text-gray-700 hover:bg-gray-100'
-              }`
-            }
-          >
-            Dashboard
-          </NavLink>
-
-          <div className="w-px h-6 bg-gray-300 mx-1"></div>
-
-          {/* Auth Buttons  */}
-          <SignedOut>
-            <div className='flex gap-2 items-center'>
-              <button onClick={openLogin} className='text-sm text-gray-700 font-bold transition-all duration-300 cursor-pointer hover:text-purple-600 px-3 py-1.5 rounded-full hover:bg-gray-100'>
-                Login
-              </button>
-              <button onClick={openSignup} className='px-4 py-1.5 rounded-full font-bold text-sm bg-gray-900 text-white transition-all duration-300 hover:shadow-lg hover:scale-105'>
-                <span className='cursor-pointer'>Sign up</span>
-              </button>
-            </div>
-          </SignedOut>
-
-          <SignedIn>
-            <div className='flex gap-2 items-center'>
-              <UserButton />
-            </div>
-          </SignedIn>
+    <div className="min-h-screen bg-[#08080b]">
+      <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,760px)]">
+        <div className="flex h-14 items-center justify-between rounded-full border border-white/10 bg-[#09090dcc] px-4 pl-5 shadow-[0_15px_42px_rgba(0,0,0,.28)] backdrop-blur-xl">
+          <NavLink to="/" className="text-sm font-extrabold tracking-[-0.05em] text-white">frebies</NavLink>
+          <div className="hidden items-center gap-1 sm:flex">
+            {isHome ? (
+              <>
+                <a href="#system" className="rounded-full px-3 py-2 text-[9px] uppercase tracking-[.08em] text-white/60 transition hover:bg-white/5 hover:text-white">system</a>
+                <a href="#tools" className="rounded-full px-3 py-2 text-[9px] uppercase tracking-[.08em] text-white/60 transition hover:bg-white/5 hover:text-white">tools</a>
+                <a href="#workflow" className="rounded-full px-3 py-2 text-[9px] uppercase tracking-[.08em] text-white/60 transition hover:bg-white/5 hover:text-white">workflow</a>
+                <a href="#about" className="rounded-full px-3 py-2 text-[9px] uppercase tracking-[.08em] text-white/60 transition hover:bg-white/5 hover:text-white">about</a>
+              </>
+            ) : (
+              <NavLink to="/dashboard" className="rounded-full px-3 py-2 text-[9px] uppercase tracking-[.08em] text-white/70 transition hover:bg-white/5 hover:text-white">dashboard</NavLink>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <SignedOut>
+              <button onClick={() => openSignIn({ redirectUrl: '/dashboard' })} className="hidden rounded-full px-3 py-2 text-[9px] font-medium uppercase tracking-[.05em] text-white/60 transition hover:text-white sm:block">login</button>
+              <button onClick={() => openSignUp({ redirectUrl: '/dashboard' })} className="rounded-full bg-[#f4efff] px-4 py-2 text-[9px] font-medium uppercase tracking-[.05em] text-[#111116] transition hover:-translate-y-0.5">sign up</button>
+            </SignedOut>
+            <SignedIn><UserButton /></SignedIn>
+          </div>
         </div>
       </nav>
-
-      {/* This will be the outlet for other element to be displayed */}
       <Outlet />
     </div>
   )
