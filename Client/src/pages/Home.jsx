@@ -1,299 +1,47 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Zap, Shield, Sparkles, ChevronRight, Star, Users, TrendingUp } from 'lucide-react';
-import { useClerk, useUser } from '@clerk/clerk-react';
+import React, { useEffect, useRef } from 'react'
+import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
+import { ArrowUpRight, ChevronDown, ChevronRight, Mic2, Music2, Sparkles, SlidersHorizontal } from 'lucide-react'
+import { useClerk, useUser } from '@clerk/clerk-react'
+import { useNavigate } from 'react-router-dom'
+import './home.css'
 
-export default function HomePage() {
-  const [email, setEmail] = useState('');
-  const clerk = useClerk();
-  const { user, isSignedIn } = useUser();
-  const navigate = useNavigate();
+const tools=[
+ {no:'01',title:'Transcribe',description:'Turn audio into clean text and captions.',path:'/dashboard/transcribe',icon:Mic2},
+ {no:'02',title:'Mix Maker',description:'Build smooth mixes with less manual work.',path:'/dashboard/mix-maker',icon:Music2},
+ {no:'03',title:'Dashboard',description:'A home for current work and future utilities.',path:'/dashboard',icon:Sparkles},
+]
 
-  const openLogin = () => clerk.openSignIn({ redirectUrl: "/dashboard" });
+function Reveal({children,className='',delay=0}){return <motion.div className={className} initial={{opacity:0,y:34}} whileInView={{opacity:1,y:0}} viewport={{once:true,amount:.14}} transition={{duration:.8,delay,ease:[.2,.7,.2,1]}}>{children}</motion.div>}
+function CursorRepel({children,className=''}){
+ const ref=useRef(null),x=useMotionValue(0),y=useMotionValue(0),sx=useSpring(x,{stiffness:270,damping:25}),sy=useSpring(y,{stiffness:270,damping:25});
+ const rx=useTransform(sy,[-18,18],[2.5,-2.5]),ry=useTransform(sx,[-18,18],[-2.5,2.5]);
+ const move=e=>{if(matchMedia('(pointer: coarse)').matches)return;const r=ref.current?.getBoundingClientRect();if(!r)return;const dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),d=Math.hypot(dx,dy),rad=Math.max(190,Math.min(330,Math.max(r.width,r.height)*.62)),p=d<rad?(1-d/rad)**2:0;x.set(-(d?dx/d:0)*p*18);y.set(-(d?dy/d:0)*p*18)};
+ return <motion.div ref={ref} className={className} style={{x:sx,y:sy,rotateX:rx,rotateY:ry,transformPerspective:900}} onMouseMove={move} onMouseLeave={()=>{x.set(0);y.set(0)}}>{children}</motion.div>
+}
 
-  return (
-    <div className="min-h-screen bg-[#F5F6F9]">
-      {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-8 p-24 md:py-24 relative overflow-hidden">
-        {/* Decorative floating shapes */}
-        <div className="absolute top-20 left-10 w-24 h-24 bg-linear-to-br from-yellow-400 to-yellow-300 rounded-full blur-2xl opacity-60 animate-pulse"></div>
-        <div className="absolute top-40 right-20 w-32 h-32 bg-linear-to-br from-blue-400 to-purple-400 rounded-full blur-3xl opacity-50"></div>
-        <div className="absolute bottom-20 left-1/4 w-20 h-20 bg-linear-to-br from-pink-400 to-pink-300 rounded-full blur-xl opacity-40"></div>
+export default function HomePage(){
+ const {openSignIn,openSignUp}=useClerk();const {user,isSignedIn}=useUser();const navigate=useNavigate();
+ const openApp=()=>isSignedIn?navigate('/dashboard'):openSignIn({redirectUrl:'/dashboard'});
+ useEffect(()=>{const onScroll=()=>document.documentElement.style.setProperty('--frebies-scroll',String(window.scrollY/(document.documentElement.scrollHeight-innerHeight||1)));onScroll();addEventListener('scroll',onScroll,{passive:true});return()=>removeEventListener('scroll',onScroll)},[])
+ return <div className="frebies-home">
+  <div className="frebies-progress"/>
+  <section className="frebies-hero" id="home"><div className="hero-breath"/><div className="hero-grain"/><div className="hero-orbits"><i className="e1"/><i className="e2"/><i className="e3"/><i className="e4"/><b className="n n1"/><b className="n n2"/><b className="n n3"/></div>
+   <div className="hero-inner"><Reveal><small className="kicker">free creator infrastructure / 2026</small><h1>Make more.<br/><span>Pay <em>nothing.</em></span><br/>Ship faster.</h1><div className="hero-note"><i/> Free creator tools, without the pricing maze.</div></Reveal>
+   <Reveal className="hero-side" delay={.12}><p>{isSignedIn?`Welcome back, ${user?.firstName||'creator'}. `:''}Transcribe, mix, process and experiment with focused tools built around the work you already do.</p><div className="hero-actions"><button onClick={openApp} className="primary">Open Frebies <ArrowUpRight size={15}/></button>{!isSignedIn&&<button onClick={()=>openSignUp({redirectUrl:'/dashboard'})} className="secondary">Create account</button>}</div></Reveal></div>
+   <div className="instrument"><div><small>tools live</small><strong className="accent">02</strong></div><div><small><i/> access state</small><strong>100% free</strong><span className="meter">{Array.from({length:9}).map((_,i)=><b key={i} style={{height:7+(i%4)*4}}/>)}</span></div><div><small>creator utility</small><strong className="accent">∞</strong></div><div><small>availability</small><strong>24/7</strong></div></div>
+   <a href="#system" className="scroll-cue"><ChevronDown size={14}/> scroll to explore</a>
+  </section>
 
-        <div className="text-center max-w-5xl mx-auto relative z-10">
-          {/* Large rounded geometric headline */}
-          <h1 className="text-5xl md:text-8xl font-black mb-8 leading-[1.1] tracking-tight select-none">
-            <span className="text-gray-900">Hi {clerk.isSignedIn ? user.firstName : "Editor"}<span className="inline-block animate-[wiggle-slow_2s_ease-in-out_infinite] md:animate-none md:hover:animate-[wiggle_0.5s_ease-in-out] cursor-pointer">
-              👋
-            </span></span>
-            <br />
-            <span className="bg-linear-to-r from-blue-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">Explore tools For free!!</span>
-          </h1>
+  <section className="section system" id="system"><div className="grid"><Reveal className="sticky"><small className="label">01 / design system</small><h2>A darker language with a little electricity.</h2><p>Strong hierarchy, high contrast, asymmetric spacing and quiet motion give Frebies one recognizable product language.</p></Reveal><Reveal className="specimen" delay={.1}><small>frebies / visual specimen / 01</small><span>BLACK SURFACES / SOFT LIGHT / SHARP TYPE</span><strong>Dark<br/><em>by design.</em></strong><i className="cross x"/><i className="cross y"/><b className="point p1"/><b className="point p2"/><footer>tactile interaction / asymmetric spacing / editorial rhythm</footer></Reveal></div></section>
 
-          <p className="text-xl md:text-2xl text-gray-600 mb-16 max-w-3xl mx-auto leading-relaxed font-medium">
-            Do what you want with our website, its completely free, dont forget to suggest for new features
-          </p>
+  <section className="section tools" id="tools"><div className="grid tools-grid"><Reveal className="sticky"><small className="label">02 / toolkit</small><h2>Small tools.<br/>Big leverage.</h2><p>The real actions stay obvious. Surfaces have different weights and subtly move away from the cursor.</p><div className="tool-stats">03 live surfaces <span/> 04 planned</div></Reveal><div className="tool-rack">{tools.map(({no,title,description,path,icon:Icon},i)=><CursorRepel key={no} className={`tool-card c${i+1}`}><button onClick={()=>navigate(path)}><small>{no} / {title.toUpperCase()}</small><span className="tool-icon"><Icon size={18}/></span><h3>{title}</h3><p>{description}</p><strong>Open tool <ArrowUpRight size={14}/></strong></button></CursorRepel>)}<CursorRepel className="next-card"><small>04 / NEXT</small><strong>More useful things soon.</strong></CursorRepel></div></div></section>
 
-          {/* CTA with pill-shaped button */}
-          <div className="flex flex-col sm:flex-row gap-5 justify-center items-center mb-16">
-            <div onClick={() => { isSignedIn ? navigate("/dashboard") : openLogin({ redirectUrl: '/dashboard' }) }} className="group relative w-full sm:w-auto bg-gray-900 cursor-pointer text-white px-10 py-5 rounded-full font-bold text-lg hover:shadow-2xl hover:shadow-gray-900/30 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3">
-              <span>Get Started Free</span>
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              <div className="absolute inset-0 bg-linear-to-r from-purple-600/20 to-pink-600/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            </div>
-            <button className="w-full sm:w-auto cursor-pointer bg-white text-gray-900 px-10 py-5 rounded-full font-bold text-lg shadow-lg shadow-gray-200/50 hover:shadow-xl hover:scale-105 transition-all duration-300">
-              Watch Demo
-            </button>
-          </div>
-        </div>
+  <section className="section workflow" id="workflow"><div className="wrap"><Reveal><small className="label">03 / live workflow</small><div className="workflow-head"><h2>See the work moving.</h2><p>A visual timeline that can later bind directly to real processing state.</p></div></Reveal><Reveal className="timeline" delay={.08}><header><span>session / creator / current job</span><b><i/> processing</b></header><div className="tracks"><div className="playhead"/>{[['source','input_audio.wav','a'],['transcribe','captions / 87%','b'],['clean','noise reduction','c'],['mix','mix-maker / render','d']].map(([l,t,c])=><div className="track" key={l}><small>{l}</small><div><span className={c}>{t}</span></div></div>)}</div><footer><span>00:00</span><div className="wave">{Array.from({length:24}).map((_,i)=><i key={i} style={{height:8+(i*7)%20}}/>)}</div><span>03:42</span></footer></Reveal></div></section>
 
-        {/* Dashboard Preview with decorative elements */}
-        <div className="mt-32 relative">
-          {/* Ambient glow behind */}
-          <div className="absolute inset-0 bg-linear-to-r from-purple-200 via-pink-200 to-blue-200 blur-[100px] opacity-40"></div>
+  <section className="section stage"><div className="grid stage-grid"><Reveal><small className="label dark">04 / featured surface</small><h2>One screen can carry a whole mood.</h2><p className="dark-copy">A future Mix Maker or Transcribe screen can live here, making the landing page a preview of the real product.</p><button onClick={openApp} className="primary">Open workspace <ArrowUpRight size={15}/></button></Reveal><CursorRepel className="device-wrap"><div className="device"><header><span>frebies / mix maker</span><b><i/> ready</b></header><h3>Build<br/>something<br/><em>worth keeping.</em></h3><small>waveform / track control / render profile / local workflow</small><div className="device-orbit"/><div className="device-panel"><span>render profile</span><strong>fast</strong><div><SlidersHorizontal size={17}/></div></div></div></CursorRepel></div></section>
 
-          <div className="relative bg-white rounded-4xl p-10 shadow-[0_20px_80px_-20px_rgba(0,0,0,0.15)]">
-            {/* Window controls */}
-            <div className="flex items-center gap-2 mb-8">
-              <div className="w-3 h-3 bg-red-400 rounded-full shadow-sm"></div>
-              <div className="w-3 h-3 bg-yellow-400 rounded-full shadow-sm"></div>
-              <div className="w-3 h-3 bg-green-400 rounded-full shadow-sm"></div>
-            </div>
+  <section className="section about" id="about"><div className="grid"><Reveal className="sticky"><small className="label">05 / principles</small><h2>The interface should know when to get out of the way.</h2></Reveal><div className="axioms">{[['01','Clear before clever.','Strong focal points. Decorative motion supports the message.'],['02','Different shapes, same language.','Tool pages do not need the same layout to feel related.'],['03','Motion should explain.','Scroll, progress, breathing light and cursor response should add meaning.']].map(([n,t,d],i)=><Reveal className="axiom" delay={i*.06} key={n}><span>{n}</span><div><h3>{t}</h3><p>{d}</p><a href="#start"><ChevronRight size={15}/></a></div></Reveal>)}</div></div></section>
 
-            {/* Feature cards with playful colors */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="group bg-linear-to-br from-purple-50 to-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:scale-105 transition-all duration-300">
-                <div className="w-16 h-16 bg-linear-to-br from-purple-400 to-purple-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-200 group-hover:shadow-xl group-hover:shadow-purple-300 transition-all">
-                  <Zap className="w-8 h-8 text-white" />
-
-                </div>
-                <h3 className="text-xl font-black mb-3 text-gray-900">Local Render</h3>
-                <p className="text-gray-600 leading-relaxed">Speed based on your computer specs</p>
-              </div>
-
-              <div className="group bg-linear-to-br from-blue-50 to-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:scale-105 transition-all duration-300">
-                <div className="w-16 h-16 bg-linear-to-br from-blue-400 to-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200 group-hover:shadow-xl group-hover:shadow-blue-300 transition-all">
-                  <Shield className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-xl font-black mb-3 text-gray-900">Google Drive</h3>
-                <p className="text-gray-600 leading-relaxed">Can use google drive for data transfer</p>
-              </div>
-
-              <div className="group bg-linear-to-br from-pink-50 to-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:scale-105 transition-all duration-300">
-                <div className="w-16 h-16 bg-linear-to-br from-pink-400 to-pink-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-pink-200 group-hover:shadow-xl group-hover:shadow-pink-300 transition-all">
-                  <Sparkles className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-xl font-black mb-3 text-gray-900">Whisper</h3>
-                <p className="text-gray-600 leading-relaxed">OpenAi Whisper for transcribe</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="max-w-7xl mx-auto px-8 py-18">
-        <div className="text-center mb-20">
-          <h2 className="text-5xl md:text-6xl font-black mb-6 text-gray-900">Everything you need</h2>
-          <p className="text-2xl text-gray-600 font-medium">All the tools to build, ship, and scale</p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-8">
-
-          <div className="group bg-white p-10 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(59,130,246,0.15)] hover:scale-105 transition-all duration-300">
-            <div className="w-14 h-14 bg-linear-to-br from-blue-400 to-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
-              <div className='text-4xl'>📑</div>
-            </div>
-            <h3 className="text-3xl font-black mb-4 text-gray-900">Transcribe</h3>
-            <p className="text-gray-600 mb-8 text-lg leading-relaxed">Helps people with hearing problem, by generating captions for them</p>
-            <Link to='/dashboard/transcribe' className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 transition font-bold group-hover:gap-3">
-              Explore <ChevronRight className="w-5 h-5" />
-            </Link>
-          </div>
-
-          <div className="group bg-white p-10 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(34,197,94,0.15)] hover:scale-105 transition-all duration-300">
-            <div className="w-14 h-14 bg-linear-to-br from-blue-400 to-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
-              <div className='text-4xl'>🎧</div>
-            </div>
-            <h3 className="text-3xl font-black mb-4 text-gray-900">Mix Creator</h3>
-            <p className="text-gray-600 mb-8 text-lg leading-relaxed">For lazy peoples it generates whole mix with just few clicks</p>
-            <Link to='/dashboard/mix-maker' className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 transition font-bold group-hover:gap-3">
-              Explore <ChevronRight className="w-5 h-5" />
-            </Link>
-          </div>
-
-          <div className="group bg-white p-10 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(147,51,234,0.15)] hover:scale-105 transition-all duration-300">
-            <div className="w-14 h-14 bg-linear-to-br from-purple-400 to-purple-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-200">
-              <Users className="w-7 h-7 text-white" />
-            </div>
-            <h3 className="text-3xl font-black mb-4 text-gray-900">Real-time Collaboration</h3>
-            <p className="text-gray-600 mb-8 text-lg leading-relaxed">Work together seamlessly with your team in real-time. See changes as they happen.</p>
-            <a href="#" className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 transition font-bold group-hover:gap-3">
-              Explore <ChevronRight className="w-5 h-5" />
-            </a>
-          </div>
-
-          <div className="group bg-white p-10 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(236,72,153,0.15)] hover:scale-105 transition-all duration-300">
-            <div className="w-14 h-14 bg-linear-to-br from-pink-400 to-pink-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-pink-200">
-              <TrendingUp className="w-7 h-7 text-white" />
-            </div>
-            <h3 className="text-3xl font-black mb-4 text-gray-900">Advanced Analytics</h3>
-            <p className="text-gray-600 mb-8 text-lg leading-relaxed">Get deep insights of your youtube channel and compare with others.</p>
-            <a href="#" className="inline-flex items-center gap-2 text-pink-600 hover:text-pink-700 transition font-bold group-hover:gap-3">
-              Explore <ChevronRight className="w-5 h-5" />
-            </a>
-          </div>
-
-
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="max-w-7xl mx-auto px-8 py-32">
-        <div className="text-center mb-20">
-          <h2 className="text-5xl md:text-6xl font-black mb-6 text-gray-900">Loved by teams worldwide</h2>
-          <p className="text-2xl text-gray-600 font-medium">See what our customers have to say</p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="bg-white p-8 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] hover:scale-105 transition-all duration-300">
-            <div className="flex items-center gap-1 mb-6">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="w-8 h-8 bg-linear-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-sm">
-                  <Star className="w-4 h-4 text-white fill-white" />
-                </div>
-              ))}
-            </div>
-            <p className="text-gray-700 mb-8 text-lg leading-relaxed font-medium">"Somenody paid me to write this review, i am not even an video editor"</p>
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-linear-to-br from-purple-400 to-purple-500 rounded-full flex items-center justify-center font-black text-white text-lg shadow-lg">
-                JD
-              </div>
-              <div>
-                <p className="font-black text-gray-900">Elan Mosk</p>
-                <p className="text-sm text-gray-500 font-semibold">Unemployed</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] hover:scale-105 transition-all duration-300">
-            <div className="flex items-center gap-1 mb-6">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="w-8 h-8 bg-linear-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-sm">
-                  <Star className="w-4 h-4 text-white fill-white" />
-                </div>
-              ))}
-            </div>
-            <p className="text-gray-700 mb-8 text-lg leading-relaxed font-medium">"How much money do you want to sell this website?💰"</p>
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-linear-to-br from-blue-400 to-blue-500 rounded-full flex items-center justify-center font-black text-white text-lg shadow-lg">
-                MS
-              </div>
-              <div>
-                <p className="font-black text-gray-900">Mark Zarvis </p>
-                <p className="text-sm text-gray-500 font-semibold">Mota</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-4xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] hover:scale-105 transition-all duration-300">
-            <div className="flex items-center gap-1 mb-6">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="w-8 h-8 bg-linear-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-sm">
-                  <Star className="w-4 h-4 text-white fill-white" />
-                </div>
-              ))}
-            </div>
-            <p className="text-gray-700 mb-8 text-lg leading-relaxed font-medium">"Hi👋, are you by yourself? ahem!!"</p>
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-linear-to-br from-pink-400 to-pink-500 rounded-full flex items-center justify-center font-black text-white text-lg shadow-lg">
-                SJ
-              </div>
-              <div>
-                <p className="font-black text-gray-900">Bull Grades</p>
-                <p className="text-sm text-gray-500 font-semibold">Amazan Forest</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="max-w-7xl mx-auto px-8 py-32">
-        <div className="bg-linear-to-br from-gray-900 via-gray-800 to-gray-900 rounded-[3rem] p-16 md:p-24 text-center relative overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.3)]">
-          {/* Decorative linear orbs */}
-          <div className="absolute top-0 left-1/4 w-64 h-64 bg-linear-to-br from-purple-500 to-pink-500 rounded-full blur-[100px] opacity-30"></div>
-          <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-linear-to-br from-blue-500 to-purple-500 rounded-full blur-[100px] opacity-30"></div>
-
-          <div className="relative z-10">
-            <h2 className="text-5xl md:text-7xl font-black mb-6 text-white leading-tight">Ready to get started?</h2>
-            <p className="text-2xl mb-12 text-white/80 font-medium">Start your new journey using our platform</p>
-            <button onClick={() => { isSignedIn ? navigate("/dashboard") : openLogin({ redirectUrl: '/dashboard' }) }} className="group cursor-pointer bg-white text-gray-900 px-12 py-6 rounded-full font-black text-xl hover:scale-110 hover:shadow-[0_20px_60px_rgba(255,255,255,0.3)] transition-all duration-300">
-              Start Now
-              <span className="inline-block ml-2 group-hover:translate-x-2 transition-transform">→</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="mt-32 bg-white border-t border-gray-200">
-        <div className="max-w-7xl mx-auto px-8 py-16">
-          {/* Partner logos strip with low opacity */}
-          <div className="mb-16 pb-12 border-b border-gray-200">
-            <p className="text-center text-sm font-semibold text-gray-400 mb-8 uppercase tracking-wide">Waiting for getting trusted by these teams 😂</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-10 justify-items-center items-center opacity-30 grayscale">
-              <div className="text-3xl font-black text-gray-400">Macrosoft</div>
-              <div className="text-3xl font-black text-gray-400">Tasla</div>
-              <div className="text-3xl font-black text-gray-400">Guggle</div>
-              <div className="text-3xl font-black text-gray-400">Navidi</div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-12">
-            <div>
-              <h4 className="font-black mb-5 text-gray-900 text-lg">Product</h4>
-              <ul className="space-y-3 text-gray-600">
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Features</a></li>
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Pricing</a></li>
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Security</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-black mb-5 text-gray-900 text-lg">Company</h4>
-              <ul className="space-y-3 text-gray-600">
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">About</a></li>
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Blog</a></li>
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Careers</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-black mb-5 text-gray-900 text-lg">Resources</h4>
-              <ul className="space-y-3 text-gray-600">
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Documentation</a></li>
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Help Center</a></li>
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Community</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-black mb-5 text-gray-900 text-lg">Legal</h4>
-              <ul className="space-y-3 text-gray-600">
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Privacy</a></li>
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Terms</a></li>
-                <li><a href="#" className="hover:text-purple-600 transition font-semibold">Cookie Policy</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-gray-200 pt-10 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-gray-500 font-semibold">© No rights reserved. Please dont copy this website.</p>
-            <div className="flex gap-8 text-gray-500">
-              <a href="#" className="hover:text-purple-600 transition font-semibold">Twitter</a>
-              <a href="#" className="hover:text-purple-600 transition font-semibold">GitHub</a>
-              <a href="#" className="hover:text-purple-600 transition font-semibold">LinkedIn</a>
-            </div>
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
+  <section className="section final" id="start"><Reveal><small className="label">06 / start</small><h2>Make something.<br/><span>for free.</span></h2><p>Landing first. Dashboard next. Then the individual tools — all sharing one visual grammar.</p><button onClick={openApp} className="primary">Open Frebies <ArrowUpRight size={15}/></button></Reveal></section>
+ </div>
 }
