@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { motion, useMotionValue, useSpring } from 'framer-motion'
 import { ArrowUpRight, ChevronDown, Mic2, Music2, Sparkles } from 'lucide-react'
-import { useClerk, useUser } from '@clerk/clerk-react'
+import { SignedIn, SignedOut, UserButton, useClerk, useUser } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
 import './home-v6.css'
 
@@ -38,7 +38,7 @@ function CursorRepel({ children, className = '' }) {
 }
 
 export default function HomePage() {
-  const { openSignIn } = useClerk()
+  const { openSignIn, openSignUp } = useClerk()
   const { isSignedIn } = useUser()
   const navigate = useNavigate()
   const openApp = () => isSignedIn ? navigate('/dashboard') : openSignIn({ redirectUrl: '/dashboard' })
@@ -67,7 +67,21 @@ export default function HomePage() {
 
   return <div className="frebies-v6">
     <div className="progress" />
-    <header className="nav-shell"><nav className="nav"><a href="#top" className="nav-brand">frebies</a><div className="nav-links"><a href="#dna">system</a><a href="#tools">tools</a><a href="#workflow">workflow</a><a href="#about">about</a></div><button onClick={openApp} className="nav-launch">open app&nbsp; ↗</button></nav></header>
+    <header className="nav-shell">
+      <nav className="nav">
+        <a href="#top" className="nav-brand">frebies</a>
+        <div className="nav-links"><a href="#dna">system</a><a href="#tools">tools</a><a href="#workflow">workflow</a><a href="#about">about</a></div>
+        <div className="nav-auth">
+          <SignedOut>
+            <button onClick={() => openSignUp({ redirectUrl: '/dashboard' })} className="nav-signup">sign up</button>
+          </SignedOut>
+          <SignedIn>
+            <div className="nav-profile"><UserButton afterSignOutUrl="/" /></div>
+          </SignedIn>
+          <button onClick={openApp} className="nav-launch">open app&nbsp; ↗</button>
+        </div>
+      </nav>
+    </header>
 
     <main id="top">
       <section className="hero">
@@ -84,7 +98,7 @@ export default function HomePage() {
 
       <section className="section constellation" id="tools"><div className="wrap constellation-layout"><Reveal className="constellation-copy"><div className="label">02 / tool constellation</div><div className="title">Your tools are a system, not a grid.</div><p className="copy">This replaces the previous stacked-card section. The tools connect visually like a small constellation around the Frebies workspace. It gives you a strong place to add new tools later without redesigning the entire section.</p><button className="cta" style={{ marginTop: 28 }} onClick={() => document.querySelector('#workflow')?.scrollIntoView({ behavior: 'smooth' })}>trace a workflow <em>↘</em></button></Reveal><CursorRepel className="constellation-map"><svg viewBox="0 0 800 660" preserveAspectRatio="none" aria-hidden="true"><path d="M184 196 C 300 70, 430 100, 496 158 S 620 286, 624 376" fill="none" stroke="#b59cff28" strokeWidth="1.2" /><path d="M194 196 C 270 300, 312 450, 344 462 S 450 500, 490 560" fill="none" stroke="#b59cff22" strokeWidth="1.2" /><path d="M344 462 C 460 394, 555 352, 624 376" fill="none" stroke="#b59cff28" strokeWidth="1.2" /><path d="M496 158 C 472 286, 430 388, 344 462" fill="none" stroke="#b59cff1c" strokeWidth="1.2" /><circle cx="400" cy="330" r="154" fill="none" stroke="#b59cff10" /><circle cx="400" cy="330" r="212" fill="none" stroke="#b59cff08" /></svg><div className="center-core"><div><strong>frebies</strong><small>creator workspace</small></div></div><div className="star-node s1"><div className="star-dot" /><div className="node-name">Transcribe</div></div><div className="star-node s2"><div className="star-dot" /><div className="node-name">Mix Maker</div></div><div className="star-node s3"><div className="star-dot" /><div className="node-name">Dashboard</div></div><div className="star-node s4"><div className="star-dot" /><div className="node-name">Next tool</div></div><div className="map-readout">04 nodes / one workspace<br />status: expanding</div></CursorRepel></div></section>
 
-      <section className="section workflow" id="workflow"><div className="wrap"><Reveal className="workflow-head"><div><div className="label">03 / live workflow</div><div className="title">See the work moving.</div></div><p className="copy">A visual timeline feels more native to Frebies than another collection of explanatory boxes. It can later map directly to real job progress in the app.</p></Reveal><Reveal className="workflow-board" delay={0.08}><div className="workflow-top"><span>session / creator-01 / current job</span><span className="workflow-status"><i />processing</span></div><div className="timeline"><div className="playhead" /><div className="track"><div className="track-label">source</div><div className="track-row"><div className="clip c1">input_audio.wav</div></div></div><div className="track"><div className="track-label">transcribe</div><div className="track-row"><div className="clip c2">captions / 87%</div></div></div><div className="track"><div className="track-label">clean</div><div className="track-row"><div className="clip c3">noise reduction</div></div></div><div className="track"><div className="track-label">mix</div><div className="track-row"><div className="clip c4">mix-maker / render</div></div></div></div><div className="workflow-foot"><span>00:00</span><div className="waveform">{Array.from({ length: 10 }, (_, i) => <span key={i} />)}</div><span>03:42</span></div></Reveal></div></section>
+      <section className="section workflow" id="workflow"><div className="wrap"><Reveal className="workflow-head"><div><div className="label">03 / live workflow</div><div className="title">See the work moving.</div></div><p className="copy">A visual timeline feels more native to Frebies than another collection of explanatory boxes. It can later map directly to real job progress in the app.</p></Reveal><Reveal className="workflow-board" delay={0.08}><div className="workflow-top"><span>session / creator-01 / current job</span><span className="workflow-status"><i />processing</span></div><div className="timeline"><div className="playhead" /><div className="track"><div className="track-label">source</div><div className="track-row"><div className="clip c1">input_audio.wav</div></div></div><div className="track"><div className="track-label">transcribe</div><div className="track-row"><div className="clip c2">captions / 87%</div></div></div><div className="track"><div className="track-label">clean</div><div className="track-row"><div className="clip c3">noise reduction</div></div></div><div className="track"><div className="track-label">mix</div><div className="track-row"><div className="clip c4">mix-maker / render</div></div></div></div><div className="workflow-foot"><span>00:00</span><div className="waveform"><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /></div><span>03:42</span></div></Reveal></div></section>
 
       <section className="section stage" id="showcase"><div className="wrap stage-layout"><Reveal><div className="label">04 / featured surface</div><div className="title">One screen can carry a whole mood.</div><p className="copy">The visual temperature flips here, but the product language remains the same. Instead of floating statistics, this becomes a tangible “tool on stage” moment—a surface you can later replace with a real Mix Maker or Transcribe preview.</p><button className="cta" style={{ marginTop: 27 }} onClick={openApp}>open the idea <em>↗</em></button></Reveal><CursorRepel className="device"><div className="device-head"><span>frebies / mix maker</span><span>ready</span></div><div className="device-title">Build<br />something<br />worth keeping.</div><div className="device-sub">track control / waveform / quick render / local workflow</div><div className="device-accent" /><div className="device-panel"><div className="device-panel-row"><span>render profile</span><span>fast</span></div><div className="knob" /></div></CursorRepel></div></section>
 
