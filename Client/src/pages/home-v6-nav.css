@@ -1,12 +1,23 @@
 @import './home-v6.css';
 
+/* Explicitly lock the auth controls into one horizontal row. A global .nav rule elsewhere in the app was allowing the controls to stack vertically. */
+.frebies-v6 .nav{
+  flex-direction:row !important;
+  flex-wrap:nowrap !important;
+}
+
 .frebies-v6 .nav-auth{
   position:relative;
   z-index:2;
   display:flex;
+  flex-direction:row !important;
   align-items:center;
+  justify-content:flex-end;
   gap:8px;
+  flex-wrap:nowrap !important;
   flex-shrink:0;
+  white-space:nowrap;
+  min-width:max-content;
 }
 
 .frebies-v6 .nav-signup{
@@ -32,34 +43,23 @@
 .frebies-v6 .nav-profile{
   width:34px;
   height:34px;
-  display:grid;
-  place-items:center;
+  display:flex !important;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 34px;
   border-radius:50%;
   border:1px solid rgba(255,255,255,.12);
   background:rgba(255,255,255,.035);
   box-shadow:0 6px 18px rgba(0,0,0,.22);
-  transition:transform .22s ease,border-color .22s ease,background .22s ease;
 }
 
-.frebies-v6 .nav-profile:hover{
-  transform:translateY(-1px) scale(1.03);
-  border-color:rgba(181,156,255,.35);
-  background:rgba(181,156,255,.08);
+.frebies-v6 .nav-profile > *{
+  position:static !important;
+  margin:0 !important;
 }
 
-.frebies-v6 .nav-profile .cl-avatarBox{
-  width:28px !important;
-  height:28px !important;
-}
-
-.frebies-v6 .nav-profile img{
-  border-radius:50%;
-}
-
-@media (max-width: 700px){
-  .frebies-v6 .nav-shell{width:calc(100vw - 24px)}
-  .frebies-v6 .nav{padding-left:15px}
-  .frebies-v6 .nav-links{display:none}
+@media (max-width:980px){
+  .frebies-v6 .nav-auth{gap:6px}
   .frebies-v6 .nav-signup{padding:9px 11px}
-  .frebies-v6 .nav-launch{padding:9px 12px}
+  .frebies-v6 .nav-profile{width:32px;height:32px;flex-basis:32px}
 }
