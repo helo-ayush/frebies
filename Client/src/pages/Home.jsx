@@ -3,7 +3,7 @@ import { motion, useMotionValue, useSpring } from 'framer-motion'
 import { ArrowUpRight, ChevronDown, Mic2, Music2, Sparkles } from 'lucide-react'
 import { SignedIn, SignedOut, UserButton, useClerk, useUser } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
-import './home-v6.css'
+import './home-v6-nav.css'
 
 const tools = [
   { no: '01', title: 'Transcribe', description: 'Turn audio into clean text and captions.', path: '/dashboard/transcribe', icon: Mic2 },
