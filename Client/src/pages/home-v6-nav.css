@@ -1,0 +1,65 @@
+@import './home-v6.css';
+
+.frebies-v6 .nav-auth{
+  position:relative;
+  z-index:2;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-shrink:0;
+}
+
+.frebies-v6 .nav-signup{
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  padding:10px 13px;
+  background:rgba(255,255,255,.045);
+  color:#d8d2df;
+  font:500 9px 'DM Mono',monospace;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:background .22s ease,color .22s ease,border-color .22s ease,transform .22s ease;
+}
+
+.frebies-v6 .nav-signup:hover{
+  background:rgba(255,255,255,.10);
+  border-color:rgba(255,255,255,.23);
+  color:#fff;
+  transform:translateY(-1px);
+}
+
+.frebies-v6 .nav-profile{
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.035);
+  box-shadow:0 6px 18px rgba(0,0,0,.22);
+  transition:transform .22s ease,border-color .22s ease,background .22s ease;
+}
+
+.frebies-v6 .nav-profile:hover{
+  transform:translateY(-1px) scale(1.03);
+  border-color:rgba(181,156,255,.35);
+  background:rgba(181,156,255,.08);
+}
+
+.frebies-v6 .nav-profile .cl-avatarBox{
+  width:28px !important;
+  height:28px !important;
+}
+
+.frebies-v6 .nav-profile img{
+  border-radius:50%;
+}
+
+@media (max-width: 700px){
+  .frebies-v6 .nav-shell{width:calc(100vw - 24px)}
+  .frebies-v6 .nav{padding-left:15px}
+  .frebies-v6 .nav-links{display:none}
+  .frebies-v6 .nav-signup{padding:9px 11px}
+  .frebies-v6 .nav-launch{padding:9px 12px}
+}
