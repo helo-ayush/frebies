@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ImagePlus,
@@ -14,18 +14,22 @@ import { ArrowRightGlyph, LockGlyph, ToolGlyph } from "@/components/icons/NavGly
 import { StudioDropzone, StudioChip } from "@/components/tool/studio/StudioDropzone";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { useImageQueue } from "@/components/tool/studio/useImageQueue";
+import { CropCanvas } from "./CropCanvas";
 import { ResizeControls } from "./ResizeControls";
 import {
   CROP_RATIOS,
   DEFAULT_RESIZE_SETTINGS,
-  FOCUS_POINTS,
   computeResizeOutput,
+  cropForRatio,
+  cropPixels,
   cropRatioValue,
   estimateResizeBytes,
   formatBytes,
   formatLabel,
   isLossyFormat,
   ratioLabel,
+  reshapeCrop,
+  type CropRect,
   type ResizeSettings,
 } from "./model";
 
@@ -51,17 +55,20 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   useEffect(() => {
     if (!activeItem?.width || !activeItem.height) return;
-    const key = `${activeItem.id}:${activeItem.width}x${activeItem.height}`;
+    const width = activeItem.width;
+    const height = activeItem.height;
+    const key = `${activeItem.id}:${width}x${height}`;
     if (initializedRef.current === key) return;
     initializedRef.current = key;
     setSettings((current) => ({
       ...current,
-      width: String(activeItem.width),
-      height: String(activeItem.height),
+      width: String(width),
+      height: String(height),
       linked: true,
       rotation: 0,
       flipX: false,
       flipY: false,
+      crop: cropForRatio(width / height, cropRatioValue(current.cropRatio)),
     }));
     setNotice(null);
   }, [activeItem]);
@@ -70,10 +77,16 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const originalHeight = activeItem?.height ?? 0;
   const output = computeResizeOutput(settings, originalWidth, originalHeight);
   const { sourceWidth, sourceHeight, width: outputWidth, height: outputHeight } = output;
-  const cropRatio =
-    cropRatioValue(settings.cropRatio) ??
-    (sourceWidth && sourceHeight ? sourceWidth / sourceHeight : 1);
-  const focus = FOCUS_POINTS.find((point) => point.id === settings.focus) ?? FOCUS_POINTS[4];
+  const activeCrop =
+    settings.crop ??
+    cropForRatio(
+      originalWidth && originalHeight ? originalWidth / originalHeight : 1,
+      cropRatioValue(settings.cropRatio),
+    );
+  const cropPixelSize =
+    originalWidth && originalHeight
+      ? cropPixels(activeCrop, originalWidth, originalHeight)
+      : { width: 0, height: 0 };
   const lossy = isLossyFormat(settings.format);
   const formatName = formatLabel(settings.format);
   const estimate = activeItem
@@ -89,7 +102,7 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const chipLabel =
     settings.mode === "crop"
       ? settings.cropRatio === "free"
-        ? "Full frame"
+        ? "Free-form"
         : CROP_RATIOS.find((ratio) => ratio.id === settings.cropRatio)?.label ?? "Crop"
       : settings.mode === "percent"
         ? `${settings.percent}%`
@@ -99,21 +112,45 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             ? "Fit + pad"
             : "Stretch";
 
-  const stageStyle: CSSProperties =
-    cropRatio >= 1
-      ? { width: "min(58%, 300px)", aspectRatio: cropRatio }
-      : { height: "min(86%, 360px)", aspectRatio: cropRatio };
-
   const transforms: string[] = [];
   if (settings.rotation) transforms.push(`rotate(${settings.rotation}deg)`);
   if (settings.flipX) transforms.push("scaleX(-1)");
   if (settings.flipY) transforms.push("scaleY(-1)");
-  if (settings.mode === "crop" && settings.rotation % 180 !== 0) transforms.push("scale(1.35)");
   const imageTransform = transforms.length > 0 ? transforms.join(" ") : undefined;
 
   function patch(next: Partial<ResizeSettings>) {
-    setSettings((current) => ({ ...current, ...next }));
+    setSettings((current) => {
+      const merged = { ...current, ...next };
+      const aspect = originalWidth && originalHeight ? originalWidth / originalHeight : 0;
+      if (!aspect) return merged;
+      const ratio = cropRatioValue(merged.cropRatio);
+
+      if (next.cropRatio && next.cropRatio !== current.cropRatio) {
+        merged.crop = ratio
+          ? reshapeCrop(current.crop ?? cropForRatio(aspect, ratio), ratio, aspect)
+          : current.crop ?? { x: 0, y: 0, width: 1, height: 1 };
+      }
+      if (merged.mode === "crop" && !merged.crop) {
+        merged.crop = cropForRatio(aspect, ratio);
+      }
+      return merged;
+    });
     setNotice(null);
+  }
+
+  function handleCropChange(crop: CropRect) {
+    setSettings((current) => ({ ...current, crop }));
+    setNotice(null);
+  }
+
+  function resetCrop() {
+    if (!originalWidth || !originalHeight) return;
+    patch({
+      crop: cropForRatio(
+        originalWidth / originalHeight,
+        cropRatioValue(settings.cropRatio),
+      ),
+    });
   }
 
   function handleResize() {
@@ -158,12 +195,12 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
         </div>
       </div>
 
-      <div className="grid lg:h-[700px] lg:grid-cols-[minmax(0,1fr)_372px]">
+      <div className="grid lg:h-[780px] lg:grid-cols-[minmax(0,1fr)_372px]">
         <div className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5">
           {!activeItem ? (
             <StudioDropzone
               title="Drop an image to resize"
-              description="Set exact pixels, scale by a percentage or crop to a ratio. Rotate, flip and pad without uploading anything."
+              description="Set exact pixels, scale by a percentage or drag a free-form crop. Rotate, flip and pad without uploading anything."
               buttonLabel="Choose an image"
               limits={`JPG, PNG or WebP · up to ${maxSizeMB} MB`}
               onChoose={() => openPicker()}
@@ -175,7 +212,7 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               chips={
                 <>
                   <StudioChip icon={<Scaling size={10} aria-hidden />}>Exact pixels</StudioChip>
-                  <StudioChip icon={<Check size={10} aria-hidden />}>Aspect presets</StudioChip>
+                  <StudioChip icon={<Check size={10} aria-hidden />}>Free-form crop</StudioChip>
                 </>
               }
             />
@@ -188,30 +225,27 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 dragging ? "border-[#b8a992] bg-[#f8f3ea]" : "border-line bg-[#f6f4f0]"
               }`}
             >
-              <div className="relative flex min-h-[240px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-line bg-[#f1efeb] p-4">
-                <span className="absolute left-3 top-3 z-10 rounded-md border border-line bg-white/90 px-2 py-1 text-[9px] font-medium text-muted backdrop-blur">
+              <div
+                className={`relative flex min-h-[240px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-line bg-[#f1efeb] ${
+                  settings.mode === "crop" ? "p-0" : "p-4"
+                }`}
+              >
+                <span className="absolute left-3 top-3 z-40 rounded-md border border-line bg-white/90 px-2 py-1 text-[9px] font-medium text-muted backdrop-blur">
                   {settings.mode === "crop" ? "Crop preview" : "Canvas preview"}
                 </span>
-                <span className="absolute right-3 top-3 z-10 rounded-md border border-line bg-white/90 px-2 py-1 text-[9px] font-medium tabular-nums text-muted backdrop-blur">
+                <span className="absolute right-3 top-3 z-40 rounded-md border border-line bg-white/90 px-2 py-1 text-[9px] font-medium tabular-nums text-muted backdrop-blur">
                   {outputWidth ? `${outputWidth} × ${outputHeight}` : "Reading image…"}
                 </span>
 
                 {settings.mode === "crop" ? (
-                  <div className="relative" style={stageStyle}>
-                    <div className="absolute inset-0 overflow-hidden rounded-[6px] border border-white/80 bg-[#e9e5dd]">
-                      <img
-                        src={activeItem.preview}
-                        alt={`Crop preview of ${activeItem.file.name}`}
-                        className="h-full w-full object-cover"
-                        style={{ objectPosition: focus.position, transform: imageTransform }}
-                      />
-                      <ThirdsGrid />
-                    </div>
-                    <span className="absolute -left-[3px] -top-[3px] h-2.5 w-2.5 rounded-[2px] border border-ink bg-white" />
-                    <span className="absolute -right-[3px] -top-[3px] h-2.5 w-2.5 rounded-[2px] border border-ink bg-white" />
-                    <span className="absolute -bottom-[3px] -left-[3px] h-2.5 w-2.5 rounded-[2px] border border-ink bg-white" />
-                    <span className="absolute -bottom-[3px] -right-[3px] h-2.5 w-2.5 rounded-[2px] border border-ink bg-white" />
-                  </div>
+                  <CropCanvas
+                    src={activeItem.preview}
+                    naturalWidth={originalWidth}
+                    naturalHeight={originalHeight}
+                    crop={activeCrop}
+                    ratioId={settings.cropRatio}
+                    onChange={handleCropChange}
+                  />
                 ) : (
                   <img
                     src={activeItem.preview}
@@ -225,7 +259,7 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                   />
                 )}
 
-                <span className="absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-lg border border-white/70 bg-white/90 px-2.5 py-1.5 text-[10.5px] font-medium text-ink shadow-sm backdrop-blur">
+                <span className="absolute bottom-3 right-3 z-40 inline-flex items-center gap-1.5 rounded-lg border border-white/70 bg-white/90 px-2.5 py-1.5 text-[10.5px] font-medium text-ink shadow-sm backdrop-blur">
                   <Scaling size={11} aria-hidden />
                   {formatName}
                 </span>
@@ -383,6 +417,9 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             scale={output.scale}
             upscaling={output.upscaling}
             capped={output.capped}
+            cropWidth={cropPixelSize.width}
+            cropHeight={cropPixelSize.height}
+            onResetCrop={resetCrop}
           />
         </StudioRail>
       </div>
@@ -395,17 +432,6 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-[9px] font-medium uppercase tracking-[0.06em] text-faint">{label}</p>
       <p className="mt-0.5 truncate text-[11px] font-medium tabular-nums text-ink">{value}</p>
-    </div>
-  );
-}
-
-function ThirdsGrid() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0">
-      <span className="absolute inset-y-0 left-1/3 w-px bg-white/40" />
-      <span className="absolute inset-y-0 right-1/3 w-px bg-white/40" />
-      <span className="absolute inset-x-0 top-1/3 h-px bg-white/40" />
-      <span className="absolute inset-x-0 bottom-1/3 h-px bg-white/40" />
     </div>
   );
 }

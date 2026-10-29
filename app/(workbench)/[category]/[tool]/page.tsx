@@ -10,6 +10,20 @@ import { ResizeCropHero } from "@/components/tool/resize/ResizeCropHero";
 import { ResizeCropStudio } from "@/components/tool/resize/ResizeCropStudio";
 import { ImageToPdfHero } from "@/components/tool/to-pdf/ImageToPdfHero";
 import { ImageToPdfStudio } from "@/components/tool/to-pdf/ImageToPdfStudio";
+import { UpscalerHero } from "@/components/tool/upscaler/UpscalerHero";
+import { UpscalerStudio } from "@/components/tool/upscaler/UpscalerStudio";
+import { RemoveBackgroundHero } from "@/components/tool/remove-background/RemoveBackgroundHero";
+import { RemoveBackgroundStudio } from "@/components/tool/remove-background/RemoveBackgroundStudio";
+import { AudioConverterHero } from "@/components/tool/audio/converter/AudioConverterHero";
+import { AudioConverterStudio } from "@/components/tool/audio/converter/AudioConverterStudio";
+import { AudioTrimmerHero } from "@/components/tool/audio/trim/AudioTrimmerHero";
+import { AudioTrimmerStudio } from "@/components/tool/audio/trim/AudioTrimmerStudio";
+import { TextToSpeechHero } from "@/components/tool/audio/tts/TextToSpeechHero";
+import { TextToSpeechStudio } from "@/components/tool/audio/tts/TextToSpeechStudio";
+import { SpeechToTextHero } from "@/components/tool/audio/stt/SpeechToTextHero";
+import { SpeechToTextStudio } from "@/components/tool/audio/stt/SpeechToTextStudio";
+import { VocalRemoverHero } from "@/components/tool/audio/vocal/VocalRemoverHero";
+import { VocalRemoverStudio } from "@/components/tool/audio/vocal/VocalRemoverStudio";
 import { ToolHeader } from "@/components/tool/ToolHeader";
 import { ToolWorkspace } from "@/components/tool/ToolWorkspace";
 import { getCategory, getTool, tools } from "@/lib/registry/tools";
@@ -85,6 +99,83 @@ export default async function ToolPage({ params }: ToolParams) {
         <ImageToPdfHero tool={tool} category={category} />
         <section className="mt-5">
           <ImageToPdfStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/image/upscaler") {
+    workspace = (
+      <>
+        <UpscalerHero tool={tool} category={category} />
+        <section className="mt-5">
+          <UpscalerStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/image/remove-background") {
+    workspace = (
+      <>
+        <RemoveBackgroundHero tool={tool} category={category} />
+        <section className="mt-5">
+          <RemoveBackgroundStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/audio/convert") {
+    workspace = (
+      <>
+        <AudioConverterHero tool={tool} category={category} />
+        <section className="mt-5">
+          <AudioConverterStudio maxSizeMB={tool.limits.maxSizeMB ?? 50} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/audio/trim") {
+    workspace = (
+      <>
+        <AudioTrimmerHero tool={tool} category={category} />
+        <section className="mt-5">
+          <AudioTrimmerStudio maxSizeMB={tool.limits.maxSizeMB ?? 50} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/audio/text-to-speech") {
+    workspace = (
+      <>
+        <TextToSpeechHero tool={tool} category={category} />
+        <section className="mt-5">
+          <TextToSpeechStudio />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/audio/speech-to-text") {
+    workspace = (
+      <>
+        <SpeechToTextHero tool={tool} category={category} />
+        <section className="mt-5">
+          <SpeechToTextStudio maxSizeMB={tool.limits.maxSizeMB ?? 50} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/audio/vocal-remover") {
+    workspace = (
+      <>
+        <VocalRemoverHero tool={tool} category={category} />
+        <section className="mt-5">
+          <VocalRemoverStudio maxSizeMB={tool.limits.maxSizeMB ?? 50} />
         </section>
       </>
     );

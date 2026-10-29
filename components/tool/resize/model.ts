@@ -1,18 +1,15 @@
 export type ResizeMode = "dimensions" | "percent" | "crop";
 export type FitMode = "fill" | "fit" | "stretch";
 export type CropRatioId = "free" | "1:1" | "4:5" | "16:9" | "3:2" | "9:16";
-export type FocusId =
-  | "top-left"
-  | "top-center"
-  | "top-right"
-  | "center-left"
-  | "center"
-  | "center-right"
-  | "bottom-left"
-  | "bottom-center"
-  | "bottom-right";
 export type ResizeFormat = "auto" | "jpg" | "png" | "webp" | "avif";
 export type Background = "white" | "black" | "transparent";
+
+export type CropRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 export type ResizeSettings = {
   mode: ResizeMode;
@@ -21,7 +18,7 @@ export type ResizeSettings = {
   linked: boolean;
   percent: number;
   cropRatio: CropRatioId;
-  focus: FocusId;
+  crop: CropRect | null;
   fit: FitMode;
   rotation: number;
   flipX: boolean;
@@ -42,7 +39,7 @@ export const DEFAULT_RESIZE_SETTINGS: ResizeSettings = {
   linked: true,
   percent: 75,
   cropRatio: "4:5",
-  focus: "center",
+  crop: null,
   fit: "fill",
   rotation: 0,
   flipX: false,
@@ -76,28 +73,12 @@ export const CROP_RATIOS: {
   hint: string;
   ratio: number | null;
 }[] = [
-  { id: "free", label: "Free", hint: "Original", ratio: null },
+  { id: "free", label: "Free", hint: "Any size", ratio: null },
   { id: "1:1", label: "1:1", hint: "Square", ratio: 1 },
   { id: "4:5", label: "4:5", hint: "Portrait", ratio: 4 / 5 },
   { id: "16:9", label: "16:9", hint: "Wide", ratio: 16 / 9 },
   { id: "3:2", label: "3:2", hint: "Photo", ratio: 3 / 2 },
   { id: "9:16", label: "9:16", hint: "Story", ratio: 9 / 16 },
-];
-
-export const FOCUS_POINTS: {
-  id: FocusId;
-  label: string;
-  position: string;
-}[] = [
-  { id: "top-left", label: "Top left", position: "0% 0%" },
-  { id: "top-center", label: "Top center", position: "50% 0%" },
-  { id: "top-right", label: "Top right", position: "100% 0%" },
-  { id: "center-left", label: "Center left", position: "0% 50%" },
-  { id: "center", label: "Center", position: "50% 50%" },
-  { id: "center-right", label: "Center right", position: "100% 50%" },
-  { id: "bottom-left", label: "Bottom left", position: "0% 100%" },
-  { id: "bottom-center", label: "Bottom center", position: "50% 100%" },
-  { id: "bottom-right", label: "Bottom right", position: "100% 100%" },
 ];
 
 export const RESIZE_FORMATS: {
@@ -153,17 +134,89 @@ export function cropRatioValue(id: CropRatioId): number | null {
   return CROP_RATIOS.find((entry) => entry.id === id)?.ratio ?? null;
 }
 
-export function cropSize(
-  width: number,
-  height: number,
+export function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+/** A centered crop that matches a ratio, covering 82% of the image by default. */
+export function cropForRatio(
+  imageAspect: number,
   ratio: number | null,
-): { width: number; height: number } {
-  if (!width || !height) return { width: 0, height: 0 };
-  if (!ratio) return { width, height };
-  if (width / height > ratio) {
-    return { width: Math.max(1, Math.round(height * ratio)), height };
+  coverage = 0.82,
+): CropRect {
+  if (!ratio || !imageAspect || !Number.isFinite(imageAspect)) {
+    return { x: 0, y: 0, width: 1, height: 1 };
   }
-  return { width, height: Math.max(1, Math.round(width / ratio)) };
+  const normRatio = ratio / imageAspect;
+  let width = coverage;
+  let height = coverage / normRatio;
+  if (height > coverage) {
+    height = coverage;
+    width = height * normRatio;
+  }
+  if (width > 1) {
+    width = 1;
+    height = width / normRatio;
+  }
+  if (height > 1) {
+    height = 1;
+    width = height * normRatio;
+  }
+  const clampedWidth = Math.min(1, width);
+  const clampedHeight = Math.min(1, height);
+  return {
+    x: (1 - clampedWidth) / 2,
+    y: (1 - clampedHeight) / 2,
+    width: clampedWidth,
+    height: clampedHeight,
+  };
+}
+
+/** Re-shape an existing crop around its center when the ratio changes. */
+export function reshapeCrop(
+  crop: CropRect,
+  ratio: number | null,
+  imageAspect: number,
+): CropRect {
+  if (!ratio || !imageAspect || !Number.isFinite(imageAspect)) return crop;
+  const normRatio = ratio / imageAspect;
+  const centerX = crop.x + crop.width / 2;
+  const centerY = crop.y + crop.height / 2;
+  let width = crop.width;
+  let height = width / normRatio;
+
+  if (crop.width / crop.height > normRatio) {
+    height = crop.height;
+    width = height * normRatio;
+  }
+  if (width > 1) {
+    width = 1;
+    height = width / normRatio;
+  }
+  if (height > 1) {
+    height = 1;
+    width = height * normRatio;
+  }
+
+  return {
+    x: Math.min(1 - width, Math.max(0, centerX - width / 2)),
+    y: Math.min(1 - height, Math.max(0, centerY - height / 2)),
+    width,
+    height,
+  };
+}
+
+export function cropPixels(
+  crop: CropRect,
+  sourceWidth: number,
+  sourceHeight: number,
+): { x: number; y: number; width: number; height: number } {
+  return {
+    x: Math.round(crop.x * sourceWidth),
+    y: Math.round(crop.y * sourceHeight),
+    width: Math.max(1, Math.round(crop.width * sourceWidth)),
+    height: Math.max(1, Math.round(crop.height * sourceHeight)),
+  };
 }
 
 export function computeResizeOutput(
@@ -180,9 +233,34 @@ export function computeResizeOutput(
   capped: boolean;
 } {
   const rotated = settings.rotation === 90 || settings.rotation === 270;
+
+  if (settings.mode === "crop") {
+    const ratio = cropRatioValue(settings.cropRatio);
+    const crop =
+      settings.crop ??
+      cropForRatio(
+        originalWidth && originalHeight ? originalWidth / originalHeight : 1,
+        ratio,
+      );
+    const pixels = cropPixels(crop, originalWidth, originalHeight);
+    const width = rotated ? pixels.height : pixels.width;
+    const height = rotated ? pixels.width : pixels.height;
+    const scale = originalWidth
+      ? Math.round((pixels.width / originalWidth) * 100)
+      : 100;
+    return {
+      sourceWidth: originalWidth,
+      sourceHeight: originalHeight,
+      width,
+      height,
+      scale,
+      upscaling: false,
+      capped: false,
+    };
+  }
+
   const sourceWidth = rotated ? originalHeight : originalWidth;
   const sourceHeight = rotated ? originalWidth : originalHeight;
-
   let width = 0;
   let height = 0;
   let capped = false;
@@ -202,18 +280,11 @@ export function computeResizeOutput(
         height = Math.round(height * factor);
       }
     }
-  } else if (settings.mode === "percent") {
+  } else {
     const percent = settings.neverUpscale ? Math.min(100, settings.percent) : settings.percent;
     capped = percent !== settings.percent;
     width = Math.round((sourceWidth * percent) / 100);
     height = Math.round((sourceHeight * percent) / 100);
-  } else {
-    const ratio =
-      cropRatioValue(settings.cropRatio) ??
-      (sourceWidth && sourceHeight ? sourceWidth / sourceHeight : 1);
-    const crop = cropSize(sourceWidth, sourceHeight, ratio);
-    width = crop.width;
-    height = crop.height;
   }
 
   const scale = sourceWidth ? Math.round((width / sourceWidth) * 100) : 100;

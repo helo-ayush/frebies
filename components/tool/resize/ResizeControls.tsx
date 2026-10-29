@@ -16,7 +16,6 @@ import {
 import {
   CROP_RATIOS,
   DIMENSION_PRESETS,
-  FOCUS_POINTS,
   RESIZE_FORMATS,
   RESIZE_MODES,
   formatLabel,
@@ -48,6 +47,9 @@ export function ResizeControls({
   scale,
   upscaling,
   capped,
+  cropWidth,
+  cropHeight,
+  onResetCrop,
 }: {
   settings: ResizeSettings;
   onPatch: (patch: Partial<ResizeSettings>) => void;
@@ -60,6 +62,9 @@ export function ResizeControls({
   scale: number;
   upscaling: boolean;
   capped: boolean;
+  cropWidth: number;
+  cropHeight: number;
+  onResetCrop: () => void;
 }) {
   const lossy = isLossyFormat(settings.format);
   const sourceRatio = sourceWidth && sourceHeight ? sourceWidth / sourceHeight : 1;
@@ -326,8 +331,8 @@ export function ResizeControls({
             <div>
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-[10.5px] font-medium text-muted">Aspect ratio</span>
-                <span className="text-[10px] tabular-nums text-faint">
-                  {outputWidth || "—"} × {outputHeight || "—"}
+                <span className="text-[10px] text-faint">
+                  {settings.cropRatio === "free" ? "Drag freely" : "Ratio locked"}
                 </span>
               </div>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
@@ -354,42 +359,34 @@ export function ResizeControls({
                 })}
               </div>
 
-              <div className="mt-3 flex items-start justify-between gap-3">
-                <div>
-                  <span className="block text-[10.5px] font-medium text-muted">Crop focus</span>
-                  <span className="mt-0.5 block text-[10px] text-faint">
-                    {FOCUS_POINTS.find((point) => point.id === settings.focus)?.label}
+              <div className="mt-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[10.5px] text-muted">Crop size</span>
+                  <span className="text-[11px] font-medium tabular-nums text-ink">
+                    {cropWidth || "—"} × {cropHeight || "—"} px
                   </span>
                 </div>
-                <div role="group" aria-label="Crop focus" className="grid grid-cols-3 gap-1">
-                  {FOCUS_POINTS.map((point) => {
-                    const selected = settings.focus === point.id;
-                    return (
-                      <button
-                        key={point.id}
-                        type="button"
-                        onClick={() => onPatch({ focus: point.id })}
-                        aria-pressed={selected}
-                        aria-label={point.label}
-                        title={point.label}
-                        className={`grid h-7 w-7 place-items-center rounded-[5px] border transition-colors ${
-                          selected
-                            ? "border-ink bg-ink text-white"
-                            : "border-line bg-white text-transparent hover:border-[#cbc5b9] hover:text-faint"
-                        }`}
-                      >
-                        <span className="h-1 w-1 rounded-full bg-current" />
-                      </button>
-                    );
-                  })}
-                </div>
+                <p className="mt-1 text-[10px] leading-relaxed text-faint">
+                  {settings.cropRatio === "free"
+                    ? "Free form. Drag any edge or corner, or drag inside the box to move it."
+                    : "Drag a corner to resize with the ratio locked; drag inside the box to move it."}
+                </p>
               </div>
 
-              <p className="mt-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2 text-[10px] leading-relaxed text-faint">
-                {settings.cropRatio === "free"
-                  ? "Free keeps the full frame. Pick a ratio to crop around the focus point."
-                  : "The preview shows the crop frame. The engine exports exactly this ratio at full resolution."}
-              </p>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="text-[10px] leading-relaxed text-faint">
+                  {settings.rotation
+                    ? "Rotation is applied after the crop."
+                    : "Exported at the full source resolution."}
+                </p>
+                <button
+                  type="button"
+                  onClick={onResetCrop}
+                  className="shrink-0 rounded-[7px] border border-line bg-white px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:text-ink"
+                >
+                  Reset crop
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -334,12 +334,12 @@ export const tools: Tool[] = [
         "Resize and crop images to exact dimensions in your browser. Lock aspect ratios, scale by percentage, rotate, flip and pad. Free, private and no sign-up.",
       howItWorks: [
         "Add a JPG, PNG or WebP image. It is read locally and never uploaded.",
-        "Set exact pixels, scale by a percentage, or choose a crop ratio and focus point.",
+        "Set exact pixels, scale by a percentage, or draw a crop with a fixed ratio or free-form handles.",
         "Rotate, flip or pad the image if needed, then download the resized result.",
       ],
       benefits: [
         "Lock the aspect ratio and type one dimension — the other follows automatically.",
-        "Crop presets for square, portrait, wide and story formats with a focus picker.",
+        "Crop by dragging the box and its handles, with square, portrait, wide and story ratios.",
         "Runs on your device with no account, no watermark and no upload.",
       ],
       faq: [
@@ -353,7 +353,11 @@ export const tools: Tool[] = [
         },
         {
           q: "How do I crop an image to a square or 4:5?",
-          a: "Switch to Crop, pick a ratio such as 1:1 or 4:5, and choose the focus point the frame should keep. The preview shows the crop, and the export uses that ratio at full resolution.",
+          a: "Switch to Crop, pick a ratio such as 1:1 or 4:5, and drag the crop box into place. Corner handles resize with the ratio locked. Choose Free when you want to drag any edge to any size.",
+        },
+        {
+          q: "Can I crop to a free-form size?",
+          a: "Yes. Choose Free in Crop mode and drag any edge or corner of the crop box. Free-form crops are not constrained, and the output dimensions follow the box exactly.",
         },
         {
           q: "Can I enlarge an image?",
@@ -471,11 +475,48 @@ export const tools: Tool[] = [
     seo: {
       title: "Free Image Upscaler — Upscale Images 2× or 4× Online",
       metaDescription:
-        "Upscale images up to 4× with AI while keeping detail. Clear credit pricing and no watermark.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
-      related: ["compress", "remove-background", "convert"],
+        "Upscale images 2× or 4× with AI, with face restore and denoise. 2 credits per image, clear pricing and no watermark. Up to 25 MB per image.",
+      howItWorks: [
+        "Add a JPG, PNG or WebP image. It stays in this browser until you run it.",
+        "Pick 2× or 4×, a detail model and enhancements such as face restore.",
+        "Sign in, run the upscale, and download the larger file. Failed runs are refunded.",
+      ],
+      benefits: [
+        "2× or 4× detail recovery with separate controls for faces, noise and sharpness.",
+        "The exact cost is shown before sign-in — 2 credits per image, no watermark.",
+        "Private cloud processing with files deleted within one hour.",
+      ],
+      faq: [
+        {
+          q: "How much does the image upscaler cost?",
+          a: "2 credits per image. New accounts get 25 free credits, and failed AI runs are refunded automatically. The cost is shown on the run button before any upload.",
+        },
+        {
+          q: "How large can I upscale an image?",
+          a: "Choose 2× or 4× on JPG, PNG or WebP files up to 25 MB. A 4× run turns a 1600 × 1200 image into 6400 × 4800.",
+        },
+        {
+          q: "Which detail model should I use?",
+          a: "Photo is the balanced default for portraits and everyday photography. Illustration keeps flat colours and clean lines, while Product protects labels and hard packaging edges.",
+        },
+        {
+          q: "Is my image uploaded before I sign in?",
+          a: "No. The image stays in your browser while you configure the upscale and sign in. It uploads only when the run starts and is deleted within one hour.",
+        },
+        {
+          q: "Do I need an account to use the upscaler?",
+          a: "Yes, because AI runs use credits and cloud processing. Sign-in happens when you click the run button; your file and settings are preserved.",
+        },
+        {
+          q: "Will AI upscaling add detail that was not there?",
+          a: "The model reconstructs plausible detail from the source rather than inventing a new scene. Check the result before using it for critical work, especially on small text and faces.",
+        },
+        {
+          q: "Which output formats are supported?",
+          a: "PNG, WebP and JPG. PNG is the safest default for detail and transparency; JPG is smaller but flattens transparency.",
+        },
+      ],
+      related: ["remove-background", "compress", "convert"],
     },
   },
   {
@@ -498,10 +539,47 @@ export const tools: Tool[] = [
     seo: {
       title: "Remove Image Background Online — Transparent PNG",
       metaDescription:
-        "Remove the background from an image in one click. Transparent PNG output with clear credit pricing.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Remove the background from product shots, portraits and screenshots. Transparent PNG with edge refinement for 1 credit. Clear pricing, no watermark.",
+      howItWorks: [
+        "Add an image; it stays in this browser until you run the cutout.",
+        "Choose the subject type, edge feather and the background you want.",
+        "Sign in, run the removal and download a transparent PNG. Failed runs are refunded.",
+      ],
+      benefits: [
+        "Product, person and graphic modes with edge feathering and fine-detail preservation.",
+        "Transparent, solid or custom-colour backgrounds, plus an optional drop shadow.",
+        "One credit per image, with private processing and files deleted within one hour.",
+      ],
+      faq: [
+        {
+          q: "How much does background removal cost?",
+          a: "1 credit per image. New accounts get 25 free credits, and failed runs are refunded. The cost is shown before you sign in.",
+        },
+        {
+          q: "Which images work best?",
+          a: "Products on a simple background, portraits and screenshots work best. Use Product for packaging, Person for hair and skin, and Graphic for logos and flat illustration.",
+        },
+        {
+          q: "Do I get a transparent PNG?",
+          a: "Yes. PNG and WebP keep the alpha channel. JPG cannot store transparency, so it fills the cut-out with the background colour you choose.",
+        },
+        {
+          q: "Can I change the background?",
+          a: "Yes. Keep it transparent, fill it with white, black or a custom colour, and optionally add a soft drop shadow around the subject.",
+        },
+        {
+          q: "Is the image uploaded before I sign in?",
+          a: "No. The file stays in your browser while you set up the cutout and sign in. It uploads only when the run starts and is deleted within one hour.",
+        },
+        {
+          q: "Can it keep hair and fine edges?",
+          a: "Turn on Hair & fine detail and raise the edge feather for softer transitions. Feather at 0 for hard product edges and around 2–4 px for portraits.",
+        },
+        {
+          q: "Do I need an account?",
+          a: "Only for the AI cutout. The free image tools work without an account; this one requests sign-in at the run step and preserves your file.",
+        },
+      ],
       related: ["upscaler", "compress", "convert"],
     },
   },
@@ -646,9 +724,10 @@ export const tools: Tool[] = [
     name: "Audio Converter",
     shortName: "Convert",
     h1: "Audio Converter",
-    tagline: "Convert MP3, WAV, M4A and OGG in your browser.",
-    description: "Change audio formats without installing anything.",
-    keywords: ["audio converter", "mp3 to wav", "wav to mp3", "m4a converter"],
+    tagline: "Convert MP3, WAV, M4A and OGG — preview, tune, export.",
+    description:
+      "Preview the waveform and control bitrate, sample rate and channels in the browser.",
+    keywords: ["audio converter", "mp3 to wav", "wav to mp3", "m4a converter", "ogg converter"],
     icon: AudioLines,
     tier: "free",
     engine: "browser",
@@ -658,10 +737,43 @@ export const tools: Tool[] = [
     seo: {
       title: "Audio Converter — Convert MP3, WAV, M4A & OGG Free",
       metaDescription:
-        "Convert audio between MP3, WAV, M4A and OGG in your browser. Free, private and no sign-up.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Convert MP3, WAV, M4A and OGG in your browser. Preview the waveform and choose bitrate, sample rate and channels. Free, private, up to 50 MB.",
+      howItWorks: [
+        "Drop an MP3, WAV, M4A or OGG file. The waveform and player load locally.",
+        "Pick the output format, bitrate, sample rate and channel mode.",
+        "Play the source, check the estimated size, then download the converted file.",
+      ],
+      benefits: [
+        "A real waveform player with scrubbing, so you can check the file before converting.",
+        "Bitrate, sample rate and channel controls with a live size estimate.",
+        "Runs on your device with no account, no upload and no watermark.",
+      ],
+      faq: [
+        {
+          q: "How do I convert an audio file?",
+          a: "Choose an MP3, WAV, M4A or OGG file, set the output format and quality in the right rail, then select Convert audio. The original waveform is previewed before export.",
+        },
+        {
+          q: "Which audio formats are supported?",
+          a: "MP3, WAV, M4A and OGG, up to 50 MB and 30 minutes per file. WAV is lossless; the other formats use the bitrate you choose.",
+        },
+        {
+          q: "Will converting reduce audio quality?",
+          a: "MP3, M4A and OGG are lossy, so lower bitrates remove detail. WAV keeps the full PCM signal. Start at 192 kbps for speech and 256–320 kbps for music.",
+        },
+        {
+          q: "Can I change the sample rate and channels?",
+          a: "Yes. Choose 22.05, 44.1, 48 or 96 kHz and switch between stereo and mono. Mono is useful for voice recordings and smaller files.",
+        },
+        {
+          q: "Are my audio files uploaded?",
+          a: "No. Playback and waveform analysis run in your browser; the conversion engine is being connected in the next build step.",
+        },
+        {
+          q: "Does it work on my phone?",
+          a: "Yes. The player and controls are responsive, and the waveform can be scrubbed with touch or a mouse.",
+        },
+      ],
       related: ["trim", "text-to-speech", "speech-to-text"],
     },
   },
@@ -673,8 +785,8 @@ export const tools: Tool[] = [
     shortName: "Trim",
     h1: "Audio Trimmer",
     tagline: "Cut a clip to the exact moment.",
-    description: "Trim the start or end of an audio file without re-encoding the whole thing.",
-    keywords: ["audio trimmer", "trim mp3", "cut audio online"],
+    description: "Drag a waveform selection, preview the loop and add fades.",
+    keywords: ["audio trimmer", "trim mp3", "cut audio online", "trim wav", "fade audio"],
     icon: Scissors,
     tier: "free",
     engine: "browser",
@@ -684,10 +796,43 @@ export const tools: Tool[] = [
     seo: {
       title: "Audio Trimmer — Cut MP3 & WAV Clips Online Free",
       metaDescription:
-        "Trim audio files in your browser. Cut MP3, WAV, M4A or OGG clips without uploading them.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Trim MP3, WAV, M4A and OGG audio in your browser. Drag the waveform selection, preview the loop and add fades. Free, private, up to 30 minutes.",
+      howItWorks: [
+        "Drop an audio file and let the real waveform load.",
+        "Drag the two selection handles, or type exact start and end times.",
+        "Preview the loop, add fades and export the trimmed clip.",
+      ],
+      benefits: [
+        "A draggable waveform selection instead of typing blind timecodes.",
+        "Loop preview, start and end time fields, and fade in/out control.",
+        "Runs on your device with no account, no upload and no watermark.",
+      ],
+      faq: [
+        {
+          q: "How do I trim an audio file?",
+          a: "Load a clip, drag the two orange handles across the waveform, and press play to preview the selection on loop. Enter exact times in the fields if you need precision.",
+        },
+        {
+          q: "Does trimming re-encode the audio?",
+          a: "The preview is frame-accurate. On export, the engine keeps the selected range and applies the chosen format and bitrate; WAV stays lossless.",
+        },
+        {
+          q: "Can I add fade in and fade out?",
+          a: "Yes. Set each fade from 0 to 3 seconds. Fades are applied inside the selection so both ends end cleanly.",
+        },
+        {
+          q: "Which formats can I trim?",
+          a: "MP3, WAV, M4A and OGG, up to 50 MB and 30 minutes. Choose MP3, WAV or OGG for the trimmed output.",
+        },
+        {
+          q: "Is my audio uploaded?",
+          a: "No. Playback and waveform analysis happen in your browser. The trim engine is connected in a later build step.",
+        },
+        {
+          q: "Can I trim on my phone?",
+          a: "Yes. The selection handles are touch targets, and the rest of the studio stacks below the player.",
+        },
+      ],
       related: ["convert", "text-to-speech", "speech-to-text"],
     },
   },
@@ -699,8 +844,8 @@ export const tools: Tool[] = [
     shortName: "Text to speech",
     h1: "Text to Speech",
     tagline: "Turn text into natural-sounding voiceovers.",
-    description: "Generate speech with a choice of voices and download the audio.",
-    keywords: ["text to speech", "tts online", "ai voice generator", "voiceover"],
+    description: "Pick a voice, tune pace and pitch, and export MP3 or WAV.",
+    keywords: ["text to speech", "tts online", "ai voice generator", "voiceover", "ai voice"],
     icon: Type,
     tier: "credits",
     creditCost: 1,
@@ -712,10 +857,47 @@ export const tools: Tool[] = [
     seo: {
       title: "Free Text to Speech — Natural AI Voices Online",
       metaDescription:
-        "Turn text into natural speech with AI voices. Clear credit pricing, no subscription required.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Turn text into natural speech with AI voices. Tune pace and pitch, preview in the browser and download MP3 or WAV. 1 credit per 1,000 characters.",
+      howItWorks: [
+        "Paste your script, or load the sample to hear the flow.",
+        "Choose a voice, language and style, then tune speed and pitch.",
+        "Sign in and generate the voiceover. The exact credit cost is shown first.",
+      ],
+      benefits: [
+        "Four distinct voices with language, style, pace and pitch controls.",
+        "A local browser preview lets you test pacing before spending a credit.",
+        "MP3 or lossless WAV output with a live character count and cost estimate.",
+      ],
+      faq: [
+        {
+          q: "How much does text to speech cost?",
+          a: "1 credit per 1,000 characters, with a minimum of 1 credit per run. The current script's cost is shown before sign-in; failed runs are refunded.",
+        },
+        {
+          q: "Can I preview the voice before paying?",
+          a: "Yes. The player uses your browser's local system voice so you can test pace and pitch. The natural AI voice is generated when you run the tool.",
+        },
+        {
+          q: "Which languages and voices are available?",
+          a: "English (US and UK), Hindi, Spanish and French, with Aria, Kai, Mira and Noah voice characters. More voices can be added as the engine is connected.",
+        },
+        {
+          q: "How many characters can I generate?",
+          a: "Up to 10,000 characters per run. Longer scripts can be split into sections; each run shows its exact cost first.",
+        },
+        {
+          q: "What output formats are supported?",
+          a: "MP3 at 128, 192 or 320 kbps, or lossless WAV. Metadata can be kept so the title and voice name travel with the file.",
+        },
+        {
+          q: "Is my script uploaded before I sign in?",
+          a: "No. The script stays in your browser while you configure the voice. It is sent only when the run starts and is deleted within one hour.",
+        },
+        {
+          q: "Can I use the audio commercially?",
+          a: "You are responsible for having the rights to the script and for how the audio is used. Keep a copy of the generated file and follow the terms of service.",
+        },
+      ],
       related: ["speech-to-text", "trim", "convert"],
     },
   },
@@ -727,8 +909,8 @@ export const tools: Tool[] = [
     shortName: "Speech to text",
     h1: "Speech to Text",
     tagline: "Transcribe audio and video with AI.",
-    description: "Turn recordings into text with timestamps and speaker-friendly formatting.",
-    keywords: ["speech to text", "audio transcription", "transcribe mp3", "whisper online"],
+    description: "Timestamps, speaker labels and TXT, SRT or VTT export.",
+    keywords: ["speech to text", "audio transcription", "transcribe mp3", "whisper online", "srt generator"],
     icon: Mic,
     tier: "credits",
     creditCost: 2,
@@ -740,11 +922,48 @@ export const tools: Tool[] = [
     seo: {
       title: "Speech to Text — Transcribe Audio Online",
       metaDescription:
-        "Transcribe audio and video files with AI. Clear credit pricing and no subscription required.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
-      related: ["text-to-speech", "trim", "convert"],
+        "Transcribe audio and video with AI. Add timestamps and speaker labels, then export TXT, SRT or VTT. 2 credits per started minute, no subscription.",
+      howItWorks: [
+        "Add an audio file. The waveform and duration load locally.",
+        "Choose the language, model, timestamps and speaker labels.",
+        "Sign in and transcribe. Edit the result, then download TXT, SRT or VTT.",
+      ],
+      benefits: [
+        "Word-level timestamps and speaker labels for interviews and meetings.",
+        "Editable transcript output in TXT, SRT or VTT format.",
+        "Clear pricing at 2 credits per started minute, with failed runs refunded.",
+      ],
+      faq: [
+        {
+          q: "How much does transcription cost?",
+          a: "2 credits per started minute, with a minimum of 2 credits per run. A 90-second clip costs 4 credits. The exact cost appears before sign-in.",
+        },
+        {
+          q: "Which formats and limits are supported?",
+          a: "MP3, WAV, M4A and OGG, up to 50 MB and 30 minutes per file. Longer recordings can be split into parts.",
+        },
+        {
+          q: "Can I get timestamps and speaker labels?",
+          a: "Yes. Turn on timestamps for timecoded lines and speaker labels to separate voices. SRT and VTT always include timestamps.",
+        },
+        {
+          q: "What can I export?",
+          a: "TXT for plain transcript text, SRT for video subtitles, or VTT for the web. The transcript stays editable before download.",
+        },
+        {
+          q: "Which languages are supported?",
+          a: "Auto-detect plus English, Hindi, Spanish and French. More languages can be added with the transcription engine.",
+        },
+        {
+          q: "Is my audio uploaded?",
+          a: "The file stays in your browser until the run starts. Server processing uses private temporary storage, and files are deleted within one hour.",
+        },
+        {
+          q: "How accurate is the transcript?",
+          a: "Accuracy is strongest on clear speech with little background noise. Choose the Precise model for accents, calls or noisy recordings, and review names and numbers.",
+        },
+      ],
+      related: ["text-to-speech", "trim", "vocal-remover"],
     },
   },
   {
@@ -755,8 +974,8 @@ export const tools: Tool[] = [
     shortName: "Vocal remover",
     h1: "Vocal Remover",
     tagline: "Separate vocals and instrumentals from a track.",
-    description: "Create a karaoke or acapella version from a song or recording.",
-    keywords: ["vocal remover", "remove vocals from song", "instrumental maker"],
+    description: "Two or four stems, with mute/solo previews and WAV or MP3 export.",
+    keywords: ["vocal remover", "remove vocals from song", "instrumental maker", "stem separation", "karaoke maker"],
     icon: Music,
     tier: "credits",
     creditCost: 4,
@@ -767,11 +986,48 @@ export const tools: Tool[] = [
     seo: {
       title: "Vocal Remover — Instrumental & Acapella Online",
       metaDescription:
-        "Separate vocals from instrumentals with AI. Clear credit pricing and no subscription required.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
-      related: ["trim", "convert", "text-to-speech"],
+        "Separate vocals and instrumentals with AI. Choose two stems or four, then download WAV or MP3 files. 4 credits per started minute, no subscription.",
+      howItWorks: [
+        "Add a song or recording. The waveform and duration load locally.",
+        "Choose two stems for karaoke or four for a full remix session.",
+        "Sign in and run the separation, then download each stem.",
+      ],
+      benefits: [
+        "Vocals and instrumental stems for karaoke, covers and practice.",
+        "Four-stem mode adds drums, bass and an “other” lane for production.",
+        "Mute and solo previews, WAV or MP3 output, and 4 credits per started minute.",
+      ],
+      faq: [
+        {
+          q: "How much does vocal removal cost?",
+          a: "4 credits per started minute, with a minimum of 4 credits per run. A 3-minute song costs 12 credits; the exact cost is shown before sign-in.",
+        },
+        {
+          q: "What is the difference between two and four stems?",
+          a: "Two stems gives you vocals and instrumental, perfect for karaoke or an acapella. Four stems adds drums, bass and an “other” lane for remixing.",
+        },
+        {
+          q: "Which formats and limits are supported?",
+          a: "MP3, WAV and M4A uploads up to 50 MB and 10 minutes. Stems download as lossless WAV or compressed MP3.",
+        },
+        {
+          q: "Can I keep backing vocals in the instrumental?",
+          a: "Use Keep backing vocals on the two-stem mode to include harmonies in the vocal stem; turn it off for a cleaner karaoke track. The exact result depends on the mix.",
+        },
+        {
+          q: "Does separation always sound perfect?",
+          a: "AI separation is very good on clear mixes but can leave artefacts on dense or live recordings. Preview each stem with mute and solo before using it.",
+        },
+        {
+          q: "Is my track uploaded before I sign in?",
+          a: "No. The file stays in your browser while you configure the stems. It uploads only when the run starts and is deleted within one hour.",
+        },
+        {
+          q: "Can I use the stems commercially?",
+          a: "You are responsible for holding the rights to the source recording and for how the separated stems are used.",
+        },
+      ],
+      related: ["trim", "convert", "speech-to-text"],
     },
   },
 ];
