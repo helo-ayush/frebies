@@ -18,7 +18,7 @@ Implemented:
 - Typed tool registry driving navigation, dashboard, hubs, metadata and sitemap
 - `/dashboard`, `/image`, `/document`, `/audio`
 - Tool-specific static UI previews for all 16 registry tools
-- Dashboard creation composer, search, category/access filters and recent-work layout
+- Editorial dashboard with a live launcher, layered workspace illustration, category cards, list/grid directory and credits/activity panels
 - Restored warm editorial landing with animated tool carousel and a full workbench preview section
 - Richer category hubs, sign-in preview and custom 404
 - Guest-only credit locks, credit cost badges, disabled processing actions

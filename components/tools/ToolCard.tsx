@@ -1,62 +1,84 @@
 import Link from "next/link";
-import { ArrowUpRight, Lock } from "lucide-react";
+import { ChevronRight, Lock } from "lucide-react";
 import type { Tool } from "@/lib/registry/tools";
 import { Badge } from "@/components/ui/Badge";
+import { ToolGlyph } from "@/components/icons/NavGlyph";
 
-const iconStyles = {
-  image: "border-[#e8e3f3] bg-[#f6f3fb] text-[#65538c]",
-  document: "border-[#e4e9f2] bg-[#f2f6fb] text-[#4c6584]",
-  audio: "border-[#f3e5df] bg-[#fdf5f1] text-[#9a5943]",
-};
+function AccessBadge({ tool }: { tool: Tool }) {
+  return tool.tier === "credits" ? (
+    <Badge tone="credits">
+      <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+      {tool.creditCost} {tool.creditCost === 1 ? "credit" : "credits"}
+    </Badge>
+  ) : (
+    <Badge tone="free">Free</Badge>
+  );
+}
 
+function LockMark({ tool }: { tool: Tool }) {
+  if (tool.tier !== "credits") return null;
+  return (
+    <span title="Uses credits — sign in to run">
+      <Lock size={11} strokeWidth={2} className="text-faint" aria-hidden />
+    </span>
+  );
+}
+
+/** Grid view: flat card, no lift, no tinted tiles. */
 export function ToolCard({ tool }: { tool: Tool }) {
-  const Icon = tool.icon;
-
   return (
     <Link
       href={tool.path}
-      className="group flex min-h-[196px] flex-col rounded-[14px] border border-line bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-[#d8d8d5] hover:shadow-[0_8px_24px_rgba(15,15,16,0.05)]"
+      className="group flex min-h-[176px] flex-col rounded-xl border border-line bg-white p-4 transition-colors hover:bg-rail"
     >
       <div className="flex items-start justify-between gap-3">
-        <span
-          className={`grid h-10 w-10 place-items-center rounded-[10px] border ${iconStyles[tool.category]}`}
-        >
-          <Icon size={19} strokeWidth={1.55} aria-hidden />
+        <span className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-white text-ink">
+          <ToolGlyph path={tool.path} size={18} />
         </span>
-        {tool.tier === "credits" ? (
-          <Badge tone="credits">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            {tool.creditCost} {tool.creditCost === 1 ? "credit" : "credits"}
-          </Badge>
-        ) : (
-          <Badge tone="free">Free</Badge>
-        )}
+        <AccessBadge tool={tool} />
       </div>
 
-      <div className="mt-4">
-        <p className="flex items-center gap-1.5 text-sm font-semibold tracking-[-0.01em] text-ink">
-          {tool.name}
-          {tool.tier === "credits" && (
-            <span title="Uses credits — sign in to run">
-              <Lock size={11} strokeWidth={2} className="text-faint" aria-hidden />
-            </span>
-          )}
-        </p>
-        <p className="mt-1.5 line-clamp-2 text-ui leading-[1.55] text-muted">{tool.description}</p>
-      </div>
+      <p className="mt-4 flex items-center gap-1.5 text-[14px] font-medium text-ink">
+        {tool.name}
+        <LockMark tool={tool} />
+      </p>
+      <p className="mt-1 line-clamp-2 text-ui leading-[1.55] text-muted">{tool.description}</p>
 
-      <div className="mt-auto flex items-center justify-between gap-3 pt-5">
-        <span className="text-micro text-faint">
-          {tool.status === "soon"
-            ? "Interface preview"
-            : tool.engine === "browser"
-              ? "Runs on your device"
-              : "Cloud processing"}
+      <p className="mt-auto pt-4 text-micro text-faint">
+        {tool.status === "soon"
+          ? "Interface preview"
+          : tool.engine === "browser"
+            ? "Runs on your device"
+            : "Cloud processing"}
+      </p>
+    </Link>
+  );
+}
+
+/** List view: one hairline row per tool, like a table. */
+export function ToolRow({ tool }: { tool: Tool }) {
+  return (
+    <Link
+      href={tool.path}
+      className="group grid grid-cols-[minmax(0,1fr)_16px] items-center gap-4 px-4 py-3.5 transition-colors hover:bg-rail sm:grid-cols-[minmax(0,1fr)_110px_120px_16px]"
+    >
+      <div className="flex min-w-0 items-center gap-3.5">
+        <span className="flex shrink-0 text-muted transition-colors group-hover:text-ink">
+          <ToolGlyph path={tool.path} size={19} />
         </span>
-        <span className="grid h-6 w-6 place-items-center rounded-full border border-line bg-white text-faint transition-all group-hover:border-ink group-hover:bg-ink group-hover:text-white">
-          <ArrowUpRight size={12} aria-hidden />
-        </span>
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 truncate text-[13.5px] font-medium text-ink">
+            {tool.name}
+            <LockMark tool={tool} />
+          </p>
+          <p className="mt-0.5 truncate text-micro text-faint">{tool.description}</p>
+        </div>
       </div>
+      <span className="hidden text-ui capitalize text-muted sm:block">{tool.category}</span>
+      <span className="hidden sm:block">
+        <AccessBadge tool={tool} />
+      </span>
+      <ChevronRight size={14} className="text-faint transition-colors group-hover:text-ink" aria-hidden />
     </Link>
   );
 }

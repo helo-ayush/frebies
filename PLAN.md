@@ -1899,6 +1899,7 @@ These are not blockers for Phase 0, but must be settled before the relevant phas
 | 2026-10-29 | Navigation refined around a 264px rail using a custom 24px rounded-outline icon set, softer 13.5px labels and a 56px topbar. Added a desktop 72px icon-only rail controlled from the topbar; it stays collapsed across client navigation but resets on a fresh load. All scrollbars are hidden globally while scrolling remains available. |
 | 2026-10-29 | Topbar upgraded with a very subtle white gradient/inset highlight, soft-gradient search field, custom search/menu/arrow glyphs and glossy 9px buttons. Replaced the passive “Free workspace” status with a genuine “Get credits” action and made Sign in the primary action. |
 | 2026-10-29 | Marketing landing restored to the previous warm editorial direction — oversized headline, animated orb carousel, high-radius cards, marquee and large footer. The newer browser-frame workbench mock is retained as a dedicated workspace section. Placeholder format claims, old pricing and dead marketing links were replaced with the actual 16-tool catalog and current free/credit model. |
+| 2026-10-29 | Dashboard elevated beyond the flat pass: warm editorial hero with a live tool launcher, layered workspace illustration, expressive category cards, custom glyphs in the tool directory, and a split credits/recent-work ending. The functional list/grid directory remains; mobile filters collapse to concise labels. |
 | 2026-10-29 | Supabase project keys, Razorpay, analytics, actual tool engines and the React 19 upgrade remain pending. |
 
 ---
