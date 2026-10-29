@@ -4,9 +4,11 @@ import { useState, type CSSProperties } from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  Download,
   FileText,
   ImagePlus,
   Layers3,
+  Loader2,
   Plus,
   ShieldCheck,
   TriangleAlert,
@@ -17,6 +19,9 @@ import { ArrowRightGlyph, LockGlyph, ToolGlyph } from "@/components/icons/NavGly
 import { StudioDropzone, StudioChip } from "@/components/tool/studio/StudioDropzone";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { useImageQueue } from "@/components/tool/studio/useImageQueue";
+import { canvasToBlob, downloadBlob, loadImageFile } from "@/lib/image/encode";
+import { buildPdf, type PdfImagePage } from "@/lib/image/pdf";
+import { pagePixelSize, pagePoints, renderPdfPage } from "@/lib/image/pdf-page";
 import { PdfControls } from "./PdfControls";
 import {
   DEFAULT_PDF_SETTINGS,
@@ -59,6 +64,9 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   const [settings, setSettings] = useState<PdfSettings>(DEFAULT_PDF_SETTINGS);
   const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [result, setResult] = useState<{ blob: Blob; name: string; bytes: number } | null>(null);
 
   const totalInput = items.reduce((sum, item) => sum + item.file.size, 0);
   const estimate = estimatePdfBytes(
@@ -84,12 +92,77 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   function patch(next: Partial<PdfSettings>) {
     setSettings((current) => ({ ...current, ...next }));
     setNotice(null);
+    setResult(null);
   }
 
-  function handleCreate() {
-    setNotice(
-      `The ${pdfFilename(settings.filename)} draft is ready. The PDF assembly engine is connected in the next build step — ${items.length} page${items.length === 1 ? "" : "s"} will be created locally.`,
-    );
+  async function handleCreate() {
+    if (items.length === 0 || busy) return;
+    setBusy(true);
+    setProgress({ done: 0, total: items.length });
+    setNotice(null);
+    setResult(null);
+
+    try {
+      const marginPercent = marginMeta(settings.margin).percent;
+      const background = backgroundValue(settings.background);
+      const textColor =
+        settings.background === "black" ? "rgba(255,255,255,0.6)" : "#9a9488";
+      const pages: PdfImagePage[] = [];
+
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const image = await loadImageFile(item.file);
+        const imageWidth = image.naturalWidth || item.width || 1;
+        const imageHeight = image.naturalHeight || item.height || 1;
+
+        const points = pagePoints({
+          pageSize: settings.pageSize,
+          orientation: settings.orientation,
+          imageWidth,
+          imageHeight,
+        });
+        const pixels = pagePixelSize(points.widthPt, points.heightPt);
+
+        const canvas = renderPdfPage(image, {
+          width: pixels.width,
+          height: pixels.height,
+          marginPercent,
+          fit: settings.fit,
+          background,
+          pageNumber: settings.pageNumbers ? `${index + 1} / ${items.length}` : undefined,
+          textColor,
+        });
+
+        const jpegBlob = await canvasToBlob(canvas, "jpeg", settings.quality / 100);
+        pages.push({
+          jpeg: new Uint8Array(await jpegBlob.arrayBuffer()),
+          pixelWidth: canvas.width,
+          pixelHeight: canvas.height,
+          widthPt: points.widthPt,
+          heightPt: points.heightPt,
+        });
+        setProgress({ done: index + 1, total: items.length });
+      }
+
+      const name = pdfFilename(settings.filename);
+      const pdf = buildPdf(pages, { title: name, creator: "frebies" });
+      downloadBlob(pdf, name);
+      setResult({ blob: pdf, name, bytes: pdf.size });
+      setNotice(
+        `Saved ${name} · ${pages.length} page${pages.length === 1 ? "" : "s"} · ${formatBytes(
+          pdf.size,
+        )}. Built on your device, nothing was uploaded.`,
+      );
+    } catch (thrown) {
+      setNotice(
+        thrown instanceof Error
+          ? thrown.message
+          : "The PDF could not be built. Try another image or page size.",
+      );
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
   }
 
   return (
@@ -115,9 +188,9 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             <Layers3 size={10} aria-hidden />
             {items.length ? `${items.length} page${items.length === 1 ? "" : "s"}` : "No pages"}
           </span>
-          <span className="flex items-center gap-1.5 rounded-full border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-1 text-[10px] font-medium text-[#786344]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" aria-hidden />
-            Interface preview
+          <span className="flex items-center gap-1.5 rounded-full border border-[#d9e3d5] bg-[#f4f8f2] px-2.5 py-1 text-[10px] font-medium text-[#4a6b47]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#5f8a56]" aria-hidden />
+            Ready · on device
           </span>
           <span className="hidden items-center gap-1.5 text-micro text-faint sm:flex">
             <LockGlyph size={11} />
@@ -365,17 +438,35 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               <ShieldCheck size={12} aria-hidden />
               Free · no upload · no watermark
             </p>
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={items.length === 0}
-              className={buttonClasses("primary", "md", "w-full min-w-0 sm:w-auto sm:min-w-[150px]")}
-            >
-              {items.length > 0
-                ? `Create PDF · ${items.length} page${items.length === 1 ? "" : "s"}`
-                : "Create PDF"}
-              <ArrowRightGlyph size={13} />
-            </button>
+            <div className="flex items-center gap-3">
+              {result && (
+                <button
+                  type="button"
+                  onClick={() => downloadBlob(result.blob, result.name)}
+                  className="inline-flex items-center gap-1 text-[10.5px] font-medium text-[#3d5c3a] transition-colors hover:underline"
+                >
+                  <Download size={11} aria-hidden />
+                  Download again
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={items.length === 0 || busy}
+                className={buttonClasses("primary", "md", "w-full min-w-0 sm:w-auto sm:min-w-[150px]")}
+              >
+                {busy && progress
+                  ? `Building ${progress.done}/${progress.total}…`
+                  : items.length > 0
+                    ? `Create PDF · ${items.length} page${items.length === 1 ? "" : "s"}`
+                    : "Create PDF"}
+                {busy ? (
+                  <Loader2 size={13} className="animate-spin" aria-hidden />
+                ) : (
+                  <ArrowRightGlyph size={13} />
+                )}
+              </button>
+            </div>
           </div>
 
           {notice && (

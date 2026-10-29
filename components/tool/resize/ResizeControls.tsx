@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import {
   CROP_RATIOS,
+  CROP_ZOOM_MAX,
+  CROP_ZOOM_MIN,
   DIMENSION_PRESETS,
   FOCUS_POINTS,
   RESIZE_FORMATS,
@@ -385,10 +387,61 @@ export function ResizeControls({
                 </div>
               </div>
 
+              <div className="mt-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="crop-zoom" className="text-[10.5px] font-medium text-muted">
+                    Crop zoom
+                  </label>
+                  <span className="text-[10px] tabular-nums text-faint">
+                    {Math.round(settings.cropZoom * 100)}%
+                  </span>
+                </div>
+                <input
+                  id="crop-zoom"
+                  type="range"
+                  min={CROP_ZOOM_MIN}
+                  max={CROP_ZOOM_MAX}
+                  step={0.05}
+                  value={settings.cropZoom}
+                  onChange={(event) => onPatch({ cropZoom: Number(event.target.value) })}
+                  aria-valuetext={`${Math.round(settings.cropZoom * 100)} percent crop zoom`}
+                  disabled={!outputWidth}
+                  style={rangeFill(
+                    ((settings.cropZoom - CROP_ZOOM_MIN) / (CROP_ZOOM_MAX - CROP_ZOOM_MIN)) * 100,
+                    0,
+                    100,
+                  )}
+                  className="range mt-2"
+                />
+                <div className="mt-1 flex justify-between text-[10px] text-faint">
+                  <span>Whole frame</span>
+                  <span>Tight crop</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <span className="text-[10px] leading-relaxed text-faint">
+                    Drag the preview to reframe.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onPatch({
+                        cropZoom: CROP_ZOOM_MIN,
+                        cropCenterX: 0.5,
+                        cropCenterY: 0.5,
+                        focus: "center",
+                      })
+                    }
+                    className="shrink-0 text-[10px] font-medium text-faint transition-colors hover:text-ink"
+                  >
+                    Reset crop
+                  </button>
+                </div>
+              </div>
+
               <p className="mt-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2 text-[10px] leading-relaxed text-faint">
                 {settings.cropRatio === "free"
-                  ? "Free keeps the full frame. Pick a ratio to crop around the focus point."
-                  : "The preview shows the crop frame. The engine exports exactly this ratio at full resolution."}
+                  ? "Free keeps the full frame until you zoom in. Drag the image to choose what stays."
+                  : "Drag inside the frame to reframe, or zoom in for a tighter crop. The saved file matches the preview exactly."}
               </p>
             </div>
           )}
@@ -573,7 +626,7 @@ export function ResizeControls({
       <p className="border-t border-line-soft pt-3 text-[10px] leading-relaxed text-faint">
         {upscaling
           ? "Upscaling interpolates pixels; detail is estimated, not recovered."
-          : "Dimensions and size are estimated until the resize engine reports the exact result."}
+          : "Sizes are estimated before export, and the saved file reports its exact size."}
       </p>
     </div>
   );

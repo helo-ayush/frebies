@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Check,
+  Download,
   ImagePlus,
+  Loader2,
   Scaling,
   ShieldCheck,
   TriangleAlert,
@@ -14,22 +16,37 @@ import { ArrowRightGlyph, LockGlyph, ToolGlyph } from "@/components/icons/NavGly
 import { StudioDropzone, StudioChip } from "@/components/tool/studio/StudioDropzone";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { useImageQueue } from "@/components/tool/studio/useImageQueue";
+import {
+  canvasToBlob,
+  downloadBlob,
+  drawRegion,
+  loadImageFile,
+  outputFilename,
+  transformImage,
+} from "@/lib/image/encode";
+import { CropStage, ResizePreview } from "./CropStage";
 import { ResizeControls } from "./ResizeControls";
 import {
   CROP_RATIOS,
   DEFAULT_RESIZE_SETTINGS,
-  FOCUS_POINTS,
+  backgroundValue,
+  buildResizePlan,
   computeResizeOutput,
   cropRatioValue,
   estimateResizeBytes,
+  focusAnchor,
   formatBytes,
   formatLabel,
   isLossyFormat,
+  normalizeCropPan,
   ratioLabel,
+  resolveEncodeFormat,
   type ResizeSettings,
 } from "./model";
 
 const MAX_FILES = 1;
+
+type ExportResult = { blob: Blob; name: string; bytes: number; width: number; height: number };
 
 export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const {
@@ -47,6 +64,8 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   const [settings, setSettings] = useState<ResizeSettings>(DEFAULT_RESIZE_SETTINGS);
   const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ExportResult | null>(null);
   const initializedRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -62,8 +81,12 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
       rotation: 0,
       flipX: false,
       flipY: false,
+      cropZoom: 1,
+      cropCenterX: 0.5,
+      cropCenterY: 0.5,
     }));
     setNotice(null);
+    setResult(null);
   }, [activeItem]);
 
   const originalWidth = activeItem?.width ?? 0;
@@ -73,7 +96,6 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const cropRatio =
     cropRatioValue(settings.cropRatio) ??
     (sourceWidth && sourceHeight ? sourceWidth / sourceHeight : 1);
-  const focus = FOCUS_POINTS.find((point) => point.id === settings.focus) ?? FOCUS_POINTS[4];
   const lossy = isLossyFormat(settings.format);
   const formatName = formatLabel(settings.format);
   const estimate = activeItem
@@ -89,7 +111,7 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const chipLabel =
     settings.mode === "crop"
       ? settings.cropRatio === "free"
-        ? "Full frame"
+        ? `Full frame · ${Math.round(settings.cropZoom * 100)}%`
         : CROP_RATIOS.find((ratio) => ratio.id === settings.cropRatio)?.label ?? "Crop"
       : settings.mode === "percent"
         ? `${settings.percent}%`
@@ -99,29 +121,90 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             ? "Fit + pad"
             : "Stretch";
 
+  const outputAspect = outputWidth && outputHeight ? outputWidth / outputHeight : 1;
   const stageStyle: CSSProperties =
-    cropRatio >= 1
-      ? { width: "min(58%, 300px)", aspectRatio: cropRatio }
-      : { height: "min(86%, 360px)", aspectRatio: cropRatio };
+    outputAspect >= 1
+      ? { width: "min(74%, 380px)", aspectRatio: outputAspect }
+      : { height: "min(80%, 380px)", aspectRatio: outputAspect };
 
   const transforms: string[] = [];
-  if (settings.rotation) transforms.push(`rotate(${settings.rotation}deg)`);
-  if (settings.flipX) transforms.push("scaleX(-1)");
-  if (settings.flipY) transforms.push("scaleY(-1)");
-  if (settings.mode === "crop" && settings.rotation % 180 !== 0) transforms.push("scale(1.35)");
+  if (settings.rotation && settings.mode !== "crop") transforms.push(`rotate(${settings.rotation}deg)`);
+  if (settings.flipX && settings.mode !== "crop") transforms.push("scaleX(-1)");
+  if (settings.flipY && settings.mode !== "crop") transforms.push("scaleY(-1)");
   const imageTransform = transforms.length > 0 ? transforms.join(" ") : undefined;
 
   function patch(next: Partial<ResizeSettings>) {
-    setSettings((current) => ({ ...current, ...next }));
+    setSettings((current) => {
+      const merged = { ...current, ...next };
+      if (next.focus) {
+        const anchor = focusAnchor(next.focus);
+        merged.cropCenterX = anchor.x;
+        merged.cropCenterY = anchor.y;
+      }
+      if (merged.mode === "crop" && originalWidth && originalHeight) {
+        const center = normalizeCropPan(merged, sourceWidth, sourceHeight);
+        merged.cropCenterX = center.x;
+        merged.cropCenterY = center.y;
+      }
+      return merged;
+    });
     setNotice(null);
+    setResult(null);
   }
 
-  function handleResize() {
-    setNotice(
-      settings.mode === "crop"
-        ? "The crop is ready to export. The resize engine is connected in the next build step — nothing leaves this device."
-        : "The resize is ready to export. The resize engine is connected in the next build step — nothing leaves this device.",
-    );
+  async function handleResize() {
+    if (!activeItem || busy) return;
+    setBusy(true);
+    setNotice(null);
+    setResult(null);
+    try {
+      const image = await loadImageFile(activeItem.file);
+      const imageWidth = image.naturalWidth || originalWidth;
+      const imageHeight = image.naturalHeight || originalHeight;
+      const plan = buildResizePlan(settings, imageWidth, imageHeight);
+      if (!plan.output.width || !plan.output.height) {
+        throw new Error("Set a width and height first, then try again.");
+      }
+
+      const transformed = transformImage(image, {
+        rotation: settings.rotation,
+        flipX: settings.flipX,
+        flipY: settings.flipY,
+      });
+      const sourceRect = plan.crop ?? {
+        x: 0,
+        y: 0,
+        width: transformed.width,
+        height: transformed.height,
+      };
+      const canvas = drawRegion(transformed, sourceRect, plan.output, {
+        fit: plan.fit,
+        background: plan.background,
+        anchor: plan.anchor,
+        sharpen: plan.sharpen,
+      });
+
+      const format = resolveEncodeFormat(settings, activeItem.file);
+      const blob = await canvasToBlob(canvas, format, settings.quality / 100);
+      const name = outputFilename(
+        activeItem.file.name,
+        format,
+        `-${canvas.width}x${canvas.height}`,
+      );
+      downloadBlob(blob, name);
+      setResult({ blob, name, bytes: blob.size, width: canvas.width, height: canvas.height });
+      setNotice(
+        `Saved ${name} · ${canvas.width} × ${canvas.height} px · ${formatBytes(blob.size)}. Nothing left your device.`,
+      );
+    } catch (thrown) {
+      setNotice(
+        thrown instanceof Error
+          ? thrown.message
+          : "This image could not be saved. Try another file.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -147,9 +230,9 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             <Scaling size={10} aria-hidden />
             {activeItem && outputWidth ? `${outputWidth} × ${outputHeight}` : "No canvas"}
           </span>
-          <span className="flex items-center gap-1.5 rounded-full border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-1 text-[10px] font-medium text-[#786344]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" aria-hidden />
-            Interface preview
+          <span className="flex items-center gap-1.5 rounded-full border border-[#d9e3d5] bg-[#f4f8f2] px-2.5 py-1 text-[10px] font-medium text-[#4a6b47]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#5f8a56]" aria-hidden />
+            Ready · on device
           </span>
           <span className="hidden items-center gap-1.5 text-micro text-faint sm:flex">
             <LockGlyph size={11} />
@@ -190,7 +273,7 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             >
               <div className="relative flex min-h-[240px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-line bg-[#f1efeb] p-4">
                 <span className="absolute left-3 top-3 z-10 rounded-md border border-line bg-white/90 px-2 py-1 text-[9px] font-medium text-muted backdrop-blur">
-                  {settings.mode === "crop" ? "Crop preview" : "Canvas preview"}
+                  {settings.mode === "crop" ? "Crop preview" : "Output preview"}
                 </span>
                 <span className="absolute right-3 top-3 z-10 rounded-md border border-line bg-white/90 px-2 py-1 text-[9px] font-medium tabular-nums text-muted backdrop-blur">
                   {outputWidth ? `${outputWidth} × ${outputHeight}` : "Reading image…"}
@@ -198,31 +281,41 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
                 {settings.mode === "crop" ? (
                   <div className="relative" style={stageStyle}>
-                    <div className="absolute inset-0 overflow-hidden rounded-[6px] border border-white/80 bg-[#e9e5dd]">
-                      <img
-                        src={activeItem.preview}
-                        alt={`Crop preview of ${activeItem.file.name}`}
-                        className="h-full w-full object-cover"
-                        style={{ objectPosition: focus.position, transform: imageTransform }}
-                      />
-                      <ThirdsGrid />
-                    </div>
-                    <span className="absolute -left-[3px] -top-[3px] h-2.5 w-2.5 rounded-[2px] border border-ink bg-white" />
-                    <span className="absolute -right-[3px] -top-[3px] h-2.5 w-2.5 rounded-[2px] border border-ink bg-white" />
-                    <span className="absolute -bottom-[3px] -left-[3px] h-2.5 w-2.5 rounded-[2px] border border-ink bg-white" />
-                    <span className="absolute -bottom-[3px] -right-[3px] h-2.5 w-2.5 rounded-[2px] border border-ink bg-white" />
+                    <CropStage
+                      src={activeItem.preview}
+                      ratio={cropRatio}
+                      zoom={settings.cropZoom}
+                      centerX={settings.cropCenterX}
+                      centerY={settings.cropCenterY}
+                      rotation={settings.rotation}
+                      flipX={settings.flipX}
+                      flipY={settings.flipY}
+                      onPan={(center) => patch({ cropCenterX: center.x, cropCenterY: center.y })}
+                    />
                   </div>
                 ) : (
-                  <img
-                    src={activeItem.preview}
-                    alt={`Preview of ${activeItem.file.name}`}
-                    className="rounded-[8px] object-contain shadow-[0_10px_30px_rgba(45,35,22,0.08)]"
-                    style={{
-                      transform: imageTransform,
-                      maxHeight: settings.rotation % 180 !== 0 ? 240 : 384,
-                      maxWidth: settings.rotation % 180 !== 0 ? 240 : "100%",
-                    }}
-                  />
+                  <div className="relative" style={stageStyle}>
+                    {sourceWidth && sourceHeight && outputWidth > 0 ? (
+                      <ResizePreview
+                        src={activeItem.preview}
+                        rotation={settings.rotation}
+                        flipX={settings.flipX}
+                        flipY={settings.flipY}
+                        crop={null}
+                        output={{ width: outputWidth, height: outputHeight }}
+                        fit={settings.fit === "fill" ? "cover" : settings.fit === "fit" ? "contain" : "stretch"}
+                        background={settings.fit === "fit" ? backgroundValue(settings) : null}
+                        anchor={focusAnchor(settings.focus)}
+                      />
+                    ) : (
+                      <img
+                        src={activeItem.preview}
+                        alt={`Preview of ${activeItem.file.name}`}
+                        className="h-full w-full rounded-[8px] object-contain"
+                        style={{ transform: imageTransform }}
+                      />
+                    )}
+                  </div>
                 )}
 
                 <span className="absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-lg border border-white/70 bg-white/90 px-2.5 py-1.5 text-[10.5px] font-medium text-ink shadow-sm backdrop-blur">
@@ -261,6 +354,7 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                     removeItem(activeItem.id);
                     initializedRef.current = null;
                     setNotice(null);
+                    setResult(null);
                   }}
                   aria-label={`Remove ${activeItem.file.name}`}
                   className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
@@ -316,7 +410,10 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line-soft pt-2.5">
                   <SummaryStat label="From" value={`${originalWidth || "—"} × ${originalHeight || "—"}`} />
                   <SummaryStat label="Scale" value={`${output.scale}%`} />
-                  <SummaryStat label="Estimated" value={`≈ ${formatBytes(estimate)}`} />
+                  <SummaryStat
+                    label={result ? "Saved" : "Estimated"}
+                    value={result ? formatBytes(result.bytes) : `≈ ${formatBytes(estimate)}`}
+                  />
                 </div>
 
                 {output.upscaling && (
@@ -329,6 +426,23 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                   <p className="mt-2.5 text-[10px] tabular-nums text-faint">
                     {ratioLabel(outputWidth, outputHeight)} · {lossy ? `${settings.quality}% quality` : "lossless"}
                   </p>
+                )}
+
+                {result && (
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-[9px] border border-[#d9e3d5] bg-[#f4f8f2] px-2.5 py-2">
+                    <Check size={12} className="shrink-0 text-[#4a6b47]" aria-hidden />
+                    <span className="min-w-0 flex-1 truncate text-[10.5px] font-medium text-[#4a6b47]">
+                      {result.name} · {formatBytes(result.bytes)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => downloadBlob(result.blob, result.name)}
+                      className="inline-flex items-center gap-1 rounded-md border border-[#cfdccb] bg-white px-2 py-1 text-[10px] font-medium text-[#3d5c3a] transition-colors hover:bg-[#eef4ec]"
+                    >
+                      <Download size={10} aria-hidden />
+                      Download again
+                    </button>
+                  </div>
                 )}
               </>
             ) : (
@@ -352,11 +466,20 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             <button
               type="button"
               onClick={handleResize}
-              disabled={!activeItem}
+              disabled={!activeItem || busy}
               className={buttonClasses("primary", "md", "w-full min-w-0 sm:w-auto sm:min-w-[140px]")}
             >
-              {settings.mode === "crop" ? "Crop image" : "Resize image"}
-              <ArrowRightGlyph size={13} />
+              {busy ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" aria-hidden />
+                  Working…
+                </>
+              ) : (
+                <>
+                  {settings.mode === "crop" ? "Crop image" : "Resize image"}
+                  <ArrowRightGlyph size={13} />
+                </>
+              )}
             </button>
           </div>
 
@@ -395,17 +518,6 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-[9px] font-medium uppercase tracking-[0.06em] text-faint">{label}</p>
       <p className="mt-0.5 truncate text-[11px] font-medium tabular-nums text-ink">{value}</p>
-    </div>
-  );
-}
-
-function ThirdsGrid() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0">
-      <span className="absolute inset-y-0 left-1/3 w-px bg-white/40" />
-      <span className="absolute inset-y-0 right-1/3 w-px bg-white/40" />
-      <span className="absolute inset-x-0 top-1/3 h-px bg-white/40" />
-      <span className="absolute inset-x-0 bottom-1/3 h-px bg-white/40" />
     </div>
   );
 }

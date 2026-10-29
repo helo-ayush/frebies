@@ -249,7 +249,7 @@ export const tools: Tool[] = [
     icon: Minimize2,
     tier: "free",
     engine: "browser",
-    status: "soon",
+    status: "live",
     featured: true,
     limits: { maxSizeMB: 25, formats: ["JPG", "PNG", "WebP"] },
     resumeBehavior: "auto",
@@ -325,7 +325,7 @@ export const tools: Tool[] = [
     icon: Crop,
     tier: "free",
     engine: "browser",
-    status: "soon",
+    status: "live",
     limits: { maxSizeMB: 25, formats: ["JPG", "PNG", "WebP"] },
     resumeBehavior: "auto",
     seo: {
@@ -396,7 +396,7 @@ export const tools: Tool[] = [
     icon: FileImage,
     tier: "free",
     engine: "browser",
-    status: "soon",
+    status: "live",
     limits: { maxSizeMB: 25, formats: ["JPG", "PNG", "WebP"] },
     resumeBehavior: "auto",
     seo: {

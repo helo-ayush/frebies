@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 
 const freeCount = tools.filter((tool) => tool.tier === "free").length;
 const creditCount = tools.length - freeCount;
+const readyCount = tools.filter((tool) => tool.status === "live").length;
 
 export default function DashboardPage() {
   return (
@@ -34,6 +35,10 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-4 rounded-full border border-line bg-[#fbfaf8] px-4 py-2 text-micro text-faint">
+            <span>
+              <strong className="font-medium text-ink">{readyCount}</strong> ready
+            </span>
+            <span aria-hidden className="h-3 w-px bg-line" />
             <span>
               <strong className="font-medium text-ink">{tools.length}</strong> total
             </span>

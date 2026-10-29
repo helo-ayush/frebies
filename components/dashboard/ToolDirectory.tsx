@@ -18,6 +18,14 @@ const tiers = [
 
 type Tier = (typeof tiers)[number][0];
 
+const statuses = [
+  ["all", "Any status", "Any"],
+  ["live", "Ready now", "Ready"],
+  ["soon", "Coming soon", "Soon"],
+] as const;
+
+type StatusFilter = (typeof statuses)[number][0];
+
 const views = [
   ["list", List, "List view"],
   ["grid", LayoutGrid, "Grid view"],
@@ -27,6 +35,7 @@ export function ToolDirectory({ category }: { category?: CategorySlug }) {
   const [tab, setTab] = useState<CategorySlug | "all">(category ?? "all");
   const [query, setQuery] = useState("");
   const [tier, setTier] = useState<Tier>("all");
+  const [status, setStatus] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<"featured" | "name">("featured");
   const [view, setView] = useState<"list" | "grid">("list");
 
@@ -35,6 +44,7 @@ export function ToolDirectory({ category }: { category?: CategorySlug }) {
     const filtered = tools.filter((tool) => {
       if (tab !== "all" && tool.category !== tab) return false;
       if (tier !== "all" && tool.tier !== tier) return false;
+      if (status !== "all" && tool.status !== status) return false;
       if (
         normalized &&
         ![tool.name, tool.description, tool.tagline, ...tool.keywords]
@@ -50,15 +60,16 @@ export function ToolDirectory({ category }: { category?: CategorySlug }) {
     return sort === "name"
       ? [...filtered].sort((a, b) => a.name.localeCompare(b.name))
       : filtered;
-  }, [query, sort, tab, tier]);
+  }, [query, sort, status, tab, tier]);
 
   function clearFilters() {
     setQuery("");
     setTier("all");
+    setStatus("all");
     setSort("featured");
   }
 
-  const filtered = query || tier !== "all" || sort !== "featured";
+  const filtered = query || tier !== "all" || status !== "all" || sort !== "featured";
 
   return (
     <div>
@@ -153,6 +164,28 @@ export function ToolDirectory({ category }: { category?: CategorySlug }) {
             <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
+
+        <div
+          role="group"
+          aria-label="Filter by availability"
+          className="flex h-8 items-center gap-0.5 rounded-lg border border-line bg-white p-0.5"
+        >
+          {statuses.map(([id, label, shortLabel]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setStatus(id)}
+              aria-pressed={status === id}
+              aria-label={label}
+              className={`h-7 rounded-md px-2 text-[11.5px] font-medium transition-colors ${
+                status === id ? "bg-active text-ink" : "text-muted hover:text-ink"
+              }`}
+            >
+              <span className="sm:hidden">{shortLabel}</span>
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+        </div>
 
         <label className="ml-auto flex items-center gap-2 text-micro text-faint">
           <span className="hidden sm:inline">Sort</span>

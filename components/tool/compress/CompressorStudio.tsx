@@ -8,8 +8,10 @@ import {
   type DragEvent,
 } from "react";
 import {
+  Download,
   ImagePlus,
   Images,
+  Loader2,
   Percent,
   Plus,
   ShieldCheck,
@@ -22,6 +24,8 @@ import {
 import { buttonClasses } from "@/components/ui/Button";
 import { ArrowRightGlyph, LockGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
+import { compressFile, type CompressOutcome } from "@/lib/image/compress";
+import { downloadBlob, outputFilename } from "@/lib/image/encode";
 import { CompressorControls } from "./CompressorControls";
 import {
   DEFAULT_SETTINGS,
@@ -29,7 +33,10 @@ import {
   estimateForItem,
   formatBytes,
   goalLabel,
+  maxEdgeOf,
   reductionPercent,
+  resolveOutputFormat,
+  targetBytes,
   type CompressItem,
   type CompressPreset,
   type CompressSettings,
@@ -45,6 +52,9 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [results, setResults] = useState<Record<string, CompressOutcome>>({});
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const replaceIdRef = useRef<string | null>(null);
@@ -66,12 +76,14 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     setSettings((current) => ({ ...current, ...patch }));
     setPresetId(null);
     setNotice(null);
+    setResults({});
   }
 
   function applyPreset(preset: CompressPreset) {
     setSettings((current) => ({ ...current, ...preset.patch }));
     setPresetId(preset.id);
     setNotice(null);
+    setResults({});
   }
 
   function openPicker(replaceId?: string) {
@@ -138,6 +150,7 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
     setItems([...baseItems, ...accepted]);
     setActiveId(accepted[0].id);
+    setResults({});
 
     const messages: string[] = [];
     if (skippedType > 0) {
@@ -180,6 +193,11 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     if (target) URL.revokeObjectURL(target.preview);
     const next = items.filter((item) => item.id !== id);
     setItems(next);
+    setResults((current) => {
+      const copy = { ...current };
+      delete copy[id];
+      return copy;
+    });
     setActiveId((current) => (current === id ? next[0]?.id ?? null : current));
   }
 
@@ -189,6 +207,7 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     setActiveId(null);
     setError(null);
     setNotice(null);
+    setResults({});
   }
 
   function onDragOver(event: DragEvent<HTMLDivElement>) {
@@ -209,23 +228,94 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     acceptFiles(event.dataTransfer.files);
   }
 
-  function handleCompress() {
-    setNotice(
-      items.length > 1
-        ? `Preview only — the encoder is connected in the next build step. ${items.length} images are set to ${goalLabel(settings)}, and nothing leaves this device.`
-        : `Preview only — the encoder is connected in the next build step. This image is set to ${goalLabel(settings)}, and nothing leaves this device.`,
-    );
+  async function handleCompress() {
+    if (items.length === 0 || busy) return;
+    setBusy(true);
+    setProgress({ done: 0, total: items.length });
+    setNotice(null);
+    setError(null);
+    setResults({});
+
+    const collected: { item: CompressItem; outcome: CompressOutcome }[] = [];
+    try {
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const outcome = await compressFile(item.file, {
+          goal: settings.goal,
+          quality: settings.quality,
+          targetBytes: targetBytes(settings),
+          percent: settings.percent,
+          format: resolveOutputFormat(settings, item.file),
+          maxEdge: maxEdgeOf(settings),
+          keepOriginalIfLarger: settings.keepSmaller,
+          sharpen: settings.sharpen ? 0.45 : 0,
+        });
+        collected.push({ item, outcome });
+        setResults((current) => ({ ...current, [item.id]: outcome }));
+        setProgress({ done: index + 1, total: items.length });
+      }
+
+      if (collected.length === 1) {
+        const { item, outcome } = collected[0];
+        const name = outputFilename(
+          item.file.name,
+          outcome.format,
+          outcome.keptOriginal ? "-original" : "-compressed",
+        );
+        downloadBlob(outcome.blob, name);
+        setNotice(
+          outcome.keptOriginal
+            ? `Kept the original ${item.file.name} (${formatBytes(outcome.bytes)}) — re-encoding would have made it larger.`
+            : `Saved ${name} · ${formatBytes(outcome.originalBytes)} → ${formatBytes(
+                outcome.bytes,
+              )}. Nothing left your device.`,
+        );
+      } else {
+        const total = collected.reduce((sum, entry) => sum + entry.outcome.bytes, 0);
+        setNotice(
+          `Compressed ${collected.length} images to ${formatBytes(
+            total,
+          )}. Download each file below — nothing left your device.`,
+        );
+      }
+    } catch (thrown) {
+      setNotice(
+        thrown instanceof Error ? thrown.message : "That image could not be compressed.",
+      );
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
+  }
+
+  function downloadAll() {
+    items.forEach((item, index) => {
+      const outcome = results[item.id];
+      if (!outcome) return;
+      const name = outputFilename(
+        item.file.name,
+        outcome.format,
+        outcome.keptOriginal ? "-original" : "-compressed",
+      );
+      window.setTimeout(() => downloadBlob(outcome.blob, name), index * 250);
+    });
   }
 
   const activeItem = items.find((item) => item.id === activeId) ?? items[0] ?? null;
   const activeIndex = activeItem ? items.findIndex((item) => item.id === activeItem.id) : -1;
-  const activeOutput = activeItem ? estimateForItem(activeItem, settings) : 0;
+  const activeOutcome = activeItem ? results[activeItem.id] : undefined;
+  const activeOutput = activeOutcome?.bytes ?? (activeItem ? estimateForItem(activeItem, settings) : 0);
   const activeSavings = activeItem
     ? reductionPercent(activeItem.file.size, activeOutput)
     : 0;
 
+  const settled = items.filter((item) => results[item.id]);
+  const allSettled = items.length > 0 && settled.length === items.length;
   const totalOriginal = items.reduce((sum, item) => sum + item.file.size, 0);
-  const totalOutput = items.reduce((sum, item) => sum + estimateForItem(item, settings), 0);
+  const totalOutput = items.reduce(
+    (sum, item) => sum + (results[item.id]?.bytes ?? estimateForItem(item, settings)),
+    0,
+  );
   const totalSavings = reductionPercent(totalOriginal, totalOutput);
   const compressedWidth =
     totalOriginal > 0 ? Math.min(100, Math.max(3, (totalOutput / totalOriginal) * 100)) : 0;
@@ -253,9 +343,9 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             <Target size={10} aria-hidden />
             {goalLabel(settings)}
           </span>
-          <span className="flex items-center gap-1.5 rounded-full border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-1 text-[10px] font-medium text-[#786344]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" aria-hidden />
-            Interface preview
+          <span className="flex items-center gap-1.5 rounded-full border border-[#d9e3d5] bg-[#f4f8f2] px-2.5 py-1 text-[10px] font-medium text-[#4a6b47]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#5f8a56]" aria-hidden />
+            Ready · on device
           </span>
           <span className="hidden items-center gap-1.5 text-micro text-faint sm:flex">
             <LockGlyph size={11} />
@@ -437,7 +527,7 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               <div className="mt-2 flex gap-2 overflow-x-auto pb-0.5">
                 {items.map((item, index) => {
                   const isActive = item.id === activeItem?.id;
-                  const output = estimateForItem(item, settings);
+                  const output = results[item.id]?.bytes ?? estimateForItem(item, settings);
                   return (
                     <button
                       key={item.id}
@@ -477,12 +567,73 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             </div>
           )}
 
+          {settled.length > 0 && (
+            <div className="mt-3 shrink-0 rounded-[13px] border border-[#d9e3d5] bg-[#f6faf4] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-medium uppercase tracking-[0.07em] text-[#4a6b47]">
+                  {settled.length === 1 ? "Ready to download" : `${settled.length} files ready`}
+                </p>
+                {settled.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={downloadAll}
+                    className="inline-flex items-center gap-1 text-[10px] font-medium text-[#3d5c3a] transition-colors hover:underline"
+                  >
+                    <Download size={10} aria-hidden />
+                    Download all
+                  </button>
+                )}
+              </div>
+              <ul className="mt-2 space-y-1.5">
+                {items.map((item) => {
+                  const outcome = results[item.id];
+                  if (!outcome) return null;
+                  const name = outputFilename(
+                    item.file.name,
+                    outcome.format,
+                    outcome.keptOriginal ? "-original" : "-compressed",
+                  );
+                  const saving = reductionPercent(outcome.originalBytes, outcome.bytes);
+                  return (
+                    <li
+                      key={item.id}
+                      className="flex items-center gap-2 rounded-lg border border-[#dbe6d6] bg-white px-2.5 py-1.5"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-[10.5px] font-medium text-ink">
+                        {name}
+                      </span>
+                      <span className="shrink-0 text-[10px] tabular-nums text-faint">
+                        {formatBytes(outcome.originalBytes)} → {formatBytes(outcome.bytes)}
+                      </span>
+                      <span
+                        className={`shrink-0 text-[10px] font-medium tabular-nums ${
+                          saving > 0 && !outcome.keptOriginal ? "text-[#3d6b4a]" : "text-faint"
+                        }`}
+                      >
+                        {outcome.keptOriginal ? "original" : saving > 0 ? `−${saving}%` : "no saving"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => downloadBlob(outcome.blob, name)}
+                        aria-label={`Download ${name}`}
+                        className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-[#dbe6d6] bg-white text-[#3d5c3a] transition-colors hover:bg-[#eef4ec]"
+                      >
+                        <Download size={11} aria-hidden />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
           <SizeSummary
             original={totalOriginal}
             output={totalOutput}
             savings={totalSavings}
             compressedWidth={compressedWidth}
             count={items.length}
+            exact={allSettled}
             formatLabel={settings.format === "auto" ? "Auto format" : settings.format.toUpperCase()}
             goal={goalLabel(settings)}
           />
@@ -519,18 +670,36 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               ? `${formatBytes(totalOutput)} · ${totalSavings > 0 ? `−${totalSavings}%` : "no saving"}`
               : "Add an image to start"}
           </span>
+          {allSettled && items.length > 1 && (
+            <button
+              type="button"
+              onClick={downloadAll}
+              className={buttonClasses("secondary", "md", "w-full sm:w-auto")}
+            >
+              <Download size={13} aria-hidden />
+              Download all
+            </button>
+          )}
           <button
             type="button"
             onClick={handleCompress}
-            disabled={items.length === 0}
+            disabled={items.length === 0 || busy}
             className={buttonClasses(
               "primary",
               "md",
               "w-full min-w-0 sm:w-auto sm:min-w-[150px]",
             )}
           >
-            {items.length > 1 ? `Compress ${items.length} images` : "Compress image"}
-            <ArrowRightGlyph size={13} />
+            {busy && progress
+              ? `Compressing ${progress.done}/${progress.total}…`
+              : items.length > 1
+                ? `Compress ${items.length} images`
+                : "Compress image"}
+            {busy ? (
+              <Loader2 size={13} className="animate-spin" aria-hidden />
+            ) : (
+              <ArrowRightGlyph size={13} />
+            )}
           </button>
         </div>
       </div>
@@ -544,6 +713,7 @@ function SizeSummary({
   savings,
   compressedWidth,
   count,
+  exact,
   formatLabel,
   goal,
 }: {
@@ -552,6 +722,7 @@ function SizeSummary({
   savings: number;
   compressedWidth: number;
   count: number;
+  exact: boolean;
   formatLabel: string;
   goal: string;
 }) {
@@ -577,7 +748,7 @@ function SizeSummary({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
-            {count > 1 ? "Estimated total" : "Estimated output"}
+            {exact ? (count > 1 ? "Saved total" : "Saved output") : count > 1 ? "Estimated total" : "Estimated output"}
           </p>
           <div className="mt-1.5 flex items-baseline gap-2">
             <span className="font-display text-[24px] font-semibold leading-none tabular-nums tracking-[-0.03em] text-ink">

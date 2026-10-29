@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRightGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
 import {
   categories,
+  tools,
   toolsForCategory,
   type CategorySlug,
 } from "@/lib/registry/tools";
@@ -44,7 +45,7 @@ export function CategoryCards() {
           href="#tools"
           className="group inline-flex items-center gap-1.5 text-micro font-medium text-muted hover:text-ink"
         >
-          All 16 tools
+          All {tools.length} tools
           <ArrowRightGlyph size={12} />
         </Link>
       </div>

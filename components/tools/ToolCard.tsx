@@ -5,6 +5,9 @@ import { Badge } from "@/components/ui/Badge";
 import { ToolGlyph } from "@/components/icons/NavGlyph";
 
 function AccessBadge({ tool }: { tool: Tool }) {
+  if (tool.status === "soon") {
+    return <Badge tone="soon">Soon</Badge>;
+  }
   return tool.tier === "credits" ? (
     <Badge tone="credits">
       <span className="h-1.5 w-1.5 rounded-full bg-accent" />
@@ -46,7 +49,7 @@ export function ToolCard({ tool }: { tool: Tool }) {
 
       <p className="mt-auto pt-4 text-micro text-faint">
         {tool.status === "soon"
-          ? "Interface preview"
+          ? "Coming soon"
           : tool.engine === "browser"
             ? "Runs on your device"
             : "Cloud processing"}

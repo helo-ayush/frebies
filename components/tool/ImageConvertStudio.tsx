@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import {
   Check,
   ChevronDown,
+  Download,
   Images,
   ImagePlus,
+  Loader2,
   Plus,
   ShieldCheck,
   TriangleAlert,
@@ -16,25 +18,27 @@ import { ArrowRightGlyph, LockGlyph, ToolGlyph } from "@/components/icons/NavGly
 import { StudioDropzone, StudioChip } from "@/components/tool/studio/StudioDropzone";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { useImageQueue } from "@/components/tool/studio/useImageQueue";
+import {
+  FORMAT_LABEL,
+  canvasToBlob,
+  downloadBlob,
+  drawRegion,
+  loadImageFile,
+  outputFilename,
+  supportedFormats,
+  type EncodeFormat,
+} from "@/lib/image/encode";
 
 const MAX_FILES = 10;
 
-const formats = [
-  { value: "PNG", hint: "Lossless", lossy: false },
-  { value: "JPG", hint: "Universal", lossy: true },
-  { value: "WebP", hint: "Modern", lossy: true },
-  { value: "AVIF", hint: "Smallest", lossy: true },
-  { value: "GIF", hint: "Indexed", lossy: false },
-  { value: "BMP", hint: "Legacy", lossy: false },
-  { value: "TIFF", hint: "Print", lossy: false },
-  { value: "ICO", hint: "App icon", lossy: false },
-  { value: "HEIC", hint: "Apple", lossy: true },
-  { value: "JXL", hint: "Next-gen", lossy: true },
-  { value: "TGA", hint: "Legacy", lossy: false },
-  { value: "JP2", hint: "Archive", lossy: true },
-] as const;
+const FORMAT_META: Record<EncodeFormat, { hint: string; lossy: boolean }> = {
+  png: { hint: "Lossless", lossy: false },
+  jpeg: { hint: "Universal", lossy: true },
+  webp: { hint: "Modern", lossy: true },
+  avif: { hint: "Smallest", lossy: true },
+};
 
-type OutputFormat = (typeof formats)[number]["value"];
+type Converted = { blob: Blob; name: string; bytes: number; width: number; height: number };
 
 export function ImageConvertStudio({
   path,
@@ -60,31 +64,95 @@ export function ImageConvertStudio({
     clearAll,
   } = useImageQueue({ maxFiles: MAX_FILES, maxSizeMB, formatHint: "JPG, PNG or WebP" });
 
-  const [format, setFormat] = useState<OutputFormat>("WebP");
+  const [available, setAvailable] = useState<EncodeFormat[]>(["png", "jpeg", "webp"]);
+  const [format, setFormat] = useState<EncodeFormat>("webp");
   const [showAllFormats, setShowAllFormats] = useState(false);
   const [quality, setQuality] = useState(90);
-  const [preserveMetadata, setPreserveMetadata] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState<Record<string, Converted>>({});
 
-  const selectedFormat = formats.find((option) => option.value === format);
-  const isLossy = selectedFormat?.lossy ?? false;
-  const visibleFormats = showAllFormats ? formats : formats.slice(0, 3);
+  useEffect(() => {
+    const list = supportedFormats();
+    setAvailable(list);
+    setFormat((current) => (list.includes(current) ? current : list[0] ?? "jpeg"));
+  }, []);
+
+  const isLossy = FORMAT_META[format]?.lossy ?? true;
+  const visibleFormats = showAllFormats ? available : available.slice(0, 3);
   const dimensions =
     activeItem?.width && activeItem.height
       ? { width: activeItem.width, height: activeItem.height }
       : null;
   const totalInput = items.reduce((sum, item) => sum + item.file.size, 0);
+  const settled = items.filter((item) => results[item.id]);
+  const allSettled = items.length > 0 && settled.length === items.length;
 
   useEffect(() => {
     setNotice(null);
+    setResults({});
   }, [items.length]);
 
-  function handleConvert() {
-    setNotice(
-      items.length > 1
-        ? `The studio is ready. The ${format} batch conversion is connected in the next build step — ${items.length} images are queued, and nothing leaves this device.`
-        : `The studio is ready. The ${format} conversion is connected in the next build step — nothing leaves this device.`,
-    );
+  async function handleConvert() {
+    if (items.length === 0 || busy) return;
+    setBusy(true);
+    setNotice(null);
+    setResults({});
+
+    try {
+      for (const item of items) {
+        const image = await loadImageFile(item.file);
+        const width = image.naturalWidth || item.width || 1;
+        const height = image.naturalHeight || item.height || 1;
+        const canvas = drawRegion(
+          image,
+          { x: 0, y: 0, width, height },
+          { width, height },
+          { fit: "stretch", background: format === "jpeg" ? "#ffffff" : null },
+        );
+        const blob = await canvasToBlob(canvas, format, quality / 100);
+        const name = outputFilename(item.file.name, format);
+        setResults((current) => ({
+          ...current,
+          [item.id]: { blob, name, bytes: blob.size, width: canvas.width, height: canvas.height },
+        }));
+
+        if (items.length === 1) {
+          downloadBlob(blob, name);
+          setNotice(
+            `Saved ${name} · ${canvas.width} × ${canvas.height} px · ${formatBytes(
+              blob.size,
+            )}. Nothing left your device.`,
+          );
+        }
+      }
+
+      if (items.length > 1) {
+        setNotice(
+          `Converted ${items.length} images to ${FORMAT_LABEL[format]}. Download each file below — nothing left your device.`,
+        );
+      }
+    } catch (thrown) {
+      setNotice(
+        thrown instanceof Error ? thrown.message : "This image could not be converted.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function downloadAll() {
+    items.forEach((item, index) => {
+      const result = results[item.id];
+      if (!result) return;
+      window.setTimeout(() => downloadBlob(result.blob, result.name), index * 250);
+    });
+  }
+
+  function chooseFormat(next: EncodeFormat) {
+    setFormat(next);
+    setNotice(null);
+    setResults({});
   }
 
   return (
@@ -108,11 +176,11 @@ export function ImageConvertStudio({
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] font-medium text-muted">
             <Images size={10} aria-hidden />
-            {items.length > 1 ? `${items.length} images` : `To ${format}`}
+            {items.length > 1 ? `${items.length} images` : `To ${FORMAT_LABEL[format]}`}
           </span>
-          <span className="flex items-center gap-1.5 rounded-full border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-1 text-[10px] font-medium text-[#786344]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" aria-hidden />
-            Interface preview
+          <span className="flex items-center gap-1.5 rounded-full border border-[#d9e3d5] bg-[#f4f8f2] px-2.5 py-1 text-[10px] font-medium text-[#4a6b47]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#5f8a56]" aria-hidden />
+            Ready · on device
           </span>
           <span className="hidden items-center gap-1.5 text-micro text-faint sm:flex">
             <LockGlyph size={11} />
@@ -168,7 +236,7 @@ export function ImageConvertStudio({
                 )}
                 <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-white/70 bg-white/90 px-2.5 py-1.5 text-[10.5px] font-medium text-ink shadow-sm backdrop-blur">
                   <ArrowRightGlyph size={11} aria-hidden />
-                  <span className="tabular-nums">{format}</span>
+                  <span className="tabular-nums">{FORMAT_LABEL[format]}</span>
                 </span>
               </div>
 
@@ -245,6 +313,7 @@ export function ImageConvertStudio({
                   onClick={() => {
                     clearAll();
                     setNotice(null);
+                    setResults({});
                   }}
                   className="text-[10px] font-medium text-faint transition-colors hover:text-ink"
                 >
@@ -270,7 +339,7 @@ export function ImageConvertStudio({
                     >
                       <img src={item.preview} alt="" className="h-full w-full object-cover" />
                       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-1 pb-0.5 text-left text-[8px] font-medium text-white">
-                        {sourceFormat(item.file)}
+                        {results[item.id] ? formatBytes(results[item.id].bytes) : sourceFormat(item.file)}
                       </span>
                       <span className="absolute left-1 top-1 grid h-[14px] w-[14px] place-items-center rounded-full bg-white/90 text-[8px] font-semibold text-ink">
                         {index + 1}
@@ -290,20 +359,86 @@ export function ImageConvertStudio({
             </div>
           )}
 
+          {settled.length > 0 && items.length > 1 && (
+            <div className="mt-3 rounded-[13px] border border-[#d9e3d5] bg-[#f6faf4] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-medium uppercase tracking-[0.07em] text-[#4a6b47]">
+                  {settled.length} of {items.length} converted
+                </p>
+                <button
+                  type="button"
+                  onClick={downloadAll}
+                  className="inline-flex items-center gap-1 text-[10px] font-medium text-[#3d5c3a] transition-colors hover:underline"
+                >
+                  <Download size={10} aria-hidden />
+                  Download all
+                </button>
+              </div>
+              <ul className="mt-2 space-y-1.5">
+                {items.map((item) => {
+                  const result = results[item.id];
+                  if (!result) return null;
+                  return (
+                    <li
+                      key={item.id}
+                      className="flex items-center gap-2 rounded-lg border border-[#dbe6d6] bg-white px-2.5 py-1.5"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-[10.5px] font-medium text-ink">
+                        {result.name}
+                      </span>
+                      <span className="shrink-0 text-[10px] tabular-nums text-faint">
+                        {formatBytes(item.file.size)} → {formatBytes(result.bytes)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => downloadBlob(result.blob, result.name)}
+                        aria-label={`Download ${result.name}`}
+                        className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-[#dbe6d6] bg-white text-[#3d5c3a] transition-colors hover:bg-[#eef4ec]"
+                      >
+                        <Download size={11} aria-hidden />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
           <div className="mt-4 flex shrink-0 flex-col gap-3 border-t border-line-soft pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <p className="flex items-center gap-1.5 text-micro text-faint">
               <ShieldCheck size={12} aria-hidden />
               Free · No upload · No watermark
             </p>
-            <button
-              type="button"
-              onClick={handleConvert}
-              disabled={!activeItem}
-              className={buttonClasses("primary", "md", "w-full min-w-0 sm:w-auto sm:min-w-[140px]")}
-            >
-              {items.length > 1 ? `Convert ${items.length} images` : "Convert image"}
-              <ArrowRightGlyph size={13} />
-            </button>
+            <div className="flex items-center gap-2">
+              {allSettled && items.length > 1 && (
+                <button
+                  type="button"
+                  onClick={downloadAll}
+                  className={buttonClasses("secondary", "md", "w-full sm:w-auto")}
+                >
+                  <Download size={13} aria-hidden />
+                  Download all
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleConvert}
+                disabled={!activeItem || busy}
+                className={buttonClasses("primary", "md", "w-full min-w-0 sm:w-auto sm:min-w-[140px]")}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" aria-hidden />
+                    Converting…
+                  </>
+                ) : (
+                  <>
+                    {items.length > 1 ? `Convert ${items.length} images` : "Convert image"}
+                    <ArrowRightGlyph size={13} />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {notice && (
@@ -330,46 +465,45 @@ export function ImageConvertStudio({
               <div id="converter-format-grid" className="mt-2 grid grid-cols-3 gap-2">
                 {visibleFormats.map((option) => (
                   <button
-                    key={option.value}
+                    key={option}
                     type="button"
-                    aria-pressed={format === option.value}
-                    onClick={() => {
-                      setFormat(option.value);
-                      setNotice(null);
-                    }}
+                    aria-pressed={format === option}
+                    onClick={() => chooseFormat(option)}
                     className={`rounded-[10px] border px-2 py-3 text-center transition-colors ${
-                      format === option.value
+                      format === option
                         ? "border-ink bg-rail text-ink"
                         : "border-line bg-white text-muted hover:border-[#d5d1c8] hover:text-ink"
                     }`}
                   >
-                    <span className="block text-[14px] font-medium">{option.value}</span>
-                    <span className="mt-0.5 block text-[10px] text-faint">{option.hint}</span>
+                    <span className="block text-[14px] font-medium">{FORMAT_LABEL[option]}</span>
+                    <span className="mt-0.5 block text-[10px] text-faint">
+                      {FORMAT_META[option].hint}
+                    </span>
                   </button>
                 ))}
               </div>
 
-              <button
-                type="button"
-                aria-expanded={showAllFormats}
-                aria-controls="converter-format-grid"
-                onClick={() => setShowAllFormats((current) => !current)}
-                className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-micro font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-              >
-                {showAllFormats ? "Show fewer formats" : `See ${formats.length - 3} more formats`}
-                <ChevronDown
-                  size={12}
-                  className={`transition-transform ${showAllFormats ? "rotate-180" : ""}`}
-                  aria-hidden
-                />
-              </button>
-
-              {showAllFormats && (
-                <p className="mt-2 text-[10px] leading-relaxed text-faint">
-                  Common raster formats. Final availability depends on the connected conversion
-                  engine.
-                </p>
+              {available.length > 3 && (
+                <button
+                  type="button"
+                  aria-expanded={showAllFormats}
+                  aria-controls="converter-format-grid"
+                  onClick={() => setShowAllFormats((current) => !current)}
+                  className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-micro font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
+                >
+                  {showAllFormats ? "Show fewer formats" : `See ${available.length - 3} more format`}
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform ${showAllFormats ? "rotate-180" : ""}`}
+                    aria-hidden
+                  />
+                </button>
               )}
+
+              <p className="mt-2 text-[10px] leading-relaxed text-faint">
+                Only formats this browser can encode are shown. PNG and WebP keep
+                transparency; JPG flattens it onto white.
+              </p>
             </fieldset>
 
             <div>
@@ -388,6 +522,7 @@ export function ImageConvertStudio({
                 onChange={(event) => {
                   setQuality(Number(event.target.value));
                   setNotice(null);
+                  setResults({});
                 }}
                 aria-label="Output quality"
                 aria-valuetext={isLossy ? `${quality} percent quality` : "Lossless output"}
@@ -399,121 +534,15 @@ export function ImageConvertStudio({
               </div>
               {!isLossy && (
                 <p className="mt-2 text-[10.5px] leading-relaxed text-faint">
-                  {format} preserves the image without a quality tradeoff.
+                  {FORMAT_LABEL[format]} preserves the image without a quality tradeoff.
                 </p>
               )}
             </div>
 
-            <label className="block">
-              <span className="text-ui font-medium text-ink">Color profile</span>
-              <span className="relative mt-2 block">
-                <select
-                  defaultValue="Keep original"
-                  className="h-9 w-full appearance-none rounded-[9px] border border-line bg-white px-3 pr-8 text-ui text-ink outline-none hover:border-[#d5d1c8]"
-                >
-                  <option>Keep original</option>
-                  <option>sRGB</option>
-                  <option>Grayscale</option>
-                </select>
-                <ChevronDown
-                  size={13}
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
-                  aria-hidden
-                />
-              </span>
-            </label>
-
-            <details className="group overflow-hidden rounded-[11px] border border-line bg-white">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3">
-                <span>
-                  <span className="block text-ui font-medium text-ink">Advanced output</span>
-                  <span className="mt-0.5 block text-[10.5px] text-faint">
-                    Compression, color and rendering
-                  </span>
-                </span>
-                <span className="flex items-center gap-1.5 text-[10px] text-faint">
-                  6 controls
-                  <ChevronDown
-                    size={13}
-                    className="transition-transform group-open:rotate-180"
-                    aria-hidden
-                  />
-                </span>
-              </summary>
-
-              <div className="space-y-3.5 border-t border-line-soft bg-[#fdfdfc] p-3.5">
-                <StudioSelect
-                  label="Compression effort"
-                  options={["Automatic", "Fast", "Balanced", "Maximum"]}
-                  defaultValue="Balanced"
-                />
-
-                <div className="grid grid-cols-2 gap-2">
-                  <StudioSelect
-                    label="Chroma sampling"
-                    options={["Auto", "4:4:4", "4:2:2", "4:2:0"]}
-                  />
-                  <StudioSelect label="Bit depth" options={["8-bit", "10-bit", "16-bit"]} />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <StudioSelect
-                    label="Resolution"
-                    options={["Original", "72 DPI", "150 DPI", "300 DPI", "600 DPI"]}
-                  />
-                  <StudioSelect
-                    label="Background"
-                    options={["Transparent", "White", "Black", "Custom"]}
-                  />
-                </div>
-
-                <label className="flex cursor-pointer items-start justify-between gap-4 border-t border-line-soft pt-3.5">
-                  <span>
-                    <span className="block text-ui font-medium text-ink">Progressive encoding</span>
-                    <span className="mt-0.5 block text-[10.5px] leading-relaxed text-faint">
-                      Prepare the file for progressive loading where supported.
-                    </span>
-                  </span>
-                  <input type="checkbox" className="peer sr-only" />
-                  <span
-                    aria-hidden
-                    className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4"
-                  />
-                </label>
-
-                <p className="border-t border-line-soft pt-3 text-[10px] leading-relaxed text-faint">
-                  Advanced controls are saved with this workspace and applied when the
-                  encoding engine is connected.
-                </p>
-              </div>
-            </details>
-
-            <label className="flex cursor-pointer items-start justify-between gap-4">
-              <span>
-                <span className="block text-ui font-medium text-ink">Preserve metadata</span>
-                <span className="mt-1 block text-[10.5px] leading-relaxed text-faint">
-                  Keep camera and image details when supported.
-                </span>
-              </span>
-              <input
-                type="checkbox"
-                checked={preserveMetadata}
-                onChange={(event) => {
-                  setPreserveMetadata(event.target.checked);
-                  setNotice(null);
-                }}
-                className="peer sr-only"
-              />
-              <span
-                aria-hidden
-                className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4"
-              />
-            </label>
-
             <div className="rounded-[11px] border border-line bg-white p-3.5">
               <div className="flex items-center justify-between gap-3 text-micro">
                 <span className="text-faint">Output format</span>
-                <span className="font-medium text-ink">{format}</span>
+                <span className="font-medium text-ink">{FORMAT_LABEL[format]}</span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-micro">
                 <span className="text-faint">Dimensions</span>
@@ -530,50 +559,20 @@ export function ImageConvertStudio({
               <div className="mt-2 flex items-center justify-between gap-3 text-micro">
                 <span className="text-faint">Metadata</span>
                 <span className="flex items-center gap-1 font-medium text-ink">
-                  {preserveMetadata && <Check size={11} aria-hidden />}
-                  {preserveMetadata ? "Preserved" : "Removed"}
+                  <Check size={11} aria-hidden />
+                  Stripped
                 </span>
               </div>
             </div>
 
             <p className="text-[10px] leading-relaxed text-faint">
-              Batch conversion keeps one output per input. Nothing is uploaded.
+              Batch conversion keeps one output per input at the original dimensions.
+              Metadata is not copied, and nothing is uploaded.
             </p>
           </div>
         </StudioRail>
       </div>
     </section>
-  );
-}
-
-function StudioSelect({
-  label,
-  options,
-  defaultValue,
-}: {
-  label: string;
-  options: string[];
-  defaultValue?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="block text-[10.5px] font-medium text-muted">{label}</span>
-      <span className="relative mt-1.5 block">
-        <select
-          defaultValue={defaultValue ?? options[0]}
-          className="h-8 w-full appearance-none rounded-lg border border-line bg-white px-2.5 pr-7 text-[11.5px] text-ink outline-none hover:border-[#d5d1c8]"
-        >
-          {options.map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </select>
-        <ChevronDown
-          size={12}
-          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-faint"
-          aria-hidden
-        />
-      </span>
-    </label>
   );
 }
 

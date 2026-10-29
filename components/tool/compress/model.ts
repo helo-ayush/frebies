@@ -1,3 +1,5 @@
+import { supportsFormat, type EncodeFormat } from "@/lib/image/encode";
+
 export type CompressGoal = "quality" | "target" | "percent";
 export type OutputFormat = "auto" | "jpg" | "png" | "webp" | "avif";
 export type TargetUnit = "KB" | "MB";
@@ -185,6 +187,23 @@ export function qualityBand(quality: number): QualityBand {
 
 export function formatMeta(format: OutputFormat): FormatOption {
   return FORMATS.find((option) => option.value === format) ?? FORMATS[0];
+}
+
+/** The encoder format this browser will actually use for the chosen output. */
+export function resolveOutputFormat(settings: CompressSettings, file: File): EncodeFormat {
+  if (settings.format === "jpg") return "jpeg";
+  if (settings.format === "png") return "png";
+  if (settings.format === "webp") return "webp";
+  if (settings.format === "avif") return supportsFormat("avif") ? "avif" : "webp";
+
+  if (file.type === "image/webp") return "webp";
+  if (file.type === "image/png") return supportsFormat("webp") ? "webp" : "png";
+  return supportsFormat("webp") ? "webp" : "jpeg";
+}
+
+/** Longest-edge limit from the resize option, or null to keep the source size. */
+export function maxEdgeOf(settings: CompressSettings): number | null {
+  return settings.resize === "original" ? null : Number(settings.resize);
 }
 
 export function resizeMeta(resize: ResizeOption): ResizeOptionMeta {

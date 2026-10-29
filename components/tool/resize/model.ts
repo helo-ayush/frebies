@@ -1,3 +1,13 @@
+import {
+  clampCropCenter,
+  cropRect,
+  rotatedSize,
+  supportsFormat,
+  type EncodeFormat,
+  type Rect,
+  type Size,
+} from "@/lib/image/encode";
+
 export type ResizeMode = "dimensions" | "percent" | "crop";
 export type FitMode = "fill" | "fit" | "stretch";
 export type CropRatioId = "free" | "1:1" | "4:5" | "16:9" | "3:2" | "9:16";
@@ -22,6 +32,11 @@ export type ResizeSettings = {
   percent: number;
   cropRatio: CropRatioId;
   focus: FocusId;
+  /** Extra zoom inside the crop frame: 1 fills the frame, 3 picks a third. */
+  cropZoom: number;
+  /** Normalized centre of the crop inside the rotated source. */
+  cropCenterX: number;
+  cropCenterY: number;
   fit: FitMode;
   rotation: number;
   flipX: boolean;
@@ -43,6 +58,9 @@ export const DEFAULT_RESIZE_SETTINGS: ResizeSettings = {
   percent: 75,
   cropRatio: "4:5",
   focus: "center",
+  cropZoom: 1,
+  cropCenterX: 0.5,
+  cropCenterY: 0.5,
   fit: "fill",
   rotation: 0,
   flipX: false,
@@ -84,20 +102,25 @@ export const CROP_RATIOS: {
   { id: "9:16", label: "9:16", hint: "Story", ratio: 9 / 16 },
 ];
 
+export const CROP_ZOOM_MIN = 1;
+export const CROP_ZOOM_MAX = 3;
+
 export const FOCUS_POINTS: {
   id: FocusId;
   label: string;
   position: string;
+  x: number;
+  y: number;
 }[] = [
-  { id: "top-left", label: "Top left", position: "0% 0%" },
-  { id: "top-center", label: "Top center", position: "50% 0%" },
-  { id: "top-right", label: "Top right", position: "100% 0%" },
-  { id: "center-left", label: "Center left", position: "0% 50%" },
-  { id: "center", label: "Center", position: "50% 50%" },
-  { id: "center-right", label: "Center right", position: "100% 50%" },
-  { id: "bottom-left", label: "Bottom left", position: "0% 100%" },
-  { id: "bottom-center", label: "Bottom center", position: "50% 100%" },
-  { id: "bottom-right", label: "Bottom right", position: "100% 100%" },
+  { id: "top-left", label: "Top left", position: "0% 0%", x: 0, y: 0 },
+  { id: "top-center", label: "Top center", position: "50% 0%", x: 0.5, y: 0 },
+  { id: "top-right", label: "Top right", position: "100% 0%", x: 1, y: 0 },
+  { id: "center-left", label: "Center left", position: "0% 50%", x: 0, y: 0.5 },
+  { id: "center", label: "Center", position: "50% 50%", x: 0.5, y: 0.5 },
+  { id: "center-right", label: "Center right", position: "100% 50%", x: 1, y: 0.5 },
+  { id: "bottom-left", label: "Bottom left", position: "0% 100%", x: 0, y: 1 },
+  { id: "bottom-center", label: "Bottom center", position: "50% 100%", x: 0.5, y: 1 },
+  { id: "bottom-right", label: "Bottom right", position: "100% 100%", x: 1, y: 1 },
 ];
 
 export const RESIZE_FORMATS: {
@@ -153,17 +176,49 @@ export function cropRatioValue(id: CropRatioId): number | null {
   return CROP_RATIOS.find((entry) => entry.id === id)?.ratio ?? null;
 }
 
-export function cropSize(
+export function focusAnchor(focus: FocusId): { x: number; y: number } {
+  const point = FOCUS_POINTS.find((entry) => entry.id === focus) ?? FOCUS_POINTS[4];
+  return { x: point.x, y: point.y };
+}
+
+/** The crop rectangle for the current ratio, zoom and pan, in source pixels. */
+export function cropFor(
+  settings: ResizeSettings,
   width: number,
   height: number,
-  ratio: number | null,
-): { width: number; height: number } {
-  if (!width || !height) return { width: 0, height: 0 };
-  if (!ratio) return { width, height };
-  if (width / height > ratio) {
-    return { width: Math.max(1, Math.round(height * ratio)), height };
+): Rect {
+  return cropRect({
+    width,
+    height,
+    ratio: cropRatioValue(settings.cropRatio),
+    zoom: settings.cropZoom,
+    centerX: settings.cropCenterX,
+    centerY: settings.cropCenterY,
+  });
+}
+
+export function backgroundValue(settings: ResizeSettings): string | null {
+  if (settings.background === "white") return "#ffffff";
+  if (settings.background === "black") return "#111111";
+  return null;
+}
+
+export function encodeFormatOf(format: ResizeFormat): EncodeFormat {
+  if (format === "jpg") return "jpeg";
+  if (format === "webp") return "webp";
+  if (format === "avif") return "avif";
+  return "png";
+}
+
+export function resolveEncodeFormat(settings: ResizeSettings, file: File): EncodeFormat {
+  if (settings.format === "auto") {
+    if (file.type === "image/jpeg") return "jpeg";
+    if (file.type === "image/webp") return "webp";
+    return "png";
   }
-  return { width, height: Math.max(1, Math.round(width / ratio)) };
+  const format = encodeFormatOf(settings.format);
+  if (settings.format === "avif" && !supportsFormat("avif")) return "webp";
+  return format;
 }
 
 export function computeResizeOutput(
@@ -208,10 +263,7 @@ export function computeResizeOutput(
     width = Math.round((sourceWidth * percent) / 100);
     height = Math.round((sourceHeight * percent) / 100);
   } else {
-    const ratio =
-      cropRatioValue(settings.cropRatio) ??
-      (sourceWidth && sourceHeight ? sourceWidth / sourceHeight : 1);
-    const crop = cropSize(sourceWidth, sourceHeight, ratio);
+    const crop = cropFor(settings, sourceWidth, sourceHeight);
     width = crop.width;
     height = crop.height;
   }
@@ -220,6 +272,76 @@ export function computeResizeOutput(
   const upscaling = Boolean(sourceWidth && (width > sourceWidth || height > sourceHeight));
 
   return { sourceWidth, sourceHeight, width, height, scale, upscaling, capped };
+}
+
+export type ResizePlan = {
+  /** Size of the source after rotation. */
+  source: Size;
+  /** Crop inside the rotated source, when the crop mode is active. */
+  crop: Rect | null;
+  output: Size;
+  fit: "cover" | "contain" | "stretch";
+  background: string | null;
+  anchor: { x: number; y: number };
+  sharpen: number;
+};
+
+export function buildResizePlan(
+  settings: ResizeSettings,
+  imageWidth: number,
+  imageHeight: number,
+): ResizePlan {
+  const source = rotatedSize(imageWidth, imageHeight, settings.rotation);
+  const computed = computeResizeOutput(settings, imageWidth, imageHeight);
+  const anchor = focusAnchor(settings.focus);
+
+  if (settings.mode === "crop") {
+    const crop = cropFor(settings, source.width, source.height);
+    return {
+      source,
+      crop,
+      output: { width: crop.width, height: crop.height },
+      fit: "stretch",
+      background: null,
+      anchor,
+      sharpen: settings.sharpen ? 0.4 : 0,
+    };
+  }
+
+  const fit: ResizePlan["fit"] =
+    settings.mode === "percent"
+      ? "stretch"
+      : settings.fit === "fill"
+        ? "cover"
+        : settings.fit === "fit"
+          ? "contain"
+          : "stretch";
+
+  return {
+    source,
+    crop: null,
+    output: { width: computed.width, height: computed.height },
+    fit,
+    background: fit === "contain" ? backgroundValue(settings) : null,
+    anchor,
+    sharpen: settings.sharpen ? 0.55 : 0,
+  };
+}
+
+/** Keep the stored crop centre inside the frame after any zoom or ratio change. */
+export function normalizeCropPan(
+  settings: ResizeSettings,
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  return clampCropCenter({
+    width,
+    height,
+    ratio: cropRatioValue(settings.cropRatio),
+    zoom: settings.cropZoom,
+    centerX: settings.cropCenterX,
+    centerY: settings.cropCenterY,
+  });
 }
 
 export function isLossyFormat(format: ResizeFormat): boolean {
