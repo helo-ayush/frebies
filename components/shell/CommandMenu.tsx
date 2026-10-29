@@ -67,15 +67,18 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
       aria-label="Search tools"
       className="m-auto w-[min(600px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-line bg-white p-0 text-ink shadow-[0_24px_80px_rgba(0,0,0,0.16)]"
     >
-      <div className="flex items-center gap-2.5 border-b border-line-soft bg-[linear-gradient(180deg,#ffffff_0%,#fdfdfc_100%)] px-4">
-        <SearchGlyph size={18} className="shrink-0 text-faint" />
+      <div className="group flex items-center gap-2.5 border-b border-line-soft bg-[linear-gradient(180deg,#ffffff_0%,#fdfdfc_100%)] px-4 transition-colors focus-within:border-[#dcd7ce]">
+        <SearchGlyph
+          size={18}
+          className="shrink-0 text-faint transition-colors group-focus-within:text-ink"
+        />
         <input
           ref={inputRef}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search every tool…"
           aria-label="Search tools or pages"
-          className="h-14 w-full bg-transparent text-sm text-ink outline-none placeholder:text-faint"
+          className="h-14 w-full bg-transparent text-sm text-ink outline-none placeholder:text-faint focus-visible:outline-none"
         />
         <button
           type="button"
