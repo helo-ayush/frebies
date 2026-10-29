@@ -9,6 +9,7 @@ export function PaidRunCard({
   guest = true,
   onRun,
   note,
+  emptyLabel = "Add an image to run",
 }: {
   cost: number;
   verb: string;
@@ -16,6 +17,7 @@ export function PaidRunCard({
   guest?: boolean;
   onRun: () => void;
   note?: string;
+  emptyLabel?: string;
 }) {
   const credits = `${cost} ${cost === 1 ? "credit" : "credits"}`;
 
@@ -38,7 +40,7 @@ export function PaidRunCard({
         className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-[9px] bg-white text-[12.5px] font-medium text-ink transition-colors hover:bg-white/90 disabled:pointer-events-none disabled:opacity-40"
       >
         {!ready ? (
-          "Add an image to run"
+          emptyLabel
         ) : (
           <>
             {guest && <LockGlyph size={12} />}

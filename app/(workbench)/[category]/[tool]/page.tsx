@@ -10,6 +10,12 @@ import { ResizeCropHero } from "@/components/tool/resize/ResizeCropHero";
 import { ResizeCropStudio } from "@/components/tool/resize/ResizeCropStudio";
 import { ImageToPdfHero } from "@/components/tool/to-pdf/ImageToPdfHero";
 import { ImageToPdfStudio } from "@/components/tool/to-pdf/ImageToPdfStudio";
+import { DocumentHero } from "@/components/tool/document/DocumentHero";
+import { MergePdfStudio } from "@/components/tool/document/merge/MergePdfStudio";
+import { SplitPdfStudio } from "@/components/tool/document/split/SplitPdfStudio";
+import { PdfToJpgStudio } from "@/components/tool/document/pdf-to-jpg/PdfToJpgStudio";
+import { OcrStudio } from "@/components/tool/document/ocr/OcrStudio";
+import { AiEditorStudio } from "@/components/tool/document/ai-editor/AiEditorStudio";
 import { UpscalerHero } from "@/components/tool/upscaler/UpscalerHero";
 import { UpscalerStudio } from "@/components/tool/upscaler/UpscalerStudio";
 import { RemoveBackgroundHero } from "@/components/tool/remove-background/RemoveBackgroundHero";
@@ -99,6 +105,61 @@ export default async function ToolPage({ params }: ToolParams) {
         <ImageToPdfHero tool={tool} category={category} />
         <section className="mt-5">
           <ImageToPdfStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/document/merge-pdf") {
+    workspace = (
+      <>
+        <DocumentHero tool={tool} category={category} variant="merge" anchor="merge-pdf" />
+        <section className="mt-5">
+          <MergePdfStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/document/split-pdf") {
+    workspace = (
+      <>
+        <DocumentHero tool={tool} category={category} variant="split" anchor="split-pdf" />
+        <section className="mt-5">
+          <SplitPdfStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/document/pdf-to-jpg") {
+    workspace = (
+      <>
+        <DocumentHero tool={tool} category={category} variant="pages" anchor="pdf-to-jpg" />
+        <section className="mt-5">
+          <PdfToJpgStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/document/ocr") {
+    workspace = (
+      <>
+        <DocumentHero tool={tool} category={category} variant="text" anchor="ocr" />
+        <section className="mt-5">
+          <OcrStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/document/ai-editor") {
+    workspace = (
+      <>
+        <DocumentHero tool={tool} category={category} variant="edit" anchor="ai-editor" />
+        <section className="mt-5">
+          <AiEditorStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
         </section>
       </>
     );
