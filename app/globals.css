@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: #fbfbfa;
+  color: #0f0f10;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+html { scroll-behavior: smooth; }
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+:focus-visible { outline: 2px solid #e55e40; outline-offset: 2px; }
+summary::-webkit-details-marker { display: none; }
+
+.checkerboard {
+  background-color: #fafafa;
+  background-image:
+    linear-gradient(45deg, #f0f0ee 25%, transparent 25%),
+    linear-gradient(-45deg, #f0f0ee 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f0f0ee 75%),
+    linear-gradient(-45deg, transparent 75%, #f0f0ee 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+
+dialog::backdrop {
+  background: rgba(15, 15, 16, 0.4);
+  backdrop-filter: blur(2px);
+}
+
+/* film-grain overlay used on marketing illustrations */
+.grain { position: relative; isolation: isolate; }
+.grain::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  opacity: .4; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
