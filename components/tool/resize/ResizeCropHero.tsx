@@ -44,8 +44,8 @@ export function ResizeCropHero({ tool, category }: { tool: Tool; category: Categ
             {tool.h1}
           </h1>
           <p className="mt-3 max-w-[550px] text-[15px] leading-relaxed text-[#6a6156]">
-            Set exact pixels, scale by a percentage or crop to a ratio. Rotate, flip and pad
-            an image in a canvas built around it — no upload and no account.
+            Set exact pixels, scale by a percentage or drag a free-form crop. Rotate, flip
+            and pad an image in a canvas built around it — no upload and no account.
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-micro font-medium text-[#6e6458]">
@@ -55,7 +55,7 @@ export function ResizeCropHero({ tool, category }: { tool: Tool; category: Categ
             </span>
             <span className="flex items-center gap-1.5">
               <Check size={12} className="text-ink" aria-hidden />
-              Aspect presets
+              Free-form crop
             </span>
             <span className="flex items-center gap-1.5">
               <Check size={12} className="text-ink" aria-hidden />

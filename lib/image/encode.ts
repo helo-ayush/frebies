@@ -140,13 +140,13 @@ export function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   return context;
 }
 
-/** Apply EXIF-aware rotation and flips, returning a fresh canvas. */
-export function transformImage(
-  image: HTMLImageElement,
+/** Apply EXIF-aware rotation and flips to any canvas source. */
+export function transformCanvas(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
   options: { rotation?: number; flipX?: boolean; flipY?: boolean } = {},
 ): HTMLCanvasElement {
-  const width = image.naturalWidth || image.width;
-  const height = image.naturalHeight || image.height;
   const angle = normalizeRotation(options.rotation ?? 0);
   const target = rotatedSize(width, height, angle);
   const canvas = createCanvas(target.width, target.height);
@@ -158,10 +158,22 @@ export function transformImage(
   context.translate(canvas.width / 2, canvas.height / 2);
   context.rotate((angle * Math.PI) / 180);
   context.scale(options.flipX ? -1 : 1, options.flipY ? -1 : 1);
-  context.drawImage(image, -width / 2, -height / 2, width, height);
+  context.drawImage(source, -width / 2, -height / 2, width, height);
   context.restore();
 
   return canvas;
+}
+
+export function transformImage(
+  image: HTMLImageElement,
+  options: { rotation?: number; flipX?: boolean; flipY?: boolean } = {},
+): HTMLCanvasElement {
+  return transformCanvas(
+    image,
+    image.naturalWidth || image.width,
+    image.naturalHeight || image.height,
+    options,
+  );
 }
 
 /**

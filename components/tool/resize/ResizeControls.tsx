@@ -15,10 +15,7 @@ import {
 } from "lucide-react";
 import {
   CROP_RATIOS,
-  CROP_ZOOM_MAX,
-  CROP_ZOOM_MIN,
   DIMENSION_PRESETS,
-  FOCUS_POINTS,
   RESIZE_FORMATS,
   RESIZE_MODES,
   formatLabel,
@@ -50,6 +47,9 @@ export function ResizeControls({
   scale,
   upscaling,
   capped,
+  cropWidth,
+  cropHeight,
+  onResetCrop,
 }: {
   settings: ResizeSettings;
   onPatch: (patch: Partial<ResizeSettings>) => void;
@@ -62,6 +62,9 @@ export function ResizeControls({
   scale: number;
   upscaling: boolean;
   capped: boolean;
+  cropWidth: number;
+  cropHeight: number;
+  onResetCrop: () => void;
 }) {
   const lossy = isLossyFormat(settings.format);
   const sourceRatio = sourceWidth && sourceHeight ? sourceWidth / sourceHeight : 1;
@@ -328,8 +331,8 @@ export function ResizeControls({
             <div>
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-[10.5px] font-medium text-muted">Aspect ratio</span>
-                <span className="text-[10px] tabular-nums text-faint">
-                  {outputWidth || "—"} × {outputHeight || "—"}
+                <span className="text-[10px] text-faint">
+                  {settings.cropRatio === "free" ? "Drag freely" : "Ratio locked"}
                 </span>
               </div>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
@@ -356,93 +359,34 @@ export function ResizeControls({
                 })}
               </div>
 
-              <div className="mt-3 flex items-start justify-between gap-3">
-                <div>
-                  <span className="block text-[10.5px] font-medium text-muted">Crop focus</span>
-                  <span className="mt-0.5 block text-[10px] text-faint">
-                    {FOCUS_POINTS.find((point) => point.id === settings.focus)?.label}
-                  </span>
-                </div>
-                <div role="group" aria-label="Crop focus" className="grid grid-cols-3 gap-1">
-                  {FOCUS_POINTS.map((point) => {
-                    const selected = settings.focus === point.id;
-                    return (
-                      <button
-                        key={point.id}
-                        type="button"
-                        onClick={() => onPatch({ focus: point.id })}
-                        aria-pressed={selected}
-                        aria-label={point.label}
-                        title={point.label}
-                        className={`grid h-7 w-7 place-items-center rounded-[5px] border transition-colors ${
-                          selected
-                            ? "border-ink bg-ink text-white"
-                            : "border-line bg-white text-transparent hover:border-[#cbc5b9] hover:text-faint"
-                        }`}
-                      >
-                        <span className="h-1 w-1 rounded-full bg-current" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="mt-3">
+              <div className="mt-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2">
                 <div className="flex items-center justify-between gap-3">
-                  <label htmlFor="crop-zoom" className="text-[10.5px] font-medium text-muted">
-                    Crop zoom
-                  </label>
-                  <span className="text-[10px] tabular-nums text-faint">
-                    {Math.round(settings.cropZoom * 100)}%
+                  <span className="text-[10.5px] text-muted">Crop size</span>
+                  <span className="text-[11px] font-medium tabular-nums text-ink">
+                    {cropWidth || "—"} × {cropHeight || "—"} px
                   </span>
                 </div>
-                <input
-                  id="crop-zoom"
-                  type="range"
-                  min={CROP_ZOOM_MIN}
-                  max={CROP_ZOOM_MAX}
-                  step={0.05}
-                  value={settings.cropZoom}
-                  onChange={(event) => onPatch({ cropZoom: Number(event.target.value) })}
-                  aria-valuetext={`${Math.round(settings.cropZoom * 100)} percent crop zoom`}
-                  disabled={!outputWidth}
-                  style={rangeFill(
-                    ((settings.cropZoom - CROP_ZOOM_MIN) / (CROP_ZOOM_MAX - CROP_ZOOM_MIN)) * 100,
-                    0,
-                    100,
-                  )}
-                  className="range mt-2"
-                />
-                <div className="mt-1 flex justify-between text-[10px] text-faint">
-                  <span>Whole frame</span>
-                  <span>Tight crop</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <span className="text-[10px] leading-relaxed text-faint">
-                    Drag the preview to reframe.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onPatch({
-                        cropZoom: CROP_ZOOM_MIN,
-                        cropCenterX: 0.5,
-                        cropCenterY: 0.5,
-                        focus: "center",
-                      })
-                    }
-                    className="shrink-0 text-[10px] font-medium text-faint transition-colors hover:text-ink"
-                  >
-                    Reset crop
-                  </button>
-                </div>
+                <p className="mt-1 text-[10px] leading-relaxed text-faint">
+                  {settings.cropRatio === "free"
+                    ? "Free form. Drag any edge or corner, or drag inside the box to move it."
+                    : "Drag a corner to resize with the ratio locked; drag inside the box to move it."}
+                </p>
               </div>
 
-              <p className="mt-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2 text-[10px] leading-relaxed text-faint">
-                {settings.cropRatio === "free"
-                  ? "Free keeps the full frame until you zoom in. Drag the image to choose what stays."
-                  : "Drag inside the frame to reframe, or zoom in for a tighter crop. The saved file matches the preview exactly."}
-              </p>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="text-[10px] leading-relaxed text-faint">
+                  {settings.rotation
+                    ? "Rotation is applied after the crop."
+                    : "Exported at the full source resolution."}
+                </p>
+                <button
+                  type="button"
+                  onClick={onResetCrop}
+                  className="shrink-0 rounded-[7px] border border-line bg-white px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:text-ink"
+                >
+                  Reset crop
+                </button>
+              </div>
             </div>
           )}
         </div>
