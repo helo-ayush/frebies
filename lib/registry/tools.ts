@@ -173,9 +173,10 @@ export const tools: Tool[] = [
     name: "Image Converter",
     shortName: "Convert",
     h1: "Image Converter",
-    tagline: "Convert JPG, PNG and WebP without uploading a thing.",
-    description: "Change image formats in your browser. Free, private and no sign-up.",
-    keywords: ["image converter", "convert image online", "jpg to png", "png to webp", "webp to jpg"],
+    tagline: "Convert JPG, PNG and WebP — one image or a batch.",
+    description:
+      "Change image formats in your browser, one file or a batch. Free, private and no sign-up.",
+    keywords: ["image converter", "convert image online", "jpg to png", "png to webp", "webp to jpg", "batch image converter"],
     icon: ImageIcon,
     tier: "free",
     engine: "browser",
@@ -186,16 +187,16 @@ export const tools: Tool[] = [
     seo: {
       title: "Image Converter — Convert JPG, PNG & WebP Free",
       metaDescription:
-        "Convert images between JPG, PNG and WebP in your browser. Free, private, no sign-up and no watermark. Up to 25 MB per image.",
+        "Convert JPG, PNG and WebP in your browser. One image or a batch of up to 10, with quality control. Free, private and no sign-up. Up to 25 MB per image.",
       howItWorks: [
-        "Choose a JPG, PNG or WebP image from your device.",
-        "Pick the output format and quality you want.",
-        "Download the converted image. Nothing was uploaded.",
+        "Choose one JPG, PNG or WebP image, or add a batch of up to 10.",
+        "Pick the output format and quality you want. The settings apply to every file.",
+        "Download the converted images. Nothing was uploaded.",
       ],
       benefits: [
         "Runs entirely in your browser, so your images never leave your device.",
+        "Batch conversion keeps one output per input, with the original dimensions.",
         "Free with no account, no watermark and no daily limit.",
-        "Keeps the original dimensions and handles files up to 25 MB.",
       ],
       faq: [
         {
@@ -220,7 +221,7 @@ export const tools: Tool[] = [
         },
         {
           q: "Can I convert several images at once?",
-          a: "Batch conversion is part of the next engine update. The current page supports one image at a time.",
+          a: "Yes. Add up to 10 JPG, PNG or WebP files and convert them together. Every image keeps its name and original dimensions, and the chosen format and quality apply to the whole batch.",
         },
       ],
       related: ["compress", "resize", "upscaler"],
@@ -233,9 +234,18 @@ export const tools: Tool[] = [
     name: "Image Compressor",
     shortName: "Compress",
     h1: "Image Compressor",
-    tagline: "Shrink images without visible quality loss.",
-    description: "Reduce JPG, PNG and WebP file sizes right in your browser.",
-    keywords: ["image compressor", "compress image online", "reduce image size"],
+    tagline: "Shrink images to an exact size or a percentage.",
+    description:
+      "Reduce JPG, PNG and WebP file sizes with quality, percentage and target-size controls.",
+    keywords: [
+      "image compressor",
+      "compress image online",
+      "reduce image size",
+      "compress image to 100kb",
+      "compress jpg",
+      "compress png",
+      "compress webp",
+    ],
     icon: Minimize2,
     tier: "free",
     engine: "browser",
@@ -244,13 +254,54 @@ export const tools: Tool[] = [
     limits: { maxSizeMB: 25, formats: ["JPG", "PNG", "WebP"] },
     resumeBehavior: "auto",
     seo: {
-      title: "Compress Image Online — Reduce JPG, PNG & WebP Size",
+      title: "Compress Image Online Free — JPG, PNG & WebP",
       metaDescription:
-        "Compress images in your browser. Reduce JPG, PNG and WebP file sizes with a quality control and no upload.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
-      related: ["convert", "resize", "to-pdf"],
+        "Compress JPG, PNG and WebP images in your browser. Set a quality level, an exact final size or a percentage cut. Free, private and up to 25 MB per image.",
+      howItWorks: [
+        "Add one image or a batch. Every file is previewed locally and never uploaded.",
+        "Pick a quality level, a percentage cut, or type the exact final size you need.",
+        "Compare the estimated size for each image, then download the compressed result.",
+      ],
+      benefits: [
+        "Target-size mode tunes quality until each image fits an exact limit such as 100 KB.",
+        "Batch up to 10 images with one set of controls and a per-file estimate.",
+        "Runs on your device, with no account, no watermark and no upload.",
+      ],
+      faq: [
+        {
+          q: "How do I compress an image to 100 KB?",
+          a: "Choose Target size, enter 100 KB, and the estimate updates instantly. Quality — and dimensions, if you allow it — are tuned until the image fits. If the target needs extreme compression, the workspace warns you before you run it.",
+        },
+        {
+          q: "What is percentage compression?",
+          a: "Percent mode cuts a fixed share of the file size, for example 70%, so every image in a batch loses the same proportion. Quality mode instead picks a quality level and reports the resulting size.",
+        },
+        {
+          q: "Will compressing reduce image quality?",
+          a: "Yes. Smaller files carry less detail. For photos, roughly 70–80% is hard to spot at normal size. Use the high-detail band for screenshots and product shots, and keep PNG when you need lossless output.",
+        },
+        {
+          q: "Can I compress several images at once?",
+          a: "Yes. Add up to 10 JPG, PNG or WebP files, set one goal, and compare the estimated size for each image before compressing.",
+        },
+        {
+          q: "Does the compressor change image dimensions?",
+          a: "Only when you choose a max dimension. By default the original width and height are kept. Downscaling is the fastest way to cut size when a target is very small.",
+        },
+        {
+          q: "Which format gives the smallest file?",
+          a: "AVIF is usually smallest, WebP is close and faster to encode, and JPG is the most compatible. PNG is lossless, so photos often get larger — use it for graphics and transparency.",
+        },
+        {
+          q: "Why does the estimate say no saving?",
+          a: "The file may already be well compressed, or you chose a lossless format. Keep “Never enlarge the file” on so the original is returned instead of a larger output.",
+        },
+        {
+          q: "Are my images uploaded?",
+          a: "No. Compression is designed to run in your browser, so images stay on your device and never reach a server.",
+        },
+      ],
+      related: ["convert", "resize", "upscaler"],
     },
   },
   {
@@ -261,8 +312,16 @@ export const tools: Tool[] = [
     shortName: "Resize",
     h1: "Resize & Crop",
     tagline: "Resize or crop images to exact dimensions.",
-    description: "Set precise dimensions or crop to a ratio, all on your device.",
-    keywords: ["resize image", "crop image online", "image dimensions"],
+    description:
+      "Set precise pixels, lock aspect ratios and crop with presets — all on your device.",
+    keywords: [
+      "resize image",
+      "crop image online",
+      "resize image to 1080x1080",
+      "crop image to 4:5",
+      "resize and crop",
+      "change image dimensions",
+    ],
     icon: Crop,
     tier: "free",
     engine: "browser",
@@ -270,12 +329,49 @@ export const tools: Tool[] = [
     limits: { maxSizeMB: 25, formats: ["JPG", "PNG", "WebP"] },
     resumeBehavior: "auto",
     seo: {
-      title: "Resize Image Online — Crop to Exact Dimensions Free",
+      title: "Resize & Crop Images Online — Exact Dimensions",
       metaDescription:
-        "Resize and crop images to exact dimensions in your browser. Free, private and no sign-up.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Resize and crop images to exact dimensions in your browser. Lock aspect ratios, scale by percentage, rotate, flip and pad. Free, private and no sign-up.",
+      howItWorks: [
+        "Add a JPG, PNG or WebP image. It is read locally and never uploaded.",
+        "Set exact pixels, scale by a percentage, or choose a crop ratio and focus point.",
+        "Rotate, flip or pad the image if needed, then download the resized result.",
+      ],
+      benefits: [
+        "Lock the aspect ratio and type one dimension — the other follows automatically.",
+        "Crop presets for square, portrait, wide and story formats with a focus picker.",
+        "Runs on your device with no account, no watermark and no upload.",
+      ],
+      faq: [
+        {
+          q: "How do I resize an image to exact pixels?",
+          a: "Choose Dimensions, type the width and height in pixels, and the output summary updates instantly. Keep the link on to preserve the aspect ratio, or turn it off to stretch freely.",
+        },
+        {
+          q: "Will resizing change the aspect ratio?",
+          a: "Not when the link is on — the second dimension follows the first. With the link off, the image is scaled to the exact width and height you enter, which can distort it.",
+        },
+        {
+          q: "How do I crop an image to a square or 4:5?",
+          a: "Switch to Crop, pick a ratio such as 1:1 or 4:5, and choose the focus point the frame should keep. The preview shows the crop, and the export uses that ratio at full resolution.",
+        },
+        {
+          q: "Can I enlarge an image?",
+          a: "Yes. Turn off “Never upscale” and enter a larger size or percentage. Enlarging interpolates pixels, so fine detail is estimated rather than recovered. Use the AI upscaler when you need real detail.",
+        },
+        {
+          q: "Does resizing reduce the file size?",
+          a: "Usually. Fewer pixels carry less data, and choosing WebP or lowering the quality reduces it further. The workspace shows an estimate before you export.",
+        },
+        {
+          q: "Can I rotate or flip an image?",
+          a: "Yes. Rotate in 90° steps and flip horizontally or vertically from the resize studio. Transforms are previewed live and reset with one click.",
+        },
+        {
+          q: "Are my images uploaded?",
+          a: "No. Resizing and cropping are designed to run in your browser, so images stay on your device.",
+        },
+      ],
       related: ["convert", "compress", "to-pdf"],
     },
   },
@@ -287,8 +383,16 @@ export const tools: Tool[] = [
     shortName: "To PDF",
     h1: "Image to PDF",
     tagline: "Turn one or more images into a clean PDF.",
-    description: "Arrange images into a single PDF without uploading them.",
-    keywords: ["image to pdf", "jpg to pdf", "png to pdf"],
+    description:
+      "Arrange JPG, PNG and WebP images into one PDF with page sizes, margins and order.",
+    keywords: [
+      "image to pdf",
+      "jpg to pdf",
+      "png to pdf",
+      "convert images to pdf",
+      "photos to pdf",
+      "images to pdf online",
+    ],
     icon: FileImage,
     tier: "free",
     engine: "browser",
@@ -298,10 +402,51 @@ export const tools: Tool[] = [
     seo: {
       title: "Image to PDF — Convert JPG & PNG to PDF Free",
       metaDescription:
-        "Combine images into a single PDF in your browser. Free, private and no account needed.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Turn JPG, PNG and WebP images into one PDF in your browser. Set page size, orientation, margins and order. Free, private, up to 20 images and no watermark.",
+      howItWorks: [
+        "Add one or more JPG, PNG or WebP images. They stay on your device.",
+        "Choose the paper size, orientation, margins and how each image fits the page.",
+        "Reorder the pages, add page numbers, and download the finished PDF.",
+      ],
+      benefits: [
+        "Put photos, scans and screenshots into one ordered document in a single pass.",
+        "A4, Letter, A5, Legal or a page that matches each image, with a printable margin.",
+        "No account, no watermark and no upload — the document is assembled locally.",
+      ],
+      faq: [
+        {
+          q: "How do I turn images into a PDF?",
+          a: "Add your JPG, PNG or WebP images, choose the page size and margins, then create the PDF. The studio previews every page before export.",
+        },
+        {
+          q: "Can I put several images in one PDF?",
+          a: "Yes. Add up to 20 images to one document, reorder them, and export the set as a single PDF with one page per image.",
+        },
+        {
+          q: "Which page sizes are supported?",
+          a: "A4, US Letter, A5 and Legal, plus a Fit image option that makes each page match the image dimensions. Orientation can be automatic, portrait or landscape.",
+        },
+        {
+          q: "Can I change the page order?",
+          a: "Yes. Move any page earlier or later from the preview, or reverse the whole document in one click before creating the PDF.",
+        },
+        {
+          q: "Will converting to PDF reduce image quality?",
+          a: "The quality control sets how images are re-encoded inside the PDF. Keep it high for photos and print; lower it when the document needs to stay small. You can also turn optimization off to keep the original data.",
+        },
+        {
+          q: "What happens to transparent PNGs?",
+          a: "PDF pages are opaque, so transparency is filled with the page background you choose — white by default, with cream and charcoal alternatives.",
+        },
+        {
+          q: "Can I add page numbers?",
+          a: "Yes. Turn on page numbers in Advanced and each page gets a small sequential number when the document is generated.",
+        },
+        {
+          q: "Are my images uploaded?",
+          a: "No. The PDF builder is designed to run in your browser, so the images stay on your device.",
+        },
+      ],
       related: ["convert", "compress", "resize"],
     },
   },

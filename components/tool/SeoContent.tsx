@@ -31,7 +31,7 @@ export function SeoContent({ tool, category }: { tool: Tool; category: Category 
         <div className="min-w-0 space-y-10">
           <section>
             <p className="text-micro font-medium text-faint">A simpler workflow</p>
-            <h2 className="mt-1.5 text-[20px] font-semibold tracking-[-0.02em]">How {tool.name.toLowerCase()} works</h2>
+            <h2 className="mt-1.5 text-[20px] font-semibold tracking-[-0.02em]">How {tool.name} works</h2>
             <ol className="mt-5 grid gap-3 sm:grid-cols-3">
               {steps.map((step, index) => (
                 <li key={step} className="rounded-[13px] border border-line bg-white p-4">

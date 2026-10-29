@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent } from "react";
-import { Check, ChevronDown, ShieldCheck, UploadCloud, X } from "lucide-react";
-import { buttonClasses } from "@/components/ui/Button";
+import { useEffect, useState } from "react";
 import {
-  ArrowRightGlyph,
-  LockGlyph,
-  ToolGlyph,
-} from "@/components/icons/NavGlyph";
+  Check,
+  ChevronDown,
+  Images,
+  ImagePlus,
+  Plus,
+  ShieldCheck,
+  TriangleAlert,
+  X,
+} from "lucide-react";
+import { buttonClasses } from "@/components/ui/Button";
+import { ArrowRightGlyph, LockGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
+import { StudioDropzone, StudioChip } from "@/components/tool/studio/StudioDropzone";
+import { StudioRail } from "@/components/tool/studio/StudioRail";
+import { useImageQueue } from "@/components/tool/studio/useImageQueue";
 
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_FILES = 10;
 
 const formats = [
   { value: "PNG", hint: "Lossless", lossy: false },
@@ -35,72 +43,47 @@ export function ImageConvertStudio({
   path: string;
   maxSizeMB: number;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
+  const {
+    items,
+    activeItem,
+    activeIndex,
+    error,
+    dragging,
+    setActiveId,
+    inputRef,
+    openPicker,
+    onPick,
+    onDragOver,
+    onDragLeave,
+    onDrop,
+    removeItem,
+    clearAll,
+  } = useImageQueue({ maxFiles: MAX_FILES, maxSizeMB, formatHint: "JPG, PNG or WebP" });
+
   const [format, setFormat] = useState<OutputFormat>("WebP");
   const [showAllFormats, setShowAllFormats] = useState(false);
   const [quality, setQuality] = useState(90);
   const [preserveMetadata, setPreserveMetadata] = useState(true);
-  const [dragging, setDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
   const selectedFormat = formats.find((option) => option.value === format);
   const isLossy = selectedFormat?.lossy ?? false;
   const visibleFormats = showAllFormats ? formats : formats.slice(0, 3);
+  const dimensions =
+    activeItem?.width && activeItem.height
+      ? { width: activeItem.width, height: activeItem.height }
+      : null;
+  const totalInput = items.reduce((sum, item) => sum + item.file.size, 0);
 
   useEffect(() => {
-    if (!file) {
-      setPreview(null);
-      setDimensions(null);
-      return;
-    }
-
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-    const image = new window.Image();
-    image.onload = () => setDimensions({ width: image.naturalWidth, height: image.naturalHeight });
-    image.src = url;
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  function acceptFile(next: File | undefined) {
-    if (!next) return;
     setNotice(null);
-
-    if (!ALLOWED_TYPES.includes(next.type)) {
-      setError("Choose a JPG, PNG or WebP image.");
-      if (inputRef.current) inputRef.current.value = "";
-      return;
-    }
-
-    if (next.size > maxSizeMB * 1024 * 1024) {
-      setError(`That image is larger than ${maxSizeMB} MB.`);
-      if (inputRef.current) inputRef.current.value = "";
-      return;
-    }
-
-    setError(null);
-    setFile(next);
-  }
-
-  function clearFile() {
-    setFile(null);
-    setError(null);
-    setNotice(null);
-    if (inputRef.current) inputRef.current.value = "";
-  }
-
-  function onDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setDragging(false);
-    acceptFile(event.dataTransfer.files[0]);
-  }
+  }, [items.length]);
 
   function handleConvert() {
     setNotice(
-      `The studio is ready. The ${format} conversion engine is connected in the next build step.`,
+      items.length > 1
+        ? `The studio is ready. The ${format} batch conversion is connected in the next build step — ${items.length} images are queued, and nothing leaves this device.`
+        : `The studio is ready. The ${format} conversion is connected in the next build step — nothing leaves this device.`,
     );
   }
 
@@ -110,150 +93,215 @@ export function ImageConvertStudio({
       aria-label="Image conversion studio"
       className="scroll-mt-20 overflow-hidden rounded-[26px] border border-line bg-white"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft bg-[#fdfdfc] px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-[#fdfdfc] px-4 py-3.5 sm:px-5">
         <div className="flex items-center gap-3">
           <span className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-white text-ink">
             <ToolGlyph path={path} size={18} />
           </span>
           <div>
             <h2 className="text-[14px] font-medium text-ink">Conversion studio</h2>
-            <p className="mt-0.5 text-micro text-faint">One image, one clean output.</p>
+            <p className="mt-0.5 text-micro text-faint">
+              One image or a batch, one clean output each.
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] font-medium text-muted">
+            <Images size={10} aria-hidden />
+            {items.length > 1 ? `${items.length} images` : `To ${format}`}
+          </span>
           <span className="flex items-center gap-1.5 rounded-full border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-1 text-[10px] font-medium text-[#786344]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" aria-hidden />
             Interface preview
           </span>
           <span className="hidden items-center gap-1.5 text-micro text-faint sm:flex">
             <LockGlyph size={11} />
-            Your file stays local
+            Your files stay local
           </span>
         </div>
       </div>
 
-      <div className="grid lg:h-[560px] lg:grid-cols-[minmax(0,1fr)_350px]">
-        <div className="flex min-w-0 flex-col p-4 sm:p-5">
-          <div
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
-            className={`relative flex flex-1 flex-col overflow-hidden rounded-[16px] border ${
-              dragging
-                ? "border-[#b8a992] bg-[#f8f3ea]"
-                : file
-                  ? "border-line bg-[#f6f4f0]"
-                  : "border-dashed border-[#d7d2c8] bg-[#fbfaf7]"
-            }`}
-          >
-            {file ? (
-              <div className="flex h-full flex-col p-3 sm:p-4">
-                <div className="relative flex min-h-[330px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-line bg-[#f1efeb] p-3">
-                  <span
-                    aria-hidden
-                    className="absolute left-3 top-3 rounded-md border border-line bg-white/90 px-2 py-1 text-[9px] font-medium text-muted backdrop-blur"
-                  >
-                    Source image
+      <div className="grid lg:h-[640px] lg:grid-cols-[minmax(0,1fr)_350px]">
+        <div className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5">
+          {items.length === 0 ? (
+            <StudioDropzone
+              title="Drop your images here"
+              description="Convert one image or a whole batch. JPG, PNG and WebP are read locally, so your files never leave this device."
+              buttonLabel="Choose images"
+              limits={`JPG, PNG or WebP · up to ${maxSizeMB} MB each · ${MAX_FILES} per batch`}
+              onChoose={() => openPicker()}
+              dragging={dragging}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              chips={
+                <>
+                  <StudioChip icon={<Images size={10} aria-hidden />}>Batch up to {MAX_FILES}</StudioChip>
+                  <StudioChip icon={<Check size={10} aria-hidden />}>Keeps dimensions</StudioChip>
+                </>
+              }
+            />
+          ) : (
+            <div
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              className={`flex min-h-[300px] flex-1 flex-col rounded-[16px] border p-3 transition-colors ${
+                dragging ? "border-[#b8a992] bg-[#f8f3ea]" : "border-line bg-[#f6f4f0]"
+              }`}
+            >
+              <div className="relative flex min-h-[240px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-line bg-[#f1efeb] p-3">
+                <span className="absolute left-3 top-3 rounded-md border border-line bg-white/90 px-2 py-1 text-[9px] font-medium text-muted backdrop-blur">
+                  Source image
+                </span>
+                {dimensions && (
+                  <span className="absolute right-3 top-3 rounded-md border border-line bg-white/90 px-2 py-1 text-[9px] font-medium tabular-nums text-muted backdrop-blur">
+                    {dimensions.width} × {dimensions.height}
                   </span>
-                  {preview && (
-                    <img
-                      src={preview}
-                      alt="Selected image preview"
-                      className="max-h-[320px] max-w-full rounded-[8px] object-contain shadow-[0_10px_30px_rgba(45,35,22,0.08)]"
-                    />
-                  )}
-                </div>
+                )}
+                {activeItem && (
+                  <img
+                    src={activeItem.preview}
+                    alt={`Preview of ${activeItem.file.name}`}
+                    className="max-h-[380px] max-w-full rounded-[8px] object-contain shadow-[0_10px_30px_rgba(45,35,22,0.08)]"
+                  />
+                )}
+                <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-white/70 bg-white/90 px-2.5 py-1.5 text-[10.5px] font-medium text-ink shadow-sm backdrop-blur">
+                  <ArrowRightGlyph size={11} aria-hidden />
+                  <span className="tabular-nums">{format}</span>
+                </span>
+              </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-3 rounded-[11px] border border-line bg-white px-3 py-2.5">
+              {activeItem && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-[11px] border border-line bg-white px-2.5 py-2">
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[#f5f2ec] text-muted">
-                    <ToolGlyph path={path} size={16} />
+                    <ToolGlyph path={path} size={15} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-ui font-medium text-ink">{file.name}</p>
+                    <p className="truncate text-ui font-medium text-ink">
+                      {activeItem.file.name}
+                    </p>
                     <p className="mt-0.5 text-micro text-faint">
-                      {formatBytes(file.size)}
+                      {formatBytes(activeItem.file.size)}
                       {dimensions ? ` · ${dimensions.width} × ${dimensions.height}px` : ""}
+                      {items.length > 1 ? ` · ${activeIndex + 1} of ${items.length}` : ""}
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => inputRef.current?.click()}
-                    className="h-8 rounded-lg border border-line bg-white px-2.5 text-micro font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
+                    onClick={() => openPicker()}
+                    aria-label="Add more images"
+                    className="flex h-7 items-center gap-1 rounded-lg px-2 text-[10.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
+                  >
+                    <ImagePlus size={11} aria-hidden />
+                    <span className="hidden sm:inline">Add</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openPicker(activeItem.id)}
+                    className="hidden h-7 rounded-lg px-2 text-[10.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink sm:block"
                   >
                     Replace
                   </button>
                   <button
                     type="button"
-                    onClick={clearFile}
-                    aria-label="Remove selected image"
-                    className="grid h-8 w-8 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
+                    onClick={() => removeItem(activeItem.id)}
+                    aria-label={`Remove ${activeItem.file.name}`}
+                    className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
                   >
-                    <X size={14} />
+                    <X size={13} aria-hidden />
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="flex h-full min-h-[432px] flex-col items-center justify-center px-5 py-10 text-center">
-                <span className="relative grid h-[68px] w-[68px] place-items-center rounded-[20px] border border-white bg-white text-muted shadow-[0_10px_30px_rgba(71,54,35,0.07)]">
-                  <UploadCloud size={27} strokeWidth={1.4} />
-                  <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-4 border-[#fbfaf7] bg-[#c79862]" />
-                </span>
-                <p className="mt-5 font-display text-[22px] font-semibold tracking-[-0.02em]">
-                  Drop your image here
-                </p>
-                <p className="mt-1.5 max-w-sm text-ui text-muted">
-                  Drag a file into the studio or choose one from your device.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  className={buttonClasses("primary", "md", "mt-5")}
-                >
-                  Choose image
-                  <ArrowRightGlyph size={13} />
-                </button>
-                <p className="mt-4 text-micro text-faint">
-                  JPG, PNG or WebP · up to {maxSizeMB} MB
-                </p>
-                <p className="mt-2 flex items-center gap-1.5 text-[10.5px] text-[#7c7469]">
-                  <ShieldCheck size={11} />
-                  Previewed locally. Nothing is uploaded.
-                </p>
-              </div>
-            )}
+              )}
+            </div>
+          )}
 
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-              tabIndex={-1}
-              aria-label="Choose image file"
-              className="sr-only"
-              onChange={(event) => acceptFile(event.target.files?.[0])}
-            />
-          </div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            multiple
+            tabIndex={-1}
+            aria-label="Choose images"
+            className="sr-only"
+            onChange={onPick}
+          />
 
           {error && (
-            <p role="alert" className="mt-3 text-ui text-[#a13d30]">
+            <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
+              <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
               {error}
             </p>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line-soft pt-4">
+          {items.length > 1 && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
+                  Batch · {items.length} images
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearAll();
+                    setNotice(null);
+                  }}
+                  className="text-[10px] font-medium text-faint transition-colors hover:text-ink"
+                >
+                  Clear all
+                </button>
+              </div>
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-0.5">
+                {items.map((item, index) => {
+                  const isActive = item.id === activeItem?.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActiveId(item.id)}
+                      aria-pressed={isActive}
+                      aria-label={`Edit ${item.file.name}`}
+                      title={item.file.name}
+                      className={`relative h-[58px] w-[58px] shrink-0 overflow-hidden rounded-[9px] border bg-white transition-colors ${
+                        isActive
+                          ? "border-ink ring-2 ring-ink/10"
+                          : "border-line hover:border-[#cbc5b9]"
+                      }`}
+                    >
+                      <img src={item.preview} alt="" className="h-full w-full object-cover" />
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-1 pb-0.5 text-left text-[8px] font-medium text-white">
+                        {sourceFormat(item.file)}
+                      </span>
+                      <span className="absolute left-1 top-1 grid h-[14px] w-[14px] place-items-center rounded-full bg-white/90 text-[8px] font-semibold text-ink">
+                        {index + 1}
+                      </span>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => openPicker()}
+                  aria-label="Add more images"
+                  className="grid h-[58px] w-[58px] shrink-0 place-items-center rounded-[9px] border border-dashed border-[#d7d2c8] text-faint transition-colors hover:border-[#b8a992] hover:text-ink"
+                >
+                  <Plus size={15} aria-hidden />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 flex shrink-0 flex-col gap-3 border-t border-line-soft pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <p className="flex items-center gap-1.5 text-micro text-faint">
-              <ShieldCheck size={12} />
+              <ShieldCheck size={12} aria-hidden />
               Free · No upload · No watermark
             </p>
             <button
               type="button"
               onClick={handleConvert}
-              disabled={!file}
-              className={buttonClasses("primary", "md", "min-w-[140px]")}
+              disabled={!activeItem}
+              className={buttonClasses("primary", "md", "w-full min-w-0 sm:w-auto sm:min-w-[140px]")}
             >
-              Convert image
+              {items.length > 1 ? `Convert ${items.length} images` : "Convert image"}
               <ArrowRightGlyph size={13} />
             </button>
           </div>
@@ -261,223 +309,238 @@ export function ImageConvertStudio({
           {notice && (
             <p
               role="status"
-              className="mt-3 rounded-[10px] border border-[#eadfce] bg-[#fdf9f2] px-3 py-2.5 text-micro leading-relaxed text-[#786344]"
+              className="mt-3 shrink-0 rounded-[10px] border border-[#eadfce] bg-[#fdf9f2] px-3 py-2.5 text-micro leading-relaxed text-[#786344]"
             >
               {notice}
             </p>
           )}
         </div>
 
-        <aside className="border-t border-line bg-[#fdfdfc] p-4 sm:p-5 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[14px] font-medium text-ink">Output</h2>
-            <span className="text-micro text-faint">Original dimensions</span>
-          </div>
-
-          <fieldset className="mt-4">
-            <legend className="text-ui font-medium text-ink">Format</legend>
-            <div id="converter-format-grid" className="mt-2 grid grid-cols-3 gap-2">
-              {visibleFormats.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={format === option.value}
-                  onClick={() => {
-                    setFormat(option.value);
-                    setNotice(null);
-                  }}
-                  className={`rounded-[10px] border px-2 py-3 text-center transition-colors ${
-                    format === option.value
-                      ? "border-ink bg-rail text-ink"
-                      : "border-line bg-white text-muted hover:border-[#d5d1c8] hover:text-ink"
-                  }`}
-                >
-                  <span className="block text-[14px] font-medium">{option.value}</span>
-                  <span className="mt-0.5 block text-[10px] text-faint">{option.hint}</span>
-                </button>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              aria-expanded={showAllFormats}
-              aria-controls="converter-format-grid"
-              onClick={() => setShowAllFormats((current) => !current)}
-              className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-micro font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-            >
-              {showAllFormats ? "Show fewer formats" : `See ${formats.length - 3} more formats`}
-              <ChevronDown
-                size={12}
-                className={`transition-transform ${showAllFormats ? "rotate-180" : ""}`}
-                aria-hidden
-              />
-            </button>
-
-            {showAllFormats && (
-              <p className="mt-2 text-[10px] leading-relaxed text-faint">
-                Common raster formats. Final availability depends on the connected
-                conversion engine.
-              </p>
-            )}
-          </fieldset>
-
-          <div className="mt-5">
-            <div className="flex items-center justify-between text-ui">
-              <span className="font-medium text-ink">Quality</span>
-              <span className="text-micro tabular-nums text-faint">
-                {isLossy ? `${quality}%` : "Lossless"}
+        <StudioRail label="Conversion settings">
+          <div className="space-y-5">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-[14px] font-medium text-ink">Output</h2>
+              <span className="text-micro text-faint">
+                {items.length > 1 ? `Applies to ${items.length} images` : "Original dimensions"}
               </span>
             </div>
-            <input
-              type="range"
-              min={40}
-              max={100}
-              value={isLossy ? quality : 100}
-              disabled={!isLossy}
-              onChange={(event) => {
-                setQuality(Number(event.target.value));
-                setNotice(null);
-              }}
-              aria-label="Output quality"
-              className="mt-3 h-1.5 w-full cursor-pointer accent-[#171717] disabled:cursor-not-allowed disabled:opacity-35"
-            />
-            <div className="mt-1.5 flex justify-between text-[10px] text-faint">
-              <span>Smaller file</span>
-              <span>Better detail</span>
-            </div>
-            {!isLossy && (
-              <p className="mt-2 text-[10.5px] leading-relaxed text-faint">
-                {format} preserves the image without a quality tradeoff.
-              </p>
-            )}
-          </div>
 
-          <label className="mt-5 block">
-            <span className="text-ui font-medium text-ink">Color profile</span>
-            <span className="relative mt-2 block">
-              <select
-                defaultValue="Keep original"
-                className="h-9 w-full appearance-none rounded-[9px] border border-line bg-white px-3 pr-8 text-ui text-ink outline-none hover:border-[#d5d1c8]"
+            <fieldset>
+              <legend className="text-ui font-medium text-ink">Format</legend>
+              <div id="converter-format-grid" className="mt-2 grid grid-cols-3 gap-2">
+                {visibleFormats.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={format === option.value}
+                    onClick={() => {
+                      setFormat(option.value);
+                      setNotice(null);
+                    }}
+                    className={`rounded-[10px] border px-2 py-3 text-center transition-colors ${
+                      format === option.value
+                        ? "border-ink bg-rail text-ink"
+                        : "border-line bg-white text-muted hover:border-[#d5d1c8] hover:text-ink"
+                    }`}
+                  >
+                    <span className="block text-[14px] font-medium">{option.value}</span>
+                    <span className="mt-0.5 block text-[10px] text-faint">{option.hint}</span>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                aria-expanded={showAllFormats}
+                aria-controls="converter-format-grid"
+                onClick={() => setShowAllFormats((current) => !current)}
+                className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-micro font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
               >
-                <option>Keep original</option>
-                <option>sRGB</option>
-                <option>Grayscale</option>
-              </select>
-              <ChevronDown
-                size={13}
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
-                aria-hidden
-              />
-            </span>
-          </label>
+                {showAllFormats ? "Show fewer formats" : `See ${formats.length - 3} more formats`}
+                <ChevronDown
+                  size={12}
+                  className={`transition-transform ${showAllFormats ? "rotate-180" : ""}`}
+                  aria-hidden
+                />
+              </button>
 
-          <details className="group mt-5 overflow-hidden rounded-[11px] border border-line bg-white">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3">
-              <span>
-                <span className="block text-ui font-medium text-ink">Advanced output</span>
-                <span className="mt-0.5 block text-[10.5px] text-faint">
-                  Compression, color and rendering
+              {showAllFormats && (
+                <p className="mt-2 text-[10px] leading-relaxed text-faint">
+                  Common raster formats. Final availability depends on the connected conversion
+                  engine.
+                </p>
+              )}
+            </fieldset>
+
+            <div>
+              <div className="flex items-center justify-between text-ui">
+                <span className="font-medium text-ink">Quality</span>
+                <span className="text-micro tabular-nums text-faint">
+                  {isLossy ? `${quality}%` : "Lossless"}
                 </span>
-              </span>
-              <span className="flex items-center gap-1.5 text-[10px] text-faint">
-                6 controls
+              </div>
+              <input
+                type="range"
+                min={40}
+                max={100}
+                value={isLossy ? quality : 100}
+                disabled={!isLossy}
+                onChange={(event) => {
+                  setQuality(Number(event.target.value));
+                  setNotice(null);
+                }}
+                aria-label="Output quality"
+                aria-valuetext={isLossy ? `${quality} percent quality` : "Lossless output"}
+                className="mt-3 h-1.5 w-full cursor-pointer accent-[#171717] disabled:cursor-not-allowed disabled:opacity-35"
+              />
+              <div className="mt-1.5 flex justify-between text-[10px] text-faint">
+                <span>Smaller file</span>
+                <span>Better detail</span>
+              </div>
+              {!isLossy && (
+                <p className="mt-2 text-[10.5px] leading-relaxed text-faint">
+                  {format} preserves the image without a quality tradeoff.
+                </p>
+              )}
+            </div>
+
+            <label className="block">
+              <span className="text-ui font-medium text-ink">Color profile</span>
+              <span className="relative mt-2 block">
+                <select
+                  defaultValue="Keep original"
+                  className="h-9 w-full appearance-none rounded-[9px] border border-line bg-white px-3 pr-8 text-ui text-ink outline-none hover:border-[#d5d1c8]"
+                >
+                  <option>Keep original</option>
+                  <option>sRGB</option>
+                  <option>Grayscale</option>
+                </select>
                 <ChevronDown
                   size={13}
-                  className="transition-transform group-open:rotate-180"
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
                   aria-hidden
                 />
               </span>
-            </summary>
+            </label>
 
-            <div className="space-y-3.5 border-t border-line-soft bg-[#fdfdfc] p-3.5">
-              <StudioSelect
-                label="Compression effort"
-                options={["Automatic", "Fast", "Balanced", "Maximum"]}
-                defaultValue="Balanced"
-              />
-
-              <div className="grid grid-cols-2 gap-2">
-                <StudioSelect
-                  label="Chroma sampling"
-                  options={["Auto", "4:4:4", "4:2:2", "4:2:0"]}
-                />
-                <StudioSelect
-                  label="Bit depth"
-                  options={["8-bit", "10-bit", "16-bit"]}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <StudioSelect
-                  label="Resolution"
-                  options={["Original", "72 DPI", "150 DPI", "300 DPI", "600 DPI"]}
-                />
-                <StudioSelect
-                  label="Background"
-                  options={["Transparent", "White", "Black", "Custom"]}
-                />
-              </div>
-
-              <label className="flex cursor-pointer items-start justify-between gap-4 border-t border-line-soft pt-3.5">
+            <details className="group overflow-hidden rounded-[11px] border border-line bg-white">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3">
                 <span>
-                  <span className="block text-ui font-medium text-ink">Progressive encoding</span>
-                  <span className="mt-0.5 block text-[10.5px] leading-relaxed text-faint">
-                    Prepare the file for progressive loading where supported.
+                  <span className="block text-ui font-medium text-ink">Advanced output</span>
+                  <span className="mt-0.5 block text-[10.5px] text-faint">
+                    Compression, color and rendering
                   </span>
                 </span>
-                <input type="checkbox" className="peer sr-only" />
-                <span
-                  aria-hidden
-                  className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4"
+                <span className="flex items-center gap-1.5 text-[10px] text-faint">
+                  6 controls
+                  <ChevronDown
+                    size={13}
+                    className="transition-transform group-open:rotate-180"
+                    aria-hidden
+                  />
+                </span>
+              </summary>
+
+              <div className="space-y-3.5 border-t border-line-soft bg-[#fdfdfc] p-3.5">
+                <StudioSelect
+                  label="Compression effort"
+                  options={["Automatic", "Fast", "Balanced", "Maximum"]}
+                  defaultValue="Balanced"
                 />
-              </label>
 
-              <p className="border-t border-line-soft pt-3 text-[10px] leading-relaxed text-faint">
-                Advanced controls are saved with this workspace and applied when the
-                encoding engine is connected.
-              </p>
-            </div>
-          </details>
+                <div className="grid grid-cols-2 gap-2">
+                  <StudioSelect
+                    label="Chroma sampling"
+                    options={["Auto", "4:4:4", "4:2:2", "4:2:0"]}
+                  />
+                  <StudioSelect label="Bit depth" options={["8-bit", "10-bit", "16-bit"]} />
+                </div>
 
-          <label className="mt-5 flex cursor-pointer items-start justify-between gap-4">
-            <span>
-              <span className="block text-ui font-medium text-ink">Preserve metadata</span>
-              <span className="mt-1 block text-[10.5px] leading-relaxed text-faint">
-                Keep camera and image details when supported.
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              checked={preserveMetadata}
-              onChange={(event) => setPreserveMetadata(event.target.checked)}
-              className="peer sr-only"
-            />
-            <span
-              aria-hidden
-              className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4"
-            />
-          </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <StudioSelect
+                    label="Resolution"
+                    options={["Original", "72 DPI", "150 DPI", "300 DPI", "600 DPI"]}
+                  />
+                  <StudioSelect
+                    label="Background"
+                    options={["Transparent", "White", "Black", "Custom"]}
+                  />
+                </div>
 
-          <div className="mt-5 rounded-[11px] border border-line bg-white p-3.5">
-            <div className="flex items-center justify-between gap-3 text-micro">
-              <span className="text-faint">Output format</span>
-              <span className="font-medium text-ink">{format}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-micro">
-              <span className="text-faint">Dimensions</span>
-              <span className="font-medium text-ink">
-                {dimensions ? `${dimensions.width} × ${dimensions.height}` : "Original"}
+                <label className="flex cursor-pointer items-start justify-between gap-4 border-t border-line-soft pt-3.5">
+                  <span>
+                    <span className="block text-ui font-medium text-ink">Progressive encoding</span>
+                    <span className="mt-0.5 block text-[10.5px] leading-relaxed text-faint">
+                      Prepare the file for progressive loading where supported.
+                    </span>
+                  </span>
+                  <input type="checkbox" className="peer sr-only" />
+                  <span
+                    aria-hidden
+                    className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4"
+                  />
+                </label>
+
+                <p className="border-t border-line-soft pt-3 text-[10px] leading-relaxed text-faint">
+                  Advanced controls are saved with this workspace and applied when the
+                  encoding engine is connected.
+                </p>
+              </div>
+            </details>
+
+            <label className="flex cursor-pointer items-start justify-between gap-4">
+              <span>
+                <span className="block text-ui font-medium text-ink">Preserve metadata</span>
+                <span className="mt-1 block text-[10.5px] leading-relaxed text-faint">
+                  Keep camera and image details when supported.
+                </span>
               </span>
+              <input
+                type="checkbox"
+                checked={preserveMetadata}
+                onChange={(event) => {
+                  setPreserveMetadata(event.target.checked);
+                  setNotice(null);
+                }}
+                className="peer sr-only"
+              />
+              <span
+                aria-hidden
+                className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4"
+              />
+            </label>
+
+            <div className="rounded-[11px] border border-line bg-white p-3.5">
+              <div className="flex items-center justify-between gap-3 text-micro">
+                <span className="text-faint">Output format</span>
+                <span className="font-medium text-ink">{format}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-micro">
+                <span className="text-faint">Dimensions</span>
+                <span className="font-medium text-ink">
+                  {dimensions ? `${dimensions.width} × ${dimensions.height}` : "Original"}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-micro">
+                <span className="text-faint">Files</span>
+                <span className="font-medium tabular-nums text-ink">
+                  {items.length > 1 ? `${items.length} · ${formatBytes(totalInput)}` : "1"}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-micro">
+                <span className="text-faint">Metadata</span>
+                <span className="flex items-center gap-1 font-medium text-ink">
+                  {preserveMetadata && <Check size={11} aria-hidden />}
+                  {preserveMetadata ? "Preserved" : "Removed"}
+                </span>
+              </div>
             </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-micro">
-              <span className="text-faint">Metadata</span>
-              <span className="flex items-center gap-1 font-medium text-ink">
-                {preserveMetadata && <Check size={11} />}
-                {preserveMetadata ? "Preserved" : "Removed"}
-              </span>
-            </div>
+
+            <p className="text-[10px] leading-relaxed text-faint">
+              Batch conversion keeps one output per input. Nothing is uploaded.
+            </p>
           </div>
-        </aside>
+        </StudioRail>
       </div>
     </section>
   );
@@ -512,6 +575,13 @@ function StudioSelect({
       </span>
     </label>
   );
+}
+
+function sourceFormat(file: File) {
+  if (file.type === "image/jpeg") return "JPG";
+  if (file.type === "image/png") return "PNG";
+  if (file.type === "image/webp") return "WebP";
+  return "IMG";
 }
 
 function formatBytes(bytes: number) {

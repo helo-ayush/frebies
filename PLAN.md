@@ -1201,7 +1201,7 @@ Additional:
 - Topbar: **56px**, sticky, white, 1px bottom border `#F1F1F1`.
 - Content max width: **1280px**, page padding **36px** desktop, **20px** mobile.
 - Sidebar nav row: **36px**, inset 10px, radius 8px, custom icon 19px, gap 12px, 13.5px label.
-- Scrollbars are visually hidden across the product; all scroll regions remain keyboard- and wheel-accessible.
+- Scrollbars are visually hidden across the product, except the fixed-height studio settings rails, which keep a faint thumb that darkens on hover so their internal scroll is discoverable. All scroll regions remain keyboard- and wheel-accessible.
 - Section label: 11.5px, `#9A9A9A`, 20px top margin.
 - Settings rail: **360px**, left hairline, 24px padding.
 - Cards: radius **12px**, 1px border `#ECECEA`, 20px padding.
@@ -1900,6 +1900,8 @@ These are not blockers for Phase 0, but must be settled before the relevant phas
 | 2026-10-29 | Topbar upgraded with a very subtle white gradient/inset highlight, soft-gradient search field, custom search/menu/arrow glyphs and glossy 9px buttons. Replaced the passive “Free workspace” status with a genuine “Get credits” action and made Sign in the primary action. |
 | 2026-10-29 | Marketing landing restored to the previous warm editorial direction — oversized headline, animated orb carousel, high-radius cards, marquee and large footer. The newer browser-frame workbench mock is retained as a dedicated workspace section. Placeholder format claims, old pricing and dead marketing links were replaced with the actual 16-tool catalog and current free/credit model. |
 | 2026-10-29 | Dashboard elevated beyond the flat pass: warm editorial hero with a live tool launcher, layered workspace illustration, expressive category cards, custom glyphs in the tool directory, and a split credits/recent-work ending. The functional list/grid directory remains; mobile filters collapse to concise labels. |
+| 2026-10-29 | Image compressor rebuilt as a dedicated studio: quality, percentage and exact final-size goals, presets for web/email/marketplace/max savings, batch handling for up to 10 images with per-file estimates, output format/resize/advanced controls, and a live size ladder with savings. The compressor page now has its own hero and full SEO content (8 FAQs). The browser encoder is still pending, so the route keeps `status: "soon"` and the UI labels itself as a preview. |
+| 2026-10-29 | Batch conversion added to the image converter (up to 10 images, per-file thumbnails, replace/remove/clear, one output each). Both the converter and compressor now use a fixed-height settings rail that scrolls independently on desktop; the rail shows a faint, hover-darkening scrollbar so the affordance is visible. Image-to-PDF and Resize & Crop received dedicated heroes and studios with page setup/crop controls, and both have full SEO copy. |
 | 2026-10-29 | Supabase project keys, Razorpay, analytics, actual tool engines and the React 19 upgrade remain pending. |
 
 ---

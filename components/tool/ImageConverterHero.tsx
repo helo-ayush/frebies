@@ -51,8 +51,8 @@ export function ImageConverterHero({
             Image Converter
           </h1>
           <p className="mt-3 max-w-[540px] text-[15px] leading-relaxed text-[#6a6156]">
-            Move between JPG, PNG and WebP in a focused studio built around your
-            image. No upload, no watermark and no account.
+            Move between JPG, PNG and WebP in a focused studio built around your images.
+            Convert one file or a whole batch — no upload, no watermark and no account.
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-micro font-medium text-[#6e6458]">
@@ -74,7 +74,7 @@ export function ImageConverterHero({
             href="#converter"
             className={buttonClasses("primary", "md", "mt-6 rounded-full px-5")}
           >
-            Choose an image
+            Choose images
             <ArrowRightGlyph size={14} />
           </Link>
         </div>
