@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SeoContent } from "@/components/tool/SeoContent";
+import { ImageConvertStudio } from "@/components/tool/ImageConvertStudio";
+import { ImageConverterHero } from "@/components/tool/ImageConverterHero";
 import { ToolHeader } from "@/components/tool/ToolHeader";
 import { ToolWorkspace } from "@/components/tool/ToolWorkspace";
 import { getCategory, getTool, tools } from "@/lib/registry/tools";
@@ -29,13 +31,31 @@ export default async function ToolPage({ params }: ToolParams) {
 
   if (!tool || !category) notFound();
 
+  const isImageConverter = tool.path === "/image/convert";
+
   return (
     <>
       <JsonLd data={toolJsonLd(tool, category)} />
-      <ToolHeader tool={tool} category={category} />
-      <section className="mt-6">
-        <ToolWorkspace tool={tool} />
-      </section>
+
+      {isImageConverter ? (
+        <>
+          <ImageConverterHero tool={tool} category={category} />
+          <section className="mt-5">
+            <ImageConvertStudio
+              path={tool.path}
+              maxSizeMB={tool.limits.maxSizeMB ?? 25}
+            />
+          </section>
+        </>
+      ) : (
+        <>
+          <ToolHeader tool={tool} category={category} />
+          <section className="mt-6">
+            <ToolWorkspace tool={tool} />
+          </section>
+        </>
+      )}
+
       <SeoContent tool={tool} category={category} />
     </>
   );
