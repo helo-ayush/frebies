@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
+import { tools, liveTools } from "@/lib/registry/tools";
+import { AnimatedGradientText } from "./magicui/animated-gradient-text";
+import { BorderBeam } from "./magicui/border-beam";
+import { BlurFade } from "./magicui/blur-fade";
+import { DotPattern } from "./magicui/dot-pattern";
+import { NumberTicker } from "./magicui/number-ticker";
 import { Btn, Orb, Words, ease, type G } from "./ui";
 
 type HeroItem = { t: string; d: string; g: G; href: string };
@@ -99,35 +105,68 @@ export default function Hero() {
   }, [count, tab, active]);
 
   return (
-    <section className="mx-auto max-w-[1280px] px-5 pt-16 md:pt-28">
-      <div className="grid gap-8 md:grid-cols-2 md:items-end">
-        <Words
-          lines={["Every tool you need,", "mostly free."]}
-          className="text-[clamp(2.8rem,7vw,5.4rem)] leading-[1.02] tracking-[-0.04em]"
-        />
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.9, duration: 0.8 }}
-          className="max-w-xl text-lg leading-snug md:ml-auto"
-        >
-          A growing toolbox for creators, students and teams. Convert images, tidy PDFs,
-          trim audio and bring in AI when a job needs more. Free for everyday work, with
-          clear credit pricing when you need extra power.
-        </motion.p>
-      </div>
+    <section className="relative mx-auto max-w-[1280px] px-5 pt-16 md:pt-28">
+      <DotPattern
+        aria-hidden
+        width={22}
+        height={22}
+        cr={1}
+        className="absolute inset-x-0 top-0 h-[560px] w-full opacity-70 [mask-image:radial-gradient(ellipse_at_top,black_10%,transparent_72%)]"
+      />
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.1 }}
-        className="mt-8 flex flex-wrap gap-3"
-      >
-        <Btn href="/dashboard">Get started free</Btn>
-        <Btn dark={false} href="#tools">Browse tools</Btn>
-      </motion.div>
+      <div className="relative">
+        <div className="grid gap-8 md:grid-cols-2 md:items-end">
+          <div>
+            <AnimatedGradientText
+              speed={1.6}
+              colorFrom="#8f8578"
+              colorTo="#d98b63"
+              className="mb-5 inline-block text-[12px] font-medium uppercase tracking-[0.18em]"
+            >
+              Free file tools, quietly powerful
+            </AnimatedGradientText>
+            <Words
+              lines={["Every tool you need,", "mostly free."]}
+              className="text-[clamp(2.8rem,7vw,5.4rem)] leading-[1.02] tracking-[-0.04em]"
+            />
+          </div>
+          <BlurFade delay={0.35} duration={0.7} offset={10} className="md:ml-auto">
+            <p className="max-w-xl text-lg leading-snug">
+              A growing toolbox for creators, students and teams. Convert images, tidy PDFs,
+              trim audio and bring in AI when a job needs more. Free for everyday work, with
+              clear credit pricing when you need extra power.
+            </p>
+          </BlurFade>
+        </div>
 
-      <div className="mt-14 rounded-[28px] border border-line bg-card/60 p-2">
+        <BlurFade delay={0.45} duration={0.7} offset={8} className="mt-8 flex flex-wrap gap-3">
+          <Btn href="/dashboard">Get started free</Btn>
+          <Btn dark={false} href="#tools">Browse tools</Btn>
+        </BlurFade>
+
+        <BlurFade delay={0.55} duration={0.7} offset={6} className="mt-7 flex flex-wrap items-baseline gap-x-7 gap-y-2 text-[13px] text-muted">
+          <span className="inline-flex items-baseline gap-1.5">
+            <NumberTicker value={tools.length} className="font-display text-[20px] font-semibold text-ink" />
+            tools in the box
+          </span>
+          <span className="inline-flex items-baseline gap-1.5">
+            <NumberTicker value={liveTools.length} className="font-display text-[20px] font-semibold text-ink" />
+            ready on your device
+          </span>
+          <span className="inline-flex items-baseline gap-1.5">
+            <NumberTicker value={0} className="font-display text-[20px] font-semibold text-ink" />
+            uploads required
+          </span>
+        </BlurFade>
+
+        <div className="relative mt-14 overflow-hidden rounded-[28px] border border-line bg-card/60 p-2">
+          <BorderBeam
+            size={190}
+            duration={16}
+            colorFrom="#e55e40"
+            colorTo="#fda82b"
+            className="opacity-70"
+          />
         <div className="grid grid-cols-3 rounded-[22px] bg-[#eeedea] p-1">
           {tabNames.map((name) => (
             <button
@@ -217,6 +256,7 @@ export default function Hero() {
             ))}
           </div>
           <Btn href="/dashboard">Get started</Btn>
+        </div>
         </div>
       </div>
     </section>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { ScrollProgress } from "@/components/magicui/scroll-progress";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
@@ -51,6 +52,7 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-canvas text-ink">
+      <ScrollProgress />
       <Sidebar
         open={navOpen}
         collapsed={sidebarCollapsed}

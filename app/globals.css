@@ -9,6 +9,66 @@ body {
   letter-spacing: -0.01em;
 }
 html { scroll-behavior: smooth; }
+
+/* shadcn/Magic UI token bridge — keeps registry components on the site palette. */
+:root {
+  --background: #fbfbfa;
+  --foreground: #0f0f10;
+  --card-foreground: #0f0f10;
+  --popover: #ffffff;
+  --popover-foreground: #0f0f10;
+  --primary: #0f0f10;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f0ea;
+  --secondary-foreground: #0f0f10;
+  --muted-foreground: #6f6a62;
+  --accent-foreground: #ffffff;
+  --destructive: #b3362a;
+  --destructive-foreground: #ffffff;
+  --border: #ececea;
+  --input: #e5e2db;
+  --ring: #e55e40;
+}
+
+/* Magic UI motion primitives (Tailwind 3 build, so they live here as plain CSS). */
+@keyframes magic-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+@keyframes magic-marquee-vertical {
+  from { transform: translateY(0); }
+  to { transform: translateY(-100%); }
+}
+@keyframes magic-gradient {
+  from { background-position: 0% center; }
+  to { background-position: 100% center; }
+}
+@keyframes magic-beam {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -100; }
+}
+
+.magic-marquee { animation: magic-marquee var(--duration, 40s) linear infinite; }
+.magic-marquee-vertical { animation: magic-marquee-vertical var(--duration, 40s) linear infinite; }
+.magic-gradient-text {
+  background-size: var(--bg-size, 300%) 100%;
+  animation: magic-gradient 8s linear infinite;
+}
+.magic-beam {
+  animation: magic-beam var(--duration, 6s) linear infinite;
+  animation-delay: calc(var(--delay, 0s) * -1);
+  animation-direction: var(--direction, normal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .magic-marquee,
+  .magic-marquee-vertical,
+  .magic-gradient-text,
+  .magic-beam {
+    animation: none;
+  }
+}
+
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;

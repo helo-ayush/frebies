@@ -3,6 +3,7 @@ import { ChevronRight, Lock } from "lucide-react";
 import type { Tool } from "@/lib/registry/tools";
 import { Badge } from "@/components/ui/Badge";
 import { ToolGlyph } from "@/components/icons/NavGlyph";
+import { BorderBeam } from "@/components/magicui/border-beam";
 
 function AccessBadge({ tool }: { tool: Tool }) {
   if (tool.status === "soon") {
@@ -32,8 +33,16 @@ export function ToolCard({ tool }: { tool: Tool }) {
   return (
     <Link
       href={tool.path}
-      className="group flex min-h-[176px] flex-col rounded-xl border border-line bg-white p-4 transition-colors hover:bg-rail"
+      className="group relative flex min-h-[176px] flex-col overflow-hidden rounded-xl border border-line bg-white p-4 transition-colors hover:bg-rail"
     >
+      <BorderBeam
+        size={90}
+        duration={7}
+        radius={12}
+        colorFrom="#e55e40"
+        colorTo="#fda82b"
+        className="opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+      />
       <div className="flex items-start justify-between gap-3">
         <span className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-white text-ink">
           <ToolGlyph path={tool.path} size={18} />

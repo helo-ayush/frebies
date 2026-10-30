@@ -5,6 +5,7 @@ import { CategoryCards } from "@/components/dashboard/CategoryCards";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { ToolDirectory } from "@/components/dashboard/ToolDirectory";
 import { ArrowRightGlyph, SparkGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
+import { NumberTicker } from "@/components/magicui/number-ticker";
 import { tools } from "@/lib/registry/tools";
 
 export const metadata: Metadata = {
@@ -36,19 +37,19 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-4 rounded-full border border-line bg-[#fbfaf8] px-4 py-2 text-micro text-faint">
             <span>
-              <strong className="font-medium text-ink">{readyCount}</strong> ready
+              <NumberTicker value={readyCount} className="font-medium text-ink" /> ready
             </span>
             <span aria-hidden className="h-3 w-px bg-line" />
             <span>
-              <strong className="font-medium text-ink">{tools.length}</strong> total
+              <NumberTicker value={tools.length} className="font-medium text-ink" /> total
             </span>
             <span aria-hidden className="h-3 w-px bg-line" />
             <span>
-              <strong className="font-medium text-ink">{freeCount}</strong> free
+              <NumberTicker value={freeCount} className="font-medium text-ink" /> free
             </span>
             <span aria-hidden className="h-3 w-px bg-line" />
             <span>
-              <strong className="font-medium text-ink">{creditCount}</strong> AI
+              <NumberTicker value={creditCount} className="font-medium text-ink" /> AI
             </span>
           </div>
         </div>

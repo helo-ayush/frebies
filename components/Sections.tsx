@@ -18,6 +18,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "./Navbar";
+import { AnimatedGradientText } from "./magicui/animated-gradient-text";
+import { BorderBeam } from "./magicui/border-beam";
+import { DotPattern } from "./magicui/dot-pattern";
+import { GridPattern } from "./magicui/grid-pattern";
+import { Marquee as MagicMarquee } from "./magicui/marquee";
+import { NumberTicker } from "./magicui/number-ticker";
 import { Btn, Reveal, ease, grads } from "./ui";
 
 function Head({
@@ -36,7 +42,14 @@ function Head({
   return (
     <Reveal className="grid gap-6 md:grid-cols-2 md:items-end">
       <div>
-        <p className="mb-4 text-lg text-muted">{label}</p>
+        <AnimatedGradientText
+          speed={1.4}
+          colorFrom="#8f8578"
+          colorTo="#c98f6c"
+          className="mb-4 inline-block text-lg"
+        >
+          {label}
+        </AnimatedGradientText>
         <h2 className="text-[clamp(2.2rem,4.6vw,3.8rem)] leading-[1.04] tracking-[-0.035em]">
           {title}
         </h2>
@@ -67,11 +80,21 @@ function Card({
   return (
     <Reveal className="h-full">
       <div
-        className={`h-full min-h-[540px] overflow-hidden rounded-[28px] p-5 md:p-6 ${
+        className={`relative h-full min-h-[540px] overflow-hidden rounded-[28px] p-5 md:p-6 ${
           bg ? "grain text-white" : "bg-card"
         }`}
         style={bg ? { background: bg } : undefined}
       >
+        {bg && (
+          <BorderBeam
+            size={200}
+            duration={16}
+            colorFrom="#ffffff"
+            colorTo="#ffd7a8"
+            borderWidth={1}
+            className="opacity-60"
+          />
+        )}
         <div className="relative z-10 flex h-full min-h-[490px] flex-col">
           <div className="flex flex-1 items-center justify-center py-6">{children}</div>
           <p className={`text-[15px] ${bg ? "text-white/75" : "text-muted"}`}>{title}</p>
@@ -86,16 +109,32 @@ const WHO = ["Creators", "Students", "Developers", "Designers", "Agencies", "Tea
 
 export function Marquee() {
   return (
-    <section className="mt-24 overflow-hidden border-y border-line py-10">
-      <p className="mx-auto mb-8 max-w-[1280px] px-5 text-lg">
-        Made for everyone who works with files
+    <section className="relative mt-24 overflow-hidden border-y border-line py-10">
+      <p className="mx-auto mb-6 max-w-[1280px] px-5 text-lg">
+        <AnimatedGradientText speed={1.2} colorFrom="#8f8578" colorTo="#c98f6c">
+          Made for everyone who works with files
+        </AnimatedGradientText>
       </p>
-      <div className="flex w-max animate-marquee text-5xl tracking-tight text-neutral-300 motion-reduce:animate-none md:text-7xl">
-        {[...WHO, ...WHO].map((word, index) => (
-          <span key={index} className="mr-16">
-            {word}
-          </span>
-        ))}
+      <div
+        style={{
+          maskImage:
+            "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
+          WebkitMaskImage:
+            "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
+        }}
+      >
+        <MagicMarquee
+          speed={70}
+          repeat={3}
+          pauseOnHover
+          className="p-0 text-5xl tracking-tight text-neutral-300 md:text-7xl"
+        >
+          {WHO.map((word) => (
+            <span key={word} className="whitespace-nowrap pr-12 md:pr-16">
+              {word}
+            </span>
+          ))}
+        </MagicMarquee>
       </div>
     </section>
   );
@@ -300,8 +339,16 @@ export function Tools() {
           <motion.div key={name} whileHover={{ y: -4 }} transition={{ duration: 0.3, ease }}>
             <Link
               href={href}
-              className="flex min-h-[190px] flex-col justify-between rounded-[24px] bg-card p-6 transition-colors hover:bg-white hover:shadow-[0_0_0_1px_#e8e7e4]"
+              className="group relative flex min-h-[190px] flex-col justify-between overflow-hidden rounded-[24px] bg-card p-6 transition-colors hover:bg-white hover:shadow-[0_0_0_1px_#e8e7e4]"
             >
+              <BorderBeam
+                size={130}
+                duration={8}
+                radius={24}
+                colorFrom="#e55e40"
+                colorTo="#fda82b"
+                className="opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              />
               <div className="flex items-start justify-between">
                 <Icon size={26} strokeWidth={1.5} />
                 <span
@@ -370,13 +417,26 @@ export function Pricing() {
         {PLANS.map((plan) => (
           <Reveal key={plan.name} className="h-full">
             <div
-              className={`flex h-full flex-col rounded-[28px] p-8 ${
+              className={`relative flex h-full flex-col overflow-hidden rounded-[28px] p-8 ${
                 plan.pro ? "bg-ink text-white" : "bg-card"
               }`}
             >
+              {plan.pro && (
+                <BorderBeam
+                  size={220}
+                  duration={12}
+                  colorFrom="#ffaa40"
+                  colorTo="#9c40ff"
+                  borderWidth={1}
+                />
+              )}
               <p className="text-lg">{plan.name}</p>
               <p className="mt-6 text-6xl tracking-[-0.04em]">
-                {plan.price}
+                {plan.pro ? (
+                  <NumberTicker value={25} className="text-6xl tracking-[-0.04em]" />
+                ) : (
+                  plan.price
+                )}
                 <span
                   className={`ml-2 text-lg tracking-normal ${
                     plan.pro ? "text-white/60" : "text-muted"
@@ -475,7 +535,13 @@ export function Privacy() {
           return (
             <Reveal key={item.title} className="h-full">
               <div className="flex h-full min-h-[440px] flex-col justify-between rounded-[28px] bg-card p-6">
-                <div className="grid flex-1 place-items-center">
+                <div className="relative grid flex-1 place-items-center overflow-hidden rounded-[18px]">
+                  <DotPattern
+                    width={18}
+                    height={18}
+                    cr={0.9}
+                    className="opacity-45 [mask-image:radial-gradient(ellipse_at_center,black,transparent_72%)]"
+                  />
                   <svg
                     viewBox="0 0 200 200"
                     fill="none"
@@ -504,6 +570,19 @@ export function CTA() {
     <section className="mx-auto mt-28 max-w-[1280px] px-5">
       <Reveal>
         <div className="relative overflow-hidden rounded-[32px] bg-ink px-6 py-24 text-center text-white md:py-32">
+          <GridPattern
+            width={56}
+            height={56}
+            strokeDasharray="4 4"
+            className="opacity-[0.14] [mask-image:radial-gradient(ellipse_at_center,black,transparent_76%)]"
+          />
+          <BorderBeam
+            size={280}
+            duration={18}
+            colorFrom="#ffaa40"
+            colorTo="#9c40ff"
+            borderWidth={1}
+          />
           <motion.div
             className="absolute -bottom-48 left-1/2 -ml-[220px] h-[440px] w-[440px] rounded-full opacity-80 blur-2xl"
             style={{ background: grads.sun }}
@@ -517,6 +596,11 @@ export function CTA() {
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Btn dark={false} href="/dashboard">Start for free</Btn>
             </div>
+            <p className="mt-6 text-sm text-white/55">
+              New accounts get{" "}
+              <NumberTicker value={25} className="font-medium text-white" /> free credits for
+              the AI tools.
+            </p>
           </div>
         </div>
       </Reveal>

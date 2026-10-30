@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ToolDirectory } from "@/components/dashboard/ToolDirectory";
+import { BorderBeam } from "@/components/magicui/border-beam";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { categories, getCategory, toolsForCategory, type CategorySlug } from "@/lib/registry/tools";
 import { categoryMetadata } from "@/lib/seo/metadata";
@@ -112,6 +113,14 @@ export default async function CategoryPage({ params }: CategoryParams) {
       </header>
 
       <section className="relative mt-7 overflow-hidden rounded-[18px] border border-line bg-[#f8f8f6]">
+        <BorderBeam
+          size={220}
+          duration={18}
+          colorFrom="#e55e40"
+          colorTo="#fda82b"
+          borderWidth={1}
+          className="opacity-50"
+        />
         <div className="grid lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
           <div className="p-6 sm:p-8">
             <p className="text-micro font-medium text-faint">{showcase.eyebrow}</p>
@@ -168,8 +177,16 @@ export default async function CategoryPage({ params }: CategoryParams) {
           {showcase.useCases.map((item, index) => {
             const UseCaseIcon = item.icon;
             return (
-              <article key={item.title} className="rounded-[14px] border border-line bg-white p-5">
-                <div className="flex items-center justify-between">
+              <article key={item.title} className="group relative overflow-hidden rounded-[14px] border border-line bg-white p-5">
+                <BorderBeam
+                  size={100}
+                  duration={8}
+                  radius={14}
+                  colorFrom="#e55e40"
+                  colorTo="#fda82b"
+                  className="opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                />
+                <div className="relative flex items-center justify-between">
                   <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-rail text-muted">
                     <UseCaseIcon size={17} strokeWidth={1.5} aria-hidden />
                   </span>

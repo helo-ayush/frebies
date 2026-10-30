@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { ArrowRightGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
+import { BorderBeam } from "@/components/magicui/border-beam";
+import { BlurFade } from "@/components/magicui/blur-fade";
 import {
   categories,
   tools,
@@ -51,53 +53,69 @@ export function CategoryCards() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        {categories.map((category) => {
+        {categories.map((category, index) => {
           const count = toolsForCategory(category.slug).length;
           const sample = toolsForCategory(category.slug).slice(0, 3);
           const visual = styles[category.slug];
 
           return (
-            <Link
+            <BlurFade
               key={category.slug}
-              href={`/${category.slug}`}
-              className={`group relative flex min-h-[232px] flex-col overflow-hidden rounded-[24px] border border-line p-5 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-[#d5cfc5] ${visual.card}`}
+              delay={index * 0.06}
+              inView
+              inViewMargin="-60px"
+              offset={14}
+              duration={0.55}
             >
-              <span
-                aria-hidden
-                className={`absolute -right-14 -top-16 h-48 w-48 rounded-full opacity-60 transition-transform duration-500 group-hover:scale-110 ${visual.orb}`}
-              />
+              <Link
+                href={`/${category.slug}`}
+                className={`group relative flex min-h-[232px] flex-col overflow-hidden rounded-[24px] border border-line p-5 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-[#d5cfc5] ${visual.card}`}
+              >
+                <BorderBeam
+                  size={110}
+                  duration={8}
+                  radius={24}
+                  colorFrom="#ffffff"
+                  colorTo="#ffd7a8"
+                  className="opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                />
+                <span
+                  aria-hidden
+                  className={`absolute -right-14 -top-16 h-48 w-48 rounded-full opacity-60 transition-transform duration-500 group-hover:scale-110 ${visual.orb}`}
+                />
 
-              <div className="relative flex items-start justify-between gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-[13px] border border-white/75 bg-white/70 text-ink backdrop-blur-sm">
-                  <ToolGlyph path={visual.glyph} size={21} />
-                </span>
-                <span className="flex items-center gap-1.5 text-micro font-medium text-[#6f675d]">
-                  <span className={visual.count}>{count} tools</span>
-                  <span className="grid h-7 w-7 place-items-center rounded-full border border-white/70 bg-white/55 text-muted transition-colors group-hover:bg-white group-hover:text-ink">
-                    <ArrowRightGlyph size={12} />
+                <div className="relative flex items-start justify-between gap-3">
+                  <span className="grid h-11 w-11 place-items-center rounded-[13px] border border-white/75 bg-white/70 text-ink backdrop-blur-sm">
+                    <ToolGlyph path={visual.glyph} size={21} />
                   </span>
-                </span>
-              </div>
-
-              <div className="relative mt-auto pt-9">
-                <h3 className="font-display text-[27px] font-semibold leading-none tracking-[-0.035em]">
-                  {category.name}
-                </h3>
-                <p className="mt-2 max-w-[290px] text-ui leading-relaxed text-[#6c665e]">
-                  {category.description}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {sample.map((tool) => (
-                    <span
-                      key={tool.path}
-                      className="rounded-full border border-white/65 bg-white/45 px-2.5 py-1 text-[10.5px] font-medium text-[#6d655a] backdrop-blur-sm"
-                    >
-                      {tool.shortName ?? tool.name}
+                  <span className="flex items-center gap-1.5 text-micro font-medium text-[#6f675d]">
+                    <span className={visual.count}>{count} tools</span>
+                    <span className="grid h-7 w-7 place-items-center rounded-full border border-white/70 bg-white/55 text-muted transition-colors group-hover:bg-white group-hover:text-ink">
+                      <ArrowRightGlyph size={12} />
                     </span>
-                  ))}
+                  </span>
                 </div>
-              </div>
-            </Link>
+
+                <div className="relative mt-auto pt-9">
+                  <h3 className="font-display text-[27px] font-semibold leading-none tracking-[-0.035em]">
+                    {category.name}
+                  </h3>
+                  <p className="mt-2 max-w-[290px] text-ui leading-relaxed text-[#6c665e]">
+                    {category.description}
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {sample.map((tool) => (
+                      <span
+                        key={tool.path}
+                        className="rounded-full border border-white/65 bg-white/45 px-2.5 py-1 text-[10.5px] font-medium text-[#6d655a] backdrop-blur-sm"
+                      >
+                        {tool.shortName ?? tool.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </Link>
+            </BlurFade>
           );
         })}
       </div>

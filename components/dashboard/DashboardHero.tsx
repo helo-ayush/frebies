@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { ArrowUp, Check } from "lucide-react";
 import { ArrowRightGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
+import { AnimatedGradientText } from "@/components/magicui/animated-gradient-text";
+import { BlurFade } from "@/components/magicui/blur-fade";
+import { DotPattern } from "@/components/magicui/dot-pattern";
 import { tools } from "@/lib/registry/tools";
 
 const shortcutPaths = [
@@ -42,6 +45,12 @@ export function DashboardHero() {
 
   return (
     <section className="relative overflow-hidden rounded-[30px] border border-line bg-[#f3efe7]">
+      <DotPattern
+        width={20}
+        height={20}
+        cr={1}
+        className="absolute inset-0 opacity-60 [mask-image:radial-gradient(ellipse_at_top_left,black,transparent_70%)]"
+      />
       <div
         aria-hidden
         className="absolute -right-32 -top-48 h-[470px] w-[470px] rounded-full bg-[radial-gradient(circle_at_35%_30%,#fff0d8_0%,#f5b784_46%,#d97555_100%)] opacity-70"
@@ -55,17 +64,22 @@ export function DashboardHero() {
         <div className="min-w-0">
           <p className="flex items-center gap-2.5 text-[11.5px] font-medium uppercase tracking-[0.16em] text-[#6f6458]">
             <span aria-hidden className="h-px w-7 bg-accent" />
-            Your workspace
+            <AnimatedGradientText speed={1.6} colorFrom="#8f8578" colorTo="#c98f6c">
+              Your workspace
+            </AnimatedGradientText>
           </p>
 
-          <h1 className="mt-4 max-w-[590px] font-display text-[clamp(2.25rem,4.4vw,3.7rem)] font-semibold leading-[1.01] tracking-[-0.048em] text-ink">
-            What are we making today?
-          </h1>
-          <p className="mt-4 max-w-[520px] text-[15px] leading-relaxed text-[#6c645a]">
-            Sixteen focused tools for images, documents and audio. Start with an idea, or
-            go straight to a tool below.
-          </p>
+          <BlurFade inView={false} delay={0.02} offset={8} duration={0.55}>
+            <h1 className="mt-4 max-w-[590px] font-display text-[clamp(2.25rem,4.4vw,3.7rem)] font-semibold leading-[1.01] tracking-[-0.048em] text-ink">
+              What are we making today?
+            </h1>
+            <p className="mt-4 max-w-[520px] text-[15px] leading-relaxed text-[#6c645a]">
+              Sixteen focused tools for images, documents and audio. Start with an idea, or
+              go straight to a tool below.
+            </p>
+          </BlurFade>
 
+          <BlurFade inView={false} delay={0.12} offset={8} duration={0.55}>
           <form onSubmit={onSubmit} className="relative mt-7 max-w-[650px]" role="search">
             <label htmlFor="dashboard-search" className="sr-only">
               Search tools or describe a file task
@@ -158,6 +172,7 @@ export function DashboardHero() {
               </Link>
             ))}
           </div>
+          </BlurFade>
         </div>
 
         <div aria-hidden className="relative hidden min-h-[370px] xl:block">

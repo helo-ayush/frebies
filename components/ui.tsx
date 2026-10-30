@@ -1,6 +1,7 @@
 "use client";
 import { motion, MotionConfig } from "framer-motion";
 import type { ReactNode } from "react";
+import { BlurFade } from "./magicui/blur-fade";
 
 export const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -20,12 +21,27 @@ export function Orb({ g, className = "h-64 w-64" }: { g: G; className?: string }
   return <div className={`grain rounded-full ${className}`} style={{ background: grads[g] }} />;
 }
 
-export function Reveal({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Reveal({
+  children,
+  className = "",
+  delay = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) {
   return (
-    <motion.div className={className} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }} transition={{ duration: 0.8, ease }}>
+    <BlurFade
+      className={className}
+      delay={delay}
+      inView
+      inViewMargin="-70px"
+      offset={16}
+      blur="8px"
+      duration={0.6}
+    >
       {children}
-    </motion.div>
+    </BlurFade>
   );
 }
 

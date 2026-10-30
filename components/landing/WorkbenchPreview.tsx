@@ -2,6 +2,7 @@
 
 import { ChevronDown, UploadCloud } from "lucide-react";
 import { ToolGlyph } from "@/components/icons/NavGlyph";
+import { BorderBeam } from "@/components/magicui/border-beam";
 import { Btn, Reveal } from "@/components/ui";
 
 const sidebarTools = [
@@ -34,6 +35,14 @@ export function WorkbenchPreview() {
 
       <Reveal className="mt-12">
         <div className="relative overflow-hidden rounded-[32px] border border-line bg-[#f1efeb] px-2 py-2 md:p-7">
+          <BorderBeam
+            size={240}
+            duration={20}
+            colorFrom="#e55e40"
+            colorTo="#9d97cf"
+            borderWidth={1}
+            className="opacity-60"
+          />
           <div
             aria-hidden="true"
             className="relative overflow-hidden rounded-[22px] border border-white/70 bg-white shadow-[0_28px_80px_rgba(25,20,12,0.14)]"
