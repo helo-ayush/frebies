@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, Cloud, Lock, MonitorDown } from "lucide-react";
 import type { Category, Tool } from "@/lib/registry/tools";
+import { PointerHighlight } from "@/components/aceternity/pointer-highlight";
 import { Badge } from "@/components/ui/Badge";
 
 export function ToolHeader({ tool, category }: { tool: Tool; category: Category }) {
@@ -22,7 +23,12 @@ export function ToolHeader({ tool, category }: { tool: Tool; category: Category 
             <span>Workspace</span>
           </div>
           <h1 className="mt-1.5 flex items-center gap-2 font-display text-[30px] font-semibold tracking-[-0.035em]">
-            {tool.h1}
+            <PointerHighlight
+              rectangleClassName="border-accent/30"
+              pointerClassName="text-accent"
+            >
+              <span className="px-0.5">{tool.h1}</span>
+            </PointerHighlight>
             {tool.tier === "credits" && (
               <span title="Uses credits — sign in to run" className="mt-1">
                 <Lock size={14} strokeWidth={1.8} className="text-faint" aria-hidden />

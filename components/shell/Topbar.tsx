@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCategory, getTool } from "@/lib/registry/tools";
+import { AceternityTooltip } from "@/components/aceternity/animated-tooltip";
+import { HoverBorderGradient } from "@/components/aceternity/hover-border-gradient";
 import { buttonClasses } from "@/components/ui/Button";
 import { ChevronGlyph, MenuGlyph, PanelGlyph, SearchGlyph } from "@/components/icons/NavGlyph";
 import { CommandMenu } from "./CommandMenu";
@@ -69,21 +71,28 @@ export function Topbar({
     <>
       <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line-soft bg-white/95 px-4 backdrop-blur md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:px-5">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <button type="button" onClick={onOpenNav} aria-label="Open navigation" className={`${iconBtn} lg:hidden`}>
-            <MenuGlyph size={19} />
-          </button>
+          <AceternityTooltip label="Open navigation" side="bottom">
+            <button type="button" onClick={onOpenNav} aria-label="Open navigation" className={`${iconBtn} lg:hidden`}>
+              <MenuGlyph size={19} />
+            </button>
+          </AceternityTooltip>
 
-          <button
-            type="button"
-            onClick={onToggleSidebar}
-            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-            aria-controls="workbench-sidebar"
-            aria-expanded={!collapsed}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={`${iconBtn} hidden lg:grid`}
+          <AceternityTooltip
+            label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            hint="⌘B"
+            side="bottom"
           >
-            <PanelGlyph collapsed={collapsed} size={20} />
-          </button>
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+              aria-controls="workbench-sidebar"
+              aria-expanded={!collapsed}
+              className={`${iconBtn} hidden lg:grid`}
+            >
+              <PanelGlyph collapsed={collapsed} size={20} />
+            </button>
+          </AceternityTooltip>
 
           <span className="truncate text-[13.5px] font-medium text-ink md:hidden">
             {crumbs[crumbs.length - 1].label}
@@ -120,24 +129,32 @@ export function Topbar({
         </button>
 
         <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            aria-label="Search tools and pages"
-            className={`${iconBtn} md:hidden`}
-          >
-            <SearchGlyph size={19} />
-          </button>
-          <Link
+          <AceternityTooltip label="Search" hint="⌘K" side="bottom">
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search tools and pages"
+              className={`${iconBtn} md:hidden`}
+            >
+              <SearchGlyph size={19} />
+            </button>
+          </AceternityTooltip>
+          <HoverBorderGradient
+            as={Link}
             href="/sign-in"
-            title="Sign in to claim 25 free credits"
-            className={buttonClasses("secondary", "sm", "hidden sm:inline-flex")}
+            containerClassName="hidden rounded-full sm:flex"
+            className="h-8 rounded-full px-3 text-ui transition-colors hover:bg-neutral-50"
           >
             Get credits
-          </Link>
-          <Link href="/sign-in" className={buttonClasses("primary", "sm")}>
+          </HoverBorderGradient>
+          <HoverBorderGradient
+            as={Link}
+            href="/sign-in"
+            containerClassName="rounded-full"
+            className="h-8 rounded-full bg-ink px-3 text-ui text-white transition-colors hover:bg-neutral-800"
+          >
             Sign in
-          </Link>
+          </HoverBorderGradient>
         </div>
       </header>
 

@@ -4,6 +4,7 @@ import { FilePlus2 } from "lucide-react";
 import { CategoryCards } from "@/components/dashboard/CategoryCards";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { ToolDirectory } from "@/components/dashboard/ToolDirectory";
+import { HoverBorderLink } from "@/components/aceternity/hover-border-gradient";
 import { ArrowRightGlyph, SparkGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
 import { NumberTicker } from "@/components/magicui/number-ticker";
 import { tools } from "@/lib/registry/tools";
@@ -75,13 +76,14 @@ export default function DashboardPage() {
                 Create a free account and get 25 credits for upscaling, OCR,
                 transcription and natural voices.
               </p>
-              <Link
+              <HoverBorderLink
                 href="/sign-in"
-                className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-white px-4 text-ui font-medium text-ink transition-colors hover:bg-[#f1efeb]"
+                containerClassName="mt-5 rounded-full"
+                className="h-10 gap-2 rounded-full bg-white px-4 text-ui font-medium text-ink transition-colors hover:bg-[#f1efeb]"
               >
                 Claim 25 free credits
                 <ArrowRightGlyph size={14} />
-              </Link>
+              </HoverBorderLink>
             </div>
 
             <div aria-hidden className="flex items-end gap-1 sm:pr-3">

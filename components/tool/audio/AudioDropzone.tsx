@@ -2,6 +2,7 @@
 
 import type { DragEvent, ReactNode } from "react";
 import { AudioLines, ShieldCheck } from "lucide-react";
+import { MagneticButton } from "@/components/aceternity/magnetic-button";
 import { buttonClasses } from "@/components/ui/Button";
 import { ArrowRightGlyph } from "@/components/icons/NavGlyph";
 import { MiniWaveform } from "./MiniWaveform";
@@ -64,14 +65,12 @@ export function AudioDropzone({
       <p className="relative mt-2 max-w-sm text-ui leading-relaxed text-muted">
         {description}
       </p>
-      <button
-        type="button"
-        onClick={onChoose}
-        className={buttonClasses("primary", "md", "relative mt-5 rounded-full px-5")}
-      >
-        {buttonLabel}
-        <ArrowRightGlyph size={13} />
-      </button>
+      <MagneticButton className="relative mt-5">
+        <button type="button" onClick={onChoose} className={buttonClasses("primary", "md", "rounded-full px-5")}>
+          {buttonLabel}
+          <ArrowRightGlyph size={13} />
+        </button>
+      </MagneticButton>
       <p className="relative mt-4 text-micro text-faint">{limits}</p>
       <p className="relative mt-2 flex items-center gap-1.5 text-[10.5px] text-[#7c7469]">
         <ShieldCheck size={11} aria-hidden />

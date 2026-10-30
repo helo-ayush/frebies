@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { ArrowUp, Check } from "lucide-react";
+import { DottedGlowBackground } from "@/components/aceternity/dotted-glow-background";
+import { MagneticButton } from "@/components/aceternity/magnetic-button";
 import { ArrowRightGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
 import { AnimatedGradientText } from "@/components/magicui/animated-gradient-text";
 import { BlurFade } from "@/components/magicui/blur-fade";
-import { DotPattern } from "@/components/magicui/dot-pattern";
 import { tools } from "@/lib/registry/tools";
 
 const shortcutPaths = [
@@ -45,11 +46,13 @@ export function DashboardHero() {
 
   return (
     <section className="relative overflow-hidden rounded-[30px] border border-line bg-[#f3efe7]">
-      <DotPattern
-        width={20}
-        height={20}
-        cr={1}
-        className="absolute inset-0 opacity-60 [mask-image:radial-gradient(ellipse_at_top_left,black,transparent_70%)]"
+      <DottedGlowBackground
+        className="[mask-image:radial-gradient(ellipse_at_top_left,black,transparent_70%)]"
+        gap={22}
+        radius={1.1}
+        opacity={0.5}
+        color="rgba(15,15,16,0.16)"
+        glowColor="rgba(229,94,64,0.7)"
       />
       <div
         aria-hidden
@@ -101,14 +104,16 @@ export function DashboardHero() {
                 placeholder="Search or describe a job…"
                 className="h-10 min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-[#8b8378] focus-visible:outline-none"
               />
-              <button
-                type="submit"
-                disabled={!matches.length}
-                aria-label="Open the best matching tool"
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-ink text-white transition-colors hover:bg-[#2a2a2b] disabled:opacity-25"
-              >
-                <ArrowUp size={16} aria-hidden />
-              </button>
+              <MagneticButton strength={0.35} maxDistance={6}>
+                <button
+                  type="submit"
+                  disabled={!matches.length}
+                  aria-label="Open the best matching tool"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-ink text-white transition-colors hover:bg-[#2a2a2b] disabled:opacity-25"
+                >
+                  <ArrowUp size={16} aria-hidden />
+                </button>
+              </MagneticButton>
             </div>
 
             {query.trim() && (

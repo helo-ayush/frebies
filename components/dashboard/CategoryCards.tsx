@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { CometCard } from "@/components/aceternity/comet-card";
 import { ArrowRightGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
-import { BorderBeam } from "@/components/magicui/border-beam";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import {
   categories,
@@ -67,18 +67,11 @@ export function CategoryCards() {
               offset={14}
               duration={0.55}
             >
+              <CometCard className="h-full" rotateDepth={5} translateDepth={4}>
               <Link
                 href={`/${category.slug}`}
-                className={`group relative flex min-h-[232px] flex-col overflow-hidden rounded-[24px] border border-line p-5 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-[#d5cfc5] ${visual.card}`}
+                className={`group relative flex h-full min-h-[232px] flex-col overflow-hidden rounded-[24px] border border-line p-5 transition-[border-color] duration-300 hover:border-[#d5cfc5] ${visual.card}`}
               >
-                <BorderBeam
-                  size={110}
-                  duration={8}
-                  radius={24}
-                  colorFrom="#ffffff"
-                  colorTo="#ffd7a8"
-                  className="opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                />
                 <span
                   aria-hidden
                   className={`absolute -right-14 -top-16 h-48 w-48 rounded-full opacity-60 transition-transform duration-500 group-hover:scale-110 ${visual.orb}`}
@@ -115,6 +108,7 @@ export function CategoryCards() {
                   </div>
                 </div>
               </Link>
+              </CometCard>
             </BlurFade>
           );
         })}

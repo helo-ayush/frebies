@@ -12,6 +12,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ToolDirectory } from "@/components/dashboard/ToolDirectory";
+import { CometCard } from "@/components/aceternity/comet-card";
+import { HoverBorderLink } from "@/components/aceternity/hover-border-gradient";
+import { PointerHighlight } from "@/components/aceternity/pointer-highlight";
 import { BorderBeam } from "@/components/magicui/border-beam";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { categories, getCategory, toolsForCategory, type CategorySlug } from "@/lib/registry/tools";
@@ -103,13 +106,14 @@ export default async function CategoryPage({ params }: CategoryParams) {
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted">{category.description}</p>
         </div>
-        <a
+        <HoverBorderLink
           href="#tools"
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-white px-3.5 text-ui font-medium hover:bg-hover"
+          containerClassName="rounded-full"
+          className="h-9 gap-2 rounded-full px-3.5 text-ui transition-colors hover:bg-neutral-50"
         >
           Browse all tools
           <ArrowRight size={14} aria-hidden />
-        </a>
+        </HoverBorderLink>
       </header>
 
       <section className="relative mt-7 overflow-hidden rounded-[18px] border border-line bg-[#f8f8f6]">
@@ -123,7 +127,14 @@ export default async function CategoryPage({ params }: CategoryParams) {
         />
         <div className="grid lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
           <div className="p-6 sm:p-8">
-            <p className="text-micro font-medium text-faint">{showcase.eyebrow}</p>
+            <p className="text-micro font-medium text-faint">
+              <PointerHighlight
+                rectangleClassName="border-accent/30"
+                pointerClassName="text-accent"
+              >
+                <span className="px-0.5">{showcase.eyebrow}</span>
+              </PointerHighlight>
+            </p>
             <h2 className="mt-3 max-w-md font-display text-[26px] font-semibold leading-tight tracking-[-0.03em]">
               {showcase.title}
             </h2>
@@ -177,24 +188,26 @@ export default async function CategoryPage({ params }: CategoryParams) {
           {showcase.useCases.map((item, index) => {
             const UseCaseIcon = item.icon;
             return (
-              <article key={item.title} className="group relative overflow-hidden rounded-[14px] border border-line bg-white p-5">
-                <BorderBeam
-                  size={100}
-                  duration={8}
-                  radius={14}
-                  colorFrom="#e55e40"
-                  colorTo="#fda82b"
-                  className="opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                />
-                <div className="relative flex items-center justify-between">
-                  <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-rail text-muted">
-                    <UseCaseIcon size={17} strokeWidth={1.5} aria-hidden />
-                  </span>
-                  <span className="font-display text-[22px] font-medium text-line">0{index + 1}</span>
-                </div>
-                <h3 className="mt-5 text-sm font-semibold">{item.title}</h3>
-                <p className="mt-1.5 text-ui leading-relaxed text-muted">{item.copy}</p>
-              </article>
+              <CometCard key={item.title} className="h-full" rotateDepth={4} translateDepth={4}>
+                <article className="group relative h-full overflow-hidden rounded-[14px] border border-line bg-white p-5">
+                  <BorderBeam
+                    size={100}
+                    duration={8}
+                    radius={14}
+                    colorFrom="#e55e40"
+                    colorTo="#fda82b"
+                    className="opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  />
+                  <div className="relative flex items-center justify-between">
+                    <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-rail text-muted">
+                      <UseCaseIcon size={17} strokeWidth={1.5} aria-hidden />
+                    </span>
+                    <span className="font-display text-[22px] font-medium text-line">0{index + 1}</span>
+                  </div>
+                  <h3 className="mt-5 text-sm font-semibold">{item.title}</h3>
+                  <p className="mt-1.5 text-ui leading-relaxed text-muted">{item.copy}</p>
+                </article>
+              </CometCard>
             );
           })}
         </div>

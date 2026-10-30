@@ -18,6 +18,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "./Navbar";
+import { CometCard } from "./aceternity/comet-card";
+import { FlipWords } from "./aceternity/flip-words";
+import { HoverBorderGradient } from "./aceternity/hover-border-gradient";
+import { PointerHighlight } from "./aceternity/pointer-highlight";
+import { Spotlight } from "./aceternity/spotlight";
 import { AnimatedGradientText } from "./magicui/animated-gradient-text";
 import { BorderBeam } from "./magicui/border-beam";
 import { DotPattern } from "./magicui/dot-pattern";
@@ -42,14 +47,13 @@ function Head({
   return (
     <Reveal className="grid gap-6 md:grid-cols-2 md:items-end">
       <div>
-        <AnimatedGradientText
-          speed={1.4}
-          colorFrom="#8f8578"
-          colorTo="#c98f6c"
-          className="mb-4 inline-block text-lg"
+        <PointerHighlight
+          containerClassName="mb-4"
+          rectangleClassName="border-accent/35"
+          pointerClassName="text-accent"
         >
-          {label}
-        </AnimatedGradientText>
+          <span className="px-0.5 text-lg text-muted">{label}</span>
+        </PointerHighlight>
         <h2 className="text-[clamp(2.2rem,4.6vw,3.8rem)] leading-[1.04] tracking-[-0.035em]">
           {title}
         </h2>
@@ -79,28 +83,30 @@ function Card({
 }) {
   return (
     <Reveal className="h-full">
-      <div
-        className={`relative h-full min-h-[540px] overflow-hidden rounded-[28px] p-5 md:p-6 ${
-          bg ? "grain text-white" : "bg-card"
-        }`}
-        style={bg ? { background: bg } : undefined}
-      >
-        {bg && (
-          <BorderBeam
-            size={200}
-            duration={16}
-            colorFrom="#ffffff"
-            colorTo="#ffd7a8"
-            borderWidth={1}
-            className="opacity-60"
-          />
-        )}
-        <div className="relative z-10 flex h-full min-h-[490px] flex-col">
-          <div className="flex flex-1 items-center justify-center py-6">{children}</div>
-          <p className={`text-[15px] ${bg ? "text-white/75" : "text-muted"}`}>{title}</p>
-          <p className="mt-1 max-w-md text-lg leading-snug">{sub}</p>
+      <CometCard className="h-full" rotateDepth={4} translateDepth={4}>
+        <div
+          className={`relative h-full min-h-[540px] overflow-hidden rounded-[28px] p-5 md:p-6 ${
+            bg ? "grain text-white" : "bg-card"
+          }`}
+          style={bg ? { background: bg } : undefined}
+        >
+          {bg && (
+            <BorderBeam
+              size={200}
+              duration={16}
+              colorFrom="#ffffff"
+              colorTo="#ffd7a8"
+              borderWidth={1}
+              className="opacity-60"
+            />
+          )}
+          <div className="relative z-10 flex h-full min-h-[490px] flex-col">
+            <div className="flex flex-1 items-center justify-center py-6">{children}</div>
+            <p className={`text-[15px] ${bg ? "text-white/75" : "text-muted"}`}>{title}</p>
+            <p className="mt-1 max-w-md text-lg leading-snug">{sub}</p>
+          </div>
         </div>
-      </div>
+      </CometCard>
     </Reveal>
   );
 }
@@ -422,14 +428,18 @@ export function Pricing() {
               }`}
             >
               {plan.pro && (
-                <BorderBeam
-                  size={220}
-                  duration={12}
-                  colorFrom="#ffaa40"
-                  colorTo="#9c40ff"
-                  borderWidth={1}
-                />
+                <>
+                  <BorderBeam
+                    size={220}
+                    duration={12}
+                    colorFrom="#ffaa40"
+                    colorTo="#9c40ff"
+                    borderWidth={1}
+                  />
+                  <Spotlight fill="#fda82b" className="-top-[420px] left-1/2 z-0 -translate-x-1/2" />
+                </>
               )}
+              <div className="relative z-10 flex h-full flex-col">
               <p className="text-lg">{plan.name}</p>
               <p className="mt-6 text-6xl tracking-[-0.04em]">
                 {plan.pro ? (
@@ -457,9 +467,19 @@ export function Pricing() {
                 ))}
               </ul>
               <div className="mt-10">
-                <Btn dark={!plan.pro} href={plan.href}>
+                <HoverBorderGradient
+                  as={Link}
+                  href={plan.href}
+                  containerClassName="rounded-full"
+                  className={`rounded-full px-6 py-3.5 text-[15px] font-medium transition-colors ${
+                    plan.pro
+                      ? "bg-white text-ink hover:bg-neutral-100"
+                      : "bg-ink text-white hover:bg-neutral-800"
+                  }`}
+                >
                   {plan.action}
-                </Btn>
+                </HoverBorderGradient>
+              </div>
               </div>
             </div>
           </Reveal>
@@ -534,8 +554,9 @@ export function Privacy() {
           const Art = ART[index];
           return (
             <Reveal key={item.title} className="h-full">
-              <div className="flex h-full min-h-[440px] flex-col justify-between rounded-[28px] bg-card p-6">
-                <div className="relative grid flex-1 place-items-center overflow-hidden rounded-[18px]">
+              <CometCard className="h-full" rotateDepth={4} translateDepth={4}>
+                <div className="flex h-full min-h-[440px] flex-col justify-between rounded-[28px] bg-card p-6">
+                  <div className="relative grid flex-1 place-items-center overflow-hidden rounded-[18px]">
                   <DotPattern
                     width={18}
                     height={18}
@@ -556,7 +577,8 @@ export function Privacy() {
                   <p className="text-lg">{item.title}</p>
                   <p className="mt-1 text-[15px] leading-snug text-muted">{item.copy}</p>
                 </div>
-              </div>
+                </div>
+              </CometCard>
             </Reveal>
           );
         })}
@@ -583,18 +605,31 @@ export function CTA() {
             colorTo="#9c40ff"
             borderWidth={1}
           />
+          <Spotlight fill="#ffd7a8" className="-top-[360px] left-1/2 z-0 -translate-x-1/2" />
           <motion.div
             className="absolute -bottom-48 left-1/2 -ml-[220px] h-[440px] w-[440px] rounded-full opacity-80 blur-2xl"
             style={{ background: grads.sun }}
             animate={{ scale: [1, 1.08, 1] }}
             transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           />
-          <div className="relative">
+          <div className="relative z-10">
             <h2 className="mx-auto max-w-3xl text-[clamp(2.2rem,5vw,4rem)] leading-[1.04] tracking-[-0.035em]">
-              Get your files sorted before your coffee cools.
+              Get your{" "}
+              <FlipWords
+                words={["images", "PDFs", "audio", "files"]}
+                className="text-[#ffd7a8]"
+              />{" "}
+              sorted before your coffee cools.
             </h2>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Btn dark={false} href="/dashboard">Start for free</Btn>
+              <HoverBorderGradient
+                as={Link}
+                href="/dashboard"
+                containerClassName="rounded-full"
+                className="rounded-full bg-white px-6 py-3.5 text-[15px] font-medium text-ink transition-colors hover:bg-neutral-100"
+              >
+                Start for free
+              </HoverBorderGradient>
             </div>
             <p className="mt-6 text-sm text-white/55">
               New accounts get{" "}

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { BrandMark, Wordmark } from "@/components/brand/Wordmark";
+import { AceternityTooltip } from "@/components/aceternity/animated-tooltip";
+import { MovingBorderPill } from "@/components/aceternity/moving-border";
 import {
   CloseGlyph,
   HomeGlyph,
@@ -90,14 +92,15 @@ export function Sidebar({
           </div>
 
           <div className="shrink-0 p-3">
-            <Link
-              href="/sign-in"
-              aria-label="Get 25 free credits"
-              title="Get 25 free credits"
-              className="grid h-11 w-11 place-items-center rounded-xl border border-line bg-white text-ink transition-colors hover:bg-hover"
-            >
-              <SparkGlyph size={17} />
-            </Link>
+            <AceternityTooltip label="Get 25 free credits" hint="AI tools" side="right">
+              <Link
+                href="/sign-in"
+                aria-label="Get 25 free credits"
+                className="grid h-11 w-11 place-items-center rounded-xl border border-line bg-white text-ink transition-colors hover:bg-hover"
+              >
+                <SparkGlyph size={17} />
+              </Link>
+            </AceternityTooltip>
           </div>
         </>
       ) : (
@@ -174,9 +177,14 @@ export function Sidebar({
               <p className="mt-0.5 text-[12px] leading-[1.5] text-muted">
                 Create an account to try the AI tools.
               </p>
-              <Link href="/sign-in" className={buttonClasses("secondary", "sm", "mt-3 w-full")}>
-                Sign in to claim
-              </Link>
+              <MovingBorderPill
+                containerClassName="mt-3 w-full"
+                className="w-full px-3 py-2"
+              >
+                <Link href="/sign-in" className="block w-full text-center text-ui font-medium text-ink">
+                  Sign in to claim
+                </Link>
+              </MovingBorderPill>
             </div>
           </div>
         </>
@@ -225,16 +233,17 @@ function CompactLink({
   children: ReactNode;
 }) {
   return (
-    <Link
-      href={href}
-      aria-label={label}
-      aria-current={active ? "page" : undefined}
-      title={label}
-      className={`grid h-10 w-11 place-items-center rounded-lg transition-colors ${
-        active ? "bg-active text-ink" : "text-muted hover:bg-hover hover:text-ink"
-      }`}
-    >
-      {children}
-    </Link>
+    <AceternityTooltip label={label} side="right">
+      <Link
+        href={href}
+        aria-label={label}
+        aria-current={active ? "page" : undefined}
+        className={`grid h-10 w-11 place-items-center rounded-lg transition-colors ${
+          active ? "bg-active text-ink" : "text-muted hover:bg-hover hover:text-ink"
+        }`}
+      >
+        {children}
+      </Link>
+    </AceternityTooltip>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, Lock } from "lucide-react";
 import type { Tool } from "@/lib/registry/tools";
+import { CometCard } from "@/components/aceternity/comet-card";
 import { Badge } from "@/components/ui/Badge";
 import { ToolGlyph } from "@/components/icons/NavGlyph";
 import { BorderBeam } from "@/components/magicui/border-beam";
@@ -31,9 +32,10 @@ function LockMark({ tool }: { tool: Tool }) {
 /** Grid view: flat card, no lift, no tinted tiles. */
 export function ToolCard({ tool }: { tool: Tool }) {
   return (
+    <CometCard className="h-full" rotateDepth={3} translateDepth={3}>
     <Link
       href={tool.path}
-      className="group relative flex min-h-[176px] flex-col overflow-hidden rounded-xl border border-line bg-white p-4 transition-colors hover:bg-rail"
+      className="group relative flex h-full min-h-[176px] flex-col overflow-hidden rounded-xl border border-line bg-white p-4 transition-colors hover:bg-rail"
     >
       <BorderBeam
         size={90}
@@ -64,6 +66,7 @@ export function ToolCard({ tool }: { tool: Tool }) {
             : "Cloud processing"}
       </p>
     </Link>
+    </CometCard>
   );
 }
 

@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, FileQuestion, Image as ImageIcon, FileText, AudioLines } from "lucide-react";
 import { Wordmark } from "@/components/brand/Wordmark";
+import { EncryptedText } from "@/components/aceternity/encrypted-text";
+import { HoverBorderLink } from "@/components/aceternity/hover-border-gradient";
+import { Spotlight } from "@/components/aceternity/spotlight";
+import { SquigglyText } from "@/components/aceternity/squiggly-text";
 import { SiteProgressiveBlur } from "@/components/effects/SiteProgressiveBlur";
 import { buttonClasses } from "@/components/ui/Button";
 
@@ -12,7 +16,8 @@ const destinations = [
 
 export default function NotFound() {
   return (
-    <main className="min-h-screen bg-white px-5 py-6 text-ink">
+    <main className="relative min-h-screen overflow-hidden bg-white px-5 py-6 text-ink">
+      <Spotlight fill="#ffd7a8" className="-top-[420px] left-1/2 z-0 -translate-x-1/2" />
       <Wordmark href="/" />
       <div className="mx-auto flex min-h-[calc(100vh-100px)] max-w-[920px] items-center justify-center py-12">
         <div className="w-full text-center">
@@ -22,15 +27,29 @@ export default function NotFound() {
               <FileQuestion size={32} strokeWidth={1.25} aria-hidden />
             </span>
           </div>
-          <p className="mt-4 text-micro font-medium uppercase tracking-[0.18em] text-faint">404 · Wrong turn</p>
-          <h1 className="mt-3 font-display text-[36px] font-semibold tracking-[-0.04em]">This file is not here.</h1>
+          <p className="relative mt-4 text-micro font-medium uppercase tracking-[0.18em] text-faint">
+            <EncryptedText
+              text="404 · Wrong turn"
+              revealDelayMs={58}
+              encryptedClassName="text-accent/70"
+            />
+          </p>
+          <h1 className="mt-3 font-display text-[36px] font-semibold tracking-[-0.04em]">
+            <SquigglyText scale={[2, 3]} stepDuration={140}>
+              This file is not here.
+            </SquigglyText>
+          </h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted">
             The page may have moved or the link may be incomplete. The toolbox is right where you left it.
           </p>
-          <div className="mt-7 flex flex-wrap justify-center gap-2.5">
-            <Link href="/dashboard" className={buttonClasses("primary", "md", "h-10")}>
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
+            <HoverBorderLink
+              href="/dashboard"
+              containerClassName="rounded-full"
+              className="h-10 gap-2 rounded-full bg-ink px-4 text-ui text-white transition-colors hover:bg-neutral-800"
+            >
               Open the toolbox <ArrowRight size={14} aria-hidden />
-            </Link>
+            </HoverBorderLink>
             <Link href="/" className={buttonClasses("secondary", "md", "h-10")}>
               <ArrowLeft size={14} aria-hidden /> Back home
             </Link>

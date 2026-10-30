@@ -2,6 +2,7 @@
 
 import { ChevronDown, UploadCloud } from "lucide-react";
 import { ToolGlyph } from "@/components/icons/NavGlyph";
+import { MagneticButton } from "@/components/aceternity/magnetic-button";
 import { BorderBeam } from "@/components/magicui/border-beam";
 import { Btn, Reveal } from "@/components/ui";
 
@@ -27,9 +28,9 @@ export function WorkbenchPreview() {
             No tab graveyard or mystery menus. Every tool opens into the same focused
             workspace, with the controls, history and privacy notes where you expect them.
           </p>
-          <div className="mt-6">
+          <MagneticButton className="mt-6">
             <Btn href="/dashboard">Explore all 16 tools</Btn>
-          </div>
+          </MagneticButton>
         </div>
       </Reveal>
 

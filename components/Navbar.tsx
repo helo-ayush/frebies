@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { HoverBorderGradient } from "./aceternity/hover-border-gradient";
 import { Btn, grads } from "./ui";
 
 const links = [
@@ -34,12 +35,14 @@ export default function Navbar() {
     <>
       <div className="flex flex-wrap items-center justify-center gap-3 border-b border-line bg-white px-4 py-3 text-[15px]">
         <span>16 focused tools for images, documents and audio.</span>
-        <Link
+        <HoverBorderGradient
+          as={Link}
           href="/dashboard"
-          className="rounded-full border border-line px-4 py-1.5 transition-colors hover:bg-neutral-50"
+          containerClassName="rounded-full"
+          className="px-4 py-1.5 text-[15px] transition-colors hover:bg-neutral-50"
         >
           Browse tools
-        </Link>
+        </HoverBorderGradient>
       </div>
       <header
         className={`sticky top-0 z-50 transition-colors ${

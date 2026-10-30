@@ -2,6 +2,7 @@
 
 import type { DragEvent, ReactNode } from "react";
 import { ShieldCheck, UploadCloud } from "lucide-react";
+import { MagneticButton } from "@/components/aceternity/magnetic-button";
 import { buttonClasses } from "@/components/ui/Button";
 import { ArrowRightGlyph } from "@/components/icons/NavGlyph";
 
@@ -51,14 +52,12 @@ export function StudioDropzone({
         {title}
       </p>
       <p className="mt-1.5 max-w-sm text-ui leading-relaxed text-muted">{description}</p>
-      <button
-        type="button"
-        onClick={onChoose}
-        className={buttonClasses("primary", "md", "mt-5")}
-      >
-        {buttonLabel}
-        <ArrowRightGlyph size={13} />
-      </button>
+      <MagneticButton className="mt-5">
+        <button type="button" onClick={onChoose} className={buttonClasses("primary", "md")}>
+          {buttonLabel}
+          <ArrowRightGlyph size={13} />
+        </button>
+      </MagneticButton>
       <p className="mt-4 text-micro text-faint">{limits}</p>
       <p className="mt-2 flex items-center gap-1.5 text-[10.5px] text-[#7c7469]">
         <ShieldCheck size={11} aria-hidden />

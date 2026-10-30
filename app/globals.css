@@ -47,6 +47,21 @@ html { scroll-behavior: smooth; }
   from { stroke-dashoffset: 0; }
   to { stroke-dashoffset: -100; }
 }
+@keyframes aceternity-spotlight {
+  0% { opacity: 0; transform: translate(-72%, -62%) scale(0.5); }
+  100% { opacity: 1; transform: translate(-50%, -40%) scale(1); }
+}
+
+.animate-spotlight {
+  animation: aceternity-spotlight 2s ease 0.35s 1 forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-spotlight {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, -40%) scale(1);
+  }
+}
 
 .magic-marquee { animation: magic-marquee var(--duration, 40s) linear infinite; }
 .magic-marquee-vertical { animation: magic-marquee-vertical var(--duration, 40s) linear infinite; }

@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
 import { tools, liveTools } from "@/lib/registry/tools";
+import { DottedGlowBackground } from "./aceternity/dotted-glow-background";
+import { HoverBorderGradient } from "./aceternity/hover-border-gradient";
 import { AnimatedGradientText } from "./magicui/animated-gradient-text";
 import { BorderBeam } from "./magicui/border-beam";
 import { BlurFade } from "./magicui/blur-fade";
-import { DotPattern } from "./magicui/dot-pattern";
 import { NumberTicker } from "./magicui/number-ticker";
 import { Btn, Orb, Words, ease, type G } from "./ui";
 
@@ -106,12 +107,11 @@ export default function Hero() {
 
   return (
     <section className="relative mx-auto max-w-[1280px] px-5 pt-16 md:pt-28">
-      <DotPattern
-        aria-hidden
-        width={22}
-        height={22}
-        cr={1}
-        className="absolute inset-x-0 top-0 h-[560px] w-full opacity-70 [mask-image:radial-gradient(ellipse_at_top,black_10%,transparent_72%)]"
+      <DottedGlowBackground
+        className="inset-x-0 top-0 h-[560px] w-full [mask-image:radial-gradient(ellipse_at_top,black_10%,transparent_72%)]"
+        gap={24}
+        radius={1.1}
+        opacity={0.55}
       />
 
       <div className="relative">
@@ -139,8 +139,15 @@ export default function Hero() {
           </BlurFade>
         </div>
 
-        <BlurFade delay={0.45} duration={0.7} offset={8} className="mt-8 flex flex-wrap gap-3">
-          <Btn href="/dashboard">Get started free</Btn>
+        <BlurFade delay={0.45} duration={0.7} offset={8} className="mt-8 flex flex-wrap items-center gap-3">
+          <HoverBorderGradient
+            as={Link}
+            href="/dashboard"
+            containerClassName="rounded-full"
+            className="rounded-full bg-ink px-6 py-3.5 text-[15px] font-medium text-white transition-colors hover:bg-neutral-800"
+          >
+            Get started free
+          </HoverBorderGradient>
           <Btn dark={false} href="#tools">Browse tools</Btn>
         </BlurFade>
 
