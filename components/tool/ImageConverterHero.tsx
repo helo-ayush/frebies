@@ -44,29 +44,34 @@ export function ImageConverterHero({
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge tone="free">Free</Badge>
               <Badge tone="neutral">Runs on your device</Badge>
+              <Badge tone="neutral">No upload</Badge>
             </div>
           </div>
 
           <h1 className="mt-5 font-display text-[clamp(2.45rem,5vw,4.1rem)] font-semibold leading-[0.98] tracking-[-0.05em] text-ink">
             Image Converter
           </h1>
-          <p className="mt-3 max-w-[540px] text-[15px] leading-relaxed text-[#6a6156]">
-            Move between JPG, PNG and WebP in a focused studio built around your images.
-            Convert one file or a whole batch — no upload, no watermark and no account.
+          <p className="mt-3 max-w-[560px] text-[15px] leading-relaxed text-[#6a6156]">
+            Convert between 12 formats: JPG, PNG, WebP, AVIF, PDF, SVG, TIFF, BMP, ICO, TGA, GIF & EPS with precision quality controls.
+            Convert single files or batch up to 20 images with instant ZIP download — all processed locally.
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-micro font-medium text-[#6e6458]">
             <span className="flex items-center gap-1.5">
               <Check size={12} className="text-ink" aria-hidden />
-              JPG, PNG, WebP
+              12 output formats (Web, Docs, Pro)
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Check size={12} className="text-ink" aria-hidden />
+              Batch ZIP download
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Check size={12} className="text-ink" aria-hidden />
+              Quality & background controls
             </span>
             <span className="flex items-center gap-1.5">
               <Check size={12} className="text-ink" aria-hidden />
               Up to 25 MB
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Check size={12} className="text-ink" aria-hidden />
-              Stays on this device
             </span>
           </div>
 
@@ -84,30 +89,30 @@ export function ImageConverterHero({
 
           <div className="absolute left-0 top-1 w-[220px] -rotate-[4deg] rounded-[17px] border border-white/80 bg-white p-3.5 shadow-[0_22px_45px_rgba(77,54,28,0.14)]">
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-[10px] font-semibold text-ink">campaign-shot.jpg</span>
-              <span className="rounded-full border border-line px-2 py-0.5 text-[8px] text-faint">JPG</span>
+              <span className="truncate text-[10px] font-semibold text-ink">iphone-shot.heic</span>
+              <span className="rounded-full border border-line px-2 py-0.5 text-[8px] text-faint">HEIC</span>
             </div>
             <div className="relative mt-2.5 h-[108px] overflow-hidden rounded-[10px] bg-[linear-gradient(160deg,#d9e6df_0%,#efd8b7_55%,#b87958_56%,#694a3d_100%)]">
               <span className="absolute -right-5 -top-7 h-20 w-20 rounded-full bg-[#f8d9a8]/90" />
               <span className="absolute -bottom-7 -left-4 h-24 w-24 rounded-full bg-[#6b806f]" />
             </div>
             <div className="mt-2.5 flex items-center justify-between text-[8px] text-faint">
-              <span>2048 × 1365</span>
-              <span>3.8 MB</span>
+              <span>4032 × 3024</span>
+              <span>4.2 MB</span>
             </div>
           </div>
 
           <div className="absolute bottom-0 right-2 w-[210px] rotate-[3deg] rounded-[17px] border border-white/80 bg-white p-3.5 shadow-[0_24px_48px_rgba(77,54,28,0.17)]">
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-[10px] font-semibold text-ink">campaign-shot.webp</span>
-              <span className="rounded-full bg-ink px-2 py-0.5 text-[8px] text-white">WebP</span>
+              <span className="truncate text-[10px] font-semibold text-ink">iphone-shot.webp</span>
+              <span className="rounded-full bg-ink px-2 py-0.5 text-[8px] text-white">WebP 90%</span>
             </div>
             <div className="relative mt-2.5 h-[74px] overflow-hidden rounded-[9px] bg-[linear-gradient(160deg,#d9e6df_0%,#efd8b7_55%,#b87958_56%,#694a3d_100%)]">
               <span className="absolute -right-4 -top-6 h-16 w-16 rounded-full bg-[#f8d9a8]/90" />
               <span className="absolute -bottom-6 -left-3 h-20 w-20 rounded-full bg-[#6b806f]" />
             </div>
             <div className="mt-2.5 flex items-center justify-between text-[8px]">
-              <span className="text-faint">Same dimensions</span>
+              <span className="text-faint">780 KB · -81%</span>
               <span className="font-medium text-[#55725e]">Ready</span>
             </div>
           </div>

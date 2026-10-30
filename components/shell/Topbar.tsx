@@ -69,7 +69,7 @@ export function Topbar({
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line-soft bg-white/95 px-4 backdrop-blur md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:px-5">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line-soft bg-white/95 px-4 backdrop-blur md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:px-5">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <AceternityTooltip label="Open navigation" side="bottom">
             <button type="button" onClick={onOpenNav} aria-label="Open navigation" className={`${iconBtn} lg:hidden`}>

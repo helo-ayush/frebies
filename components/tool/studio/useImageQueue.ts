@@ -9,12 +9,45 @@ import {
 } from "react";
 import type { StudioImage } from "./types";
 
-const DEFAULT_TYPES = ["image/jpeg", "image/png", "image/webp"];
+export const DEFAULT_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "image/svg+xml",
+  "image/gif",
+  "image/bmp",
+  "image/x-ms-bmp",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
+  "image/heic",
+  "image/heif",
+  "image/heic-sequence",
+  "image/heif-sequence",
+  "image/tiff",
+];
+
+export const DEFAULT_IMAGE_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".avif",
+  ".svg",
+  ".gif",
+  ".bmp",
+  ".ico",
+  ".heic",
+  ".heif",
+  ".tif",
+  ".tiff",
+];
 
 type ImageQueueOptions = {
   maxFiles: number;
   maxSizeMB: number;
   allowedTypes?: string[];
+  allowedExtensions?: string[];
   formatHint?: string;
   noun?: string;
 };
@@ -22,12 +55,14 @@ type ImageQueueOptions = {
 /**
  * Shared image queue for browser tools: multi-file selection, replacement,
  * drag and drop, object-URL cleanup and image dimensions.
+ * Supports JPG, PNG, WebP, AVIF, SVG, GIF, BMP, ICO and HEIC/HEIF.
  */
 export function useImageQueue({
   maxFiles,
   maxSizeMB,
-  allowedTypes = DEFAULT_TYPES,
-  formatHint = "JPG, PNG or WebP",
+  allowedTypes = DEFAULT_IMAGE_TYPES,
+  allowedExtensions = DEFAULT_IMAGE_EXTENSIONS,
+  formatHint = "JPG, PNG, WebP, AVIF, HEIC or SVG",
   noun = "image",
 }: ImageQueueOptions) {
   const [items, setItems] = useState<StudioImage[]>([]);
@@ -61,6 +96,12 @@ export function useImageQueue({
     inputRef.current?.click();
   }
 
+  function isAcceptedFile(file: File): boolean {
+    if (file.type && allowedTypes.includes(file.type)) return true;
+    const lowerName = file.name.toLowerCase();
+    return allowedExtensions.some((ext) => lowerName.endsWith(ext));
+  }
+
   function acceptFiles(fileList: FileList | null) {
     const incoming = Array.from(fileList ?? []);
     if (incoming.length === 0) return;
@@ -80,7 +121,7 @@ export function useImageQueue({
     let skippedOverflow = 0;
 
     for (const file of incoming) {
-      if (!allowedTypes.includes(file.type)) {
+      if (!isAcceptedFile(file)) {
         skippedType += 1;
         continue;
       }
@@ -142,13 +183,63 @@ export function useImageQueue({
     }
     setError(messages.length > 0 ? messages.join(" ") : null);
 
+    // Resolve image dimensions & generate preview for HEIC files
     accepted.forEach((item) => {
+      const lowerName = item.file.name.toLowerCase();
+      const isHeic =
+        lowerName.endsWith(".heic") ||
+        lowerName.endsWith(".heif") ||
+        item.file.type.includes("heic") ||
+        item.file.type.includes("heif");
+
+      if (isHeic && typeof window !== "undefined") {
+        import("heic2any")
+          .then(({ default: heic2any }) => {
+            return heic2any({ blob: item.file, toType: "image/jpeg", quality: 0.85 });
+          })
+          .then((converted) => {
+            const blob = Array.isArray(converted) ? converted[0] : converted;
+            const previewUrl = URL.createObjectURL(blob);
+            const img = new window.Image();
+            img.onload = () => {
+              setItems((current) =>
+                current.map((entry) => {
+                  if (entry.id === item.id) {
+                    URL.revokeObjectURL(entry.preview);
+                    return {
+                      ...entry,
+                      preview: previewUrl,
+                      width: img.naturalWidth || 1,
+                      height: img.naturalHeight || 1,
+                    };
+                  }
+                  return entry;
+                }),
+              );
+            };
+            img.src = previewUrl;
+          })
+          .catch((err) => {
+            console.warn("HEIC preview decode error:", err);
+          });
+        return;
+      }
+
       const image = new window.Image();
       image.onload = () => {
+        let width = image.naturalWidth;
+        let height = image.naturalHeight;
+
+        // If SVG with 0 natural dimensions, try parsing text
+        if ((!width || !height) && (lowerName.endsWith(".svg") || item.file.type.includes("svg"))) {
+          width = 1024;
+          height = 1024;
+        }
+
         setItems((current) =>
           current.map((entry) =>
             entry.id === item.id
-              ? { ...entry, width: image.naturalWidth, height: image.naturalHeight }
+              ? { ...entry, width: width || 1, height: height || 1 }
               : entry,
           ),
         );

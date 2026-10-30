@@ -64,7 +64,7 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
         <div
           aria-hidden="true"
           onClick={() => setNavOpen(false)}
-          className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+          className="fixed inset-0 z-35 bg-black/30 lg:hidden"
         />
       )}
 
