@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { Wordmark } from "@/components/brand/Wordmark";
+import { SiteProgressiveBlur } from "@/components/effects/SiteProgressiveBlur";
 import { Badge } from "@/components/ui/Badge";
 import { buttonClasses } from "@/components/ui/Button";
 
@@ -100,6 +101,7 @@ export default function SignInPage() {
           </Link>
         </div>
       </section>
+      <SiteProgressiveBlur />
     </main>
   );
 }

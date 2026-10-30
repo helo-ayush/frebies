@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { SiteProgressiveBlur } from "@/components/effects/SiteProgressiveBlur";
 import { ScrollProgress } from "@/components/magicui/scroll-progress";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -83,6 +84,10 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+
+      <SiteProgressiveBlur
+        className={sidebarCollapsed ? "lg:left-[72px]" : "lg:left-[264px]"}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
+import { SiteProgressiveBlur } from "@/components/effects/SiteProgressiveBlur";
 import { ScrollProgress } from "@/components/magicui/scroll-progress";
 import { WorkbenchPreview } from "@/components/landing/WorkbenchPreview";
 import { Motion } from "@/components/ui";
@@ -19,6 +20,7 @@ export default function Page() {
         <Privacy />
         <CTA />
         <Footer />
+        <SiteProgressiveBlur />
       </main>
     </Motion>
   );

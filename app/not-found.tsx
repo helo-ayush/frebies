@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, FileQuestion, Image as ImageIcon, FileText, AudioLines } from "lucide-react";
 import { Wordmark } from "@/components/brand/Wordmark";
+import { SiteProgressiveBlur } from "@/components/effects/SiteProgressiveBlur";
 import { buttonClasses } from "@/components/ui/Button";
 
 const destinations = [
@@ -48,6 +49,7 @@ export default function NotFound() {
           </div>
         </div>
       </div>
+      <SiteProgressiveBlur />
     </main>
   );
 }

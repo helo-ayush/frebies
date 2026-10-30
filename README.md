@@ -48,6 +48,11 @@ Design tokens are bridged for registry components in `app/globals.css`
 `tailwind.config.js`, while the original `ink`/`line`/`card`/`accent` palette
 continues to drive the product UI.
 
+A site-wide progressive blur sits along the bottom edge of every layout
+(`components/effects/SiteProgressiveBlur.tsx`). The workbench instance starts
+after the sidebar and follows its collapsed width; it fades out at the end of
+the page so footers and final controls stay readable.
+
 ### Magic UI MCP
 
 The project ships MCP configs at `.mcp.json` (Claude Code and other MCP
