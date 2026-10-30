@@ -11,6 +11,8 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "clsx": "^2.1.1",
     "framer-motion": "11.11.9",
+    "heic2any": "^0.0.4",
+    "jszip": "^3.10.2",
     "lucide-react": "0.453.0",
     "motion": "^11.18.2",
     "next": "^16.4.3",
@@ -19,6 +21,7 @@
     "tailwind-merge": "^2.6.1"
   },
   "devDependencies": {
+    "@types/jszip": "^3.4.0",
     "@types/node": "20.16.11",
     "@types/react": "18.3.11",
     "@types/react-dom": "18.3.1",

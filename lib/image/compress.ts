@@ -51,7 +51,7 @@ function scaleCanvas(source: HTMLCanvasElement, width: number, height: number): 
 }
 
 function isLossy(format: EncodeFormat): boolean {
-  return format !== "png";
+  return format === "jpeg" || format === "webp" || format === "avif";
 }
 
 async function encodeAt(canvas: HTMLCanvasElement, format: EncodeFormat, quality: number) {
