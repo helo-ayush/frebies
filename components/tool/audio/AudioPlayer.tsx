@@ -7,12 +7,14 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { formatTime } from "./format";
 
 export type AudioSelection = { start: number; end: number };
 
 type DragMode = "seek" | "start" | "end";
+
+const PLAYBACK_RATES = [1, 1.25, 1.5, 2, 0.75, 0.5];
 
 export function AudioPlayer({
   src,
@@ -41,6 +43,8 @@ export function AudioPlayer({
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [rate, setRate] = useState(1);
 
   const total = audioDuration || duration || 0;
   const progress = total > 0 ? Math.min(1, currentTime / total) : 0;
@@ -177,6 +181,27 @@ export function AudioPlayer({
 
   function skip(seconds: number) {
     seekTo(currentTime + seconds);
+  }
+
+  function changeVolume(next: number) {
+    const audio = audioRef.current;
+    const clamped = Math.min(1, Math.max(0, next));
+    setVolume(clamped);
+    if (audio) audio.volume = clamped;
+  }
+
+  function changeRate(next: number) {
+    const audio = audioRef.current;
+    setRate(next);
+    if (audio) {
+      audio.playbackRate = next;
+      audio.defaultPlaybackRate = next;
+    }
+  }
+
+  function cycleRate() {
+    const index = PLAYBACK_RATES.indexOf(rate);
+    changeRate(PLAYBACK_RATES[(index + 1) % PLAYBACK_RATES.length]);
   }
 
   return (
@@ -322,6 +347,37 @@ export function AudioPlayer({
           >
             <SkipForward size={13} aria-hidden />
           </button>
+        </div>
+
+        <div className="flex items-center gap-2 rounded-full border border-line bg-white px-2 py-1">
+          <button
+            type="button"
+            onClick={cycleRate}
+            aria-label={`Playback speed ${rate}×`}
+            title={`Playback speed ${rate}×`}
+            className="min-w-9 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted transition-colors hover:bg-hover hover:text-ink"
+          >
+            {rate}×
+          </button>
+          <span className="h-3.5 w-px bg-line" aria-hidden />
+          <button
+            type="button"
+            onClick={() => changeVolume(volume > 0 ? 0 : 1)}
+            aria-label={volume > 0 ? "Mute" : "Unmute"}
+            className="grid h-6 w-6 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-ink"
+          >
+            {volume > 0 ? <Volume2 size={12} aria-hidden /> : <VolumeX size={12} aria-hidden />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volume}
+            aria-label="Volume"
+            onChange={(event) => changeVolume(Number(event.target.value))}
+            className="h-1 w-16 cursor-pointer accent-[#171717]"
+          />
         </div>
 
         <div className="flex items-center gap-2">

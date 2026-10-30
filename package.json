@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
     "clsx": "^2.1.1",
     "framer-motion": "11.11.9",
     "lucide-react": "0.453.0",

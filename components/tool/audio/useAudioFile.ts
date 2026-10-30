@@ -21,6 +21,7 @@ export type AudioItem = {
   peaks: number[];
   channelPeaks: number[][];
   decoding: boolean;
+  buffer?: AudioBuffer;
 };
 
 const AUDIO_TYPES = [
@@ -68,6 +69,8 @@ function computePeaks(data: Float32Array, bars = BARS): number[] {
     Math.max(0.06, Math.min(1, Math.pow(peak / loudest, 0.72))),
   );
 }
+
+export { computePeaks };
 
 export function useAudioFile({
   maxSizeMB = 50,
@@ -142,12 +145,16 @@ export function useAudioFile({
         "loadedmetadata",
         () => {
           const duration = Number.isFinite(probe.duration) ? probe.duration : 0;
+          if (maxDurationMin && duration > maxDurationMin * 60) {
+            clear();
+            setError(
+              `That clip runs ${Math.round(duration / 60)} minutes — the limit is ${maxDurationMin} minutes.`,
+            );
+            return;
+          }
           setItem((current) =>
             current?.id === id ? { ...current, duration: duration || current.duration } : current,
           );
-          if (maxDurationMin && duration > maxDurationMin * 60) {
-            setError(`Keep this clip under ${maxDurationMin} minutes.`);
-          }
         },
         { once: true },
       );
@@ -178,6 +185,7 @@ export function useAudioFile({
                   sampleRate: decoded.sampleRate,
                   channels: decoded.numberOfChannels,
                   decoding: false,
+                  buffer: decoded,
                 }
               : current,
           );
@@ -189,7 +197,7 @@ export function useAudioFile({
         }
       })();
     },
-    [maxDurationMin, maxSizeMB],
+    [clear, maxDurationMin, maxSizeMB],
   );
 
   function onPick(event: ChangeEvent<HTMLInputElement>) {

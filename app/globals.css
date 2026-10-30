@@ -180,35 +180,46 @@ dialog::backdrop {
 
 /* Settings rails scroll independently on desktop. The thumb stays invisible
    until hover/focus so the surface stays calm, but the affordance is real. */
-.studio-rail {
+.studio-rail,
+.studio-main {
   scrollbar-width: thin;
   scrollbar-color: #dcd6ca transparent;
   scrollbar-gutter: stable;
   overscroll-behavior-y: auto;
 }
 .studio-rail:hover,
-.studio-rail:focus-visible {
+.studio-main:hover {
   scrollbar-color: #d5cec1 transparent;
 }
-.studio-rail::-webkit-scrollbar {
+.studio-rail:focus-visible,
+.studio-main:focus-visible {
+  scrollbar-color: #d5cec1 transparent;
+}
+.studio-rail::-webkit-scrollbar,
+.studio-main::-webkit-scrollbar {
   display: block;
   width: 10px;
   height: 10px;
 }
-.studio-rail::-webkit-scrollbar-track {
+.studio-rail::-webkit-scrollbar-track,
+.studio-main::-webkit-scrollbar-track {
   background: transparent;
 }
-.studio-rail::-webkit-scrollbar-thumb {
+.studio-rail::-webkit-scrollbar-thumb,
+.studio-main::-webkit-scrollbar-thumb {
   border-radius: 999px;
   border: 2px solid transparent;
   background-color: #dcd6ca;
   background-clip: padding-box;
 }
 .studio-rail:hover::-webkit-scrollbar-thumb,
-.studio-rail:focus-visible::-webkit-scrollbar-thumb {
+.studio-main:hover::-webkit-scrollbar-thumb,
+.studio-rail:focus-visible::-webkit-scrollbar-thumb,
+.studio-main:focus-visible::-webkit-scrollbar-thumb {
   background-color: #d5cec1;
 }
-.studio-rail::-webkit-scrollbar-thumb:hover {
+.studio-rail::-webkit-scrollbar-thumb:hover,
+.studio-main::-webkit-scrollbar-thumb:hover {
   background-color: #cfc8ba;
 }
 

@@ -34,6 +34,7 @@ export function MiniWaveform({
     >
       {source.map((peak, index) => {
         const played = index / source.length <= progress;
+        const height = Math.round(Math.max(10, peak * 100) * 10) / 10;
         return (
           <span
             key={index}
@@ -46,7 +47,7 @@ export function MiniWaveform({
                     : "bg-[#8fae9f]"
                 : "bg-[#ddd8cd]"
             }`}
-            style={{ height: `${Math.max(10, peak * 100)}%` }}
+            style={{ height: `${height}%` }}
           />
         );
       })}

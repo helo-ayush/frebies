@@ -731,7 +731,7 @@ export const tools: Tool[] = [
     icon: AudioLines,
     tier: "free",
     engine: "browser",
-    status: "soon",
+    status: "live",
     limits: { maxSizeMB: 50, formats: ["MP3", "WAV", "M4A", "OGG"], maxDurationMin: 30 },
     resumeBehavior: "auto",
     seo: {
@@ -767,7 +767,7 @@ export const tools: Tool[] = [
         },
         {
           q: "Are my audio files uploaded?",
-          a: "No. Playback and waveform analysis run in your browser; the conversion engine is being connected in the next build step.",
+          a: "No. Playback, waveform analysis and conversion all run in your browser. The encoding engine downloads once on first use, and your audio never leaves your device.",
         },
         {
           q: "Does it work on my phone?",
