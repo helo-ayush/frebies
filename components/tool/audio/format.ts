@@ -5,7 +5,7 @@ export function formatTime(seconds: number, precise = false): string {
   if (!precise) {
     return `${minutes}:${String(whole).padStart(2, "0")}`;
   }
-  const tenths = Math.floor((seconds % 1) * 10);
+  const tenths = Math.floor((seconds % 1) * 10 + 1e-7);
   return `${minutes}:${String(whole).padStart(2, "0")}.${tenths}`;
 }
 

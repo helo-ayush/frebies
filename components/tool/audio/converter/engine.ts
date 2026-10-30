@@ -6,6 +6,14 @@ export type ConversionResult = {
   mime: string;
 };
 
+export type EncodeOptions = {
+  bitrate: number;
+  vbr: boolean;
+  metadata: boolean;
+  title: string;
+  artist: string;
+};
+
 export class ConversionCancelled extends Error {
   constructor() {
     super("Conversion cancelled");
@@ -252,7 +260,9 @@ function buildInfoChunk(metadata?: { title: string; artist: string }): Uint8Arra
   if (title) body += `INAM${title}\u0000`;
   if (artist) body += `IART${artist}\u0000`;
   const bytes = new TextEncoder().encode(body);
-  const chunk = new Uint8Array(12 + bytes.length);
+  // RIFF chunks must end on an even byte; a trailing pad byte is not counted
+  // in the chunk size field.
+  const chunk = new Uint8Array(12 + bytes.length + (bytes.length % 2));
   const view = new DataView(chunk.buffer);
   view.setUint32(0, 0x4c495354, false); // "LIST"
   view.setUint32(4, bytes.length + 4, true);
@@ -341,33 +351,33 @@ export function encodeWav(
 
 // ---------------------------------------------------------------- ffmpeg encode
 
-function buildEncodeArgs(format: AudioFormat, settings: ConverterSettings, outputName: string): string[] {
+function buildEncodeArgs(format: AudioFormat, options: EncodeOptions, outputName: string): string[] {
   const args: string[] = [];
-  const title = settings.title.trim();
-  const artist = settings.artist.trim();
-  if (settings.metadata && title) args.push("-metadata", `title=${title}`);
-  if (settings.metadata && artist) args.push("-metadata", `artist=${artist}`);
+  const title = options.title.trim();
+  const artist = options.artist.trim();
+  if (options.metadata && title) args.push("-metadata", `title=${title}`);
+  if (options.metadata && artist) args.push("-metadata", `artist=${artist}`);
 
   if (format === "mp3") {
     args.push("-c:a", "libmp3lame");
-    if (settings.vbr) args.push("-q:a", "2");
-    else args.push("-b:a", `${settings.bitrate}k`);
+    if (options.vbr) args.push("-q:a", "2");
+    else args.push("-b:a", `${options.bitrate}k`);
   } else if (format === "ogg") {
     args.push("-c:a", "libvorbis");
-    if (settings.vbr) args.push("-q:a", "4");
-    else args.push("-b:a", `${settings.bitrate}k`);
+    if (options.vbr) args.push("-q:a", "4");
+    else args.push("-b:a", `${options.bitrate}k`);
   } else if (format === "m4a") {
-    args.push("-c:a", "aac", "-b:a", `${settings.bitrate}k`, "-movflags", "+faststart");
+    args.push("-c:a", "aac", "-b:a", `${options.bitrate}k`, "-movflags", "+faststart");
   }
   args.push(outputName);
   return args;
 }
 
-async function encodeWithFfmpeg(
+export async function encodeWithFfmpeg(
   ffmpeg: FFmpeg,
   input: Blob,
   format: AudioFormat,
-  settings: ConverterSettings,
+  options: EncodeOptions,
   onProgress: (value: number, label: string) => void,
 ): Promise<Blob> {
   const runId = ++runCounter;
@@ -396,7 +406,7 @@ async function encodeWithFfmpeg(
       "-y",
       "-i",
       inputName,
-      ...buildEncodeArgs(format, settings, outputName),
+      ...buildEncodeArgs(format, options, outputName),
     ]);
     if (code !== 0) {
       throw new Error(logs.slice(-3).join(" ") || `Encoding failed (exit code ${code}).`);

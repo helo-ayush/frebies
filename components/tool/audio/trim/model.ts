@@ -1,4 +1,4 @@
-export type TrimFormat = "mp3" | "wav" | "ogg";
+export type TrimFormat = "mp3" | "wav" | "m4a" | "ogg";
 
 export type TrimSettings = {
   format: TrimFormat;
@@ -19,6 +19,7 @@ export const DEFAULT_TRIM_SETTINGS: TrimSettings = {
 export const TRIM_FORMATS: { value: TrimFormat; label: string; hint: string }[] = [
   { value: "mp3", label: "MP3", hint: "Small & universal" },
   { value: "wav", label: "WAV", hint: "Lossless PCM" },
+  { value: "m4a", label: "M4A", hint: "Apple devices" },
   { value: "ogg", label: "OGG", hint: "Open format" },
 ];
 

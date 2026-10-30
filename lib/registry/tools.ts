@@ -809,7 +809,7 @@ export const tools: Tool[] = [
     icon: Scissors,
     tier: "free",
     engine: "browser",
-    status: "soon",
+    status: "live",
     limits: { maxSizeMB: 50, formats: ["MP3", "WAV", "M4A", "OGG"], maxDurationMin: 30 },
     resumeBehavior: "auto",
     seo: {
@@ -833,7 +833,7 @@ export const tools: Tool[] = [
         },
         {
           q: "Does trimming re-encode the audio?",
-          a: "The preview is frame-accurate. On export, the engine keeps the selected range and applies the chosen format and bitrate; WAV stays lossless.",
+          a: "The selection is cut sample-accurately and re-encoded to the format and bitrate you choose. WAV output stays lossless PCM.",
         },
         {
           q: "Can I add fade in and fade out?",
@@ -841,11 +841,11 @@ export const tools: Tool[] = [
         },
         {
           q: "Which formats can I trim?",
-          a: "MP3, WAV, M4A and OGG, up to 50 MB and 30 minutes. Choose MP3, WAV or OGG for the trimmed output.",
+          a: "MP3, WAV, M4A and OGG, up to 50 MB and 30 minutes. Choose MP3, WAV, M4A or OGG for the trimmed output.",
         },
         {
           q: "Is my audio uploaded?",
-          a: "No. Playback and waveform analysis happen in your browser. The trim engine is connected in a later build step.",
+          a: "No. Everything runs on your device. The encoding engine downloads once on first use for MP3, M4A and OGG, and your audio never leaves your device.",
         },
         {
           q: "Can I trim on my phone?",
