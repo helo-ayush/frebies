@@ -365,80 +365,86 @@ function ImageConvertStudioInner({
     setProgress({ current: 0, total: items.length });
 
     const newResults: Record<string, ConvertedResult> = { ...results };
+    const processedFiles: { blob: Blob; name: string }[] = [];
 
     try {
       for (let i = 0; i < items.length; i += 1) {
         const item = items[i];
         setProgress({ current: i + 1, total: items.length, name: item.file.name });
 
-        // If already rendered in results, reuse
-        if (newResults[item.id]) continue;
+        let entry = newResults[item.id];
+        if (!entry) {
+          const itemFormat = format;
+          const itemInfo = FORMAT_INFO[itemFormat];
 
-        const itemFormat = format;
-        const itemInfo = FORMAT_INFO[itemFormat];
+          const image = await loadImageFile(item.file);
+          const naturalW = image.naturalWidth || item.width || 1;
+          const naturalH = image.naturalHeight || item.height || 1;
+          const isIco = itemFormat === "ico";
+          const icoDim = isIco ? (icoSize || 256) : 0;
+          const outSize = isIco
+            ? fitWithin(naturalW, naturalH, icoDim)
+            : getTargetDimensions(naturalW, naturalH);
 
-        const image = await loadImageFile(item.file);
-        const naturalW = image.naturalWidth || item.width || 1;
-        const naturalH = image.naturalHeight || item.height || 1;
-        const isIco = itemFormat === "ico";
-        const icoDim = isIco ? (icoSize || 256) : 0;
-        const outSize = isIco
-          ? fitWithin(naturalW, naturalH, icoDim)
-          : getTargetDimensions(naturalW, naturalH);
+          let effectiveBg: string | null = null;
+          if (!itemInfo.supportsTransparency || !preserveAlpha) {
+            effectiveBg = backgroundColor;
+          }
 
-        let effectiveBg: string | null = null;
-        if (!itemInfo.supportsTransparency || !preserveAlpha) {
-          effectiveBg = backgroundColor;
+          const canvas = drawRegion(
+            image,
+            { x: 0, y: 0, width: naturalW, height: naturalH },
+            outSize,
+            {
+              fit: "stretch",
+              background: effectiveBg,
+              sharpen: sharpenAmount > 0 ? sharpenAmount : undefined,
+              grayscale,
+            },
+          );
+
+          const blob = await canvasToBlob(canvas, itemFormat, quality / 100, {
+            lossless: losslessMode,
+            icoSize: isIco ? icoDim : undefined,
+            backgroundColor: effectiveBg,
+          });
+
+          const name = outputFilename(item.file.name, itemFormat);
+          const BROWSER_NATIVE_PREVIEW = new Set(["jpeg", "png", "webp", "avif", "svg", "bmp", "gif"]);
+          const previewUrl = isIco
+            ? createIcoCanvas(canvas, icoDim, effectiveBg).toDataURL("image/png")
+            : BROWSER_NATIVE_PREVIEW.has(itemFormat)
+              ? URL.createObjectURL(blob)
+              : canvas.toDataURL("image/webp", 0.95);
+
+          const resultWidth = isIco ? icoDim : canvas.width;
+          const resultHeight = isIco ? icoDim : canvas.height;
+
+          entry = {
+            blob,
+            name,
+            bytes: blob.size,
+            originalBytes: item.file.size,
+            width: resultWidth,
+            height: resultHeight,
+            previewUrl,
+            format: itemFormat,
+          };
+
+          newResults[item.id] = entry;
         }
 
-        const canvas = drawRegion(
-          image,
-          { x: 0, y: 0, width: naturalW, height: naturalH },
-          outSize,
-          {
-            fit: "stretch",
-            background: effectiveBg,
-            sharpen: sharpenAmount > 0 ? sharpenAmount : undefined,
-            grayscale,
-          },
-        );
-
-        const blob = await canvasToBlob(canvas, itemFormat, quality / 100, {
-          lossless: losslessMode,
-          icoSize: isIco ? icoDim : undefined,
-          backgroundColor: effectiveBg,
-        });
-
-        const name = outputFilename(item.file.name, itemFormat);
-        const BROWSER_NATIVE_PREVIEW = new Set(["jpeg", "png", "webp", "avif", "svg", "bmp", "gif"]);
-        const previewUrl = isIco
-          ? createIcoCanvas(canvas, icoDim, effectiveBg).toDataURL("image/png")
-          : BROWSER_NATIVE_PREVIEW.has(itemFormat)
-            ? URL.createObjectURL(blob)
-            : canvas.toDataURL("image/webp", 0.95);
-
-        const resultWidth = isIco ? icoDim : canvas.width;
-        const resultHeight = isIco ? icoDim : canvas.height;
-
-        newResults[item.id] = {
-          blob,
-          name,
-          bytes: blob.size,
-          originalBytes: item.file.size,
-          width: resultWidth,
-          height: resultHeight,
-          previewUrl,
-          format: itemFormat,
-        };
-
-        setResults({ ...newResults });
+        processedFiles.push({ blob: entry.blob, name: entry.name });
       }
 
-      if (items.length === 1 && activeItem && newResults[activeItem.id]) {
-        downloadBlob(newResults[activeItem.id].blob, newResults[activeItem.id].name);
-        setNotice(`Saved ${newResults[activeItem.id].name} (${formatBytes(newResults[activeItem.id].bytes)}).`);
-      } else if (items.length > 1) {
-        await handleDownloadZip();
+      setResults({ ...newResults });
+
+      if (processedFiles.length === 1) {
+        downloadBlob(processedFiles[0].blob, processedFiles[0].name);
+        setNotice(`Saved ${processedFiles[0].name} (${formatBytes(processedFiles[0].blob.size)}).`);
+      } else if (processedFiles.length > 1) {
+        await downloadAllAsZip(processedFiles, "frebies-converted.zip");
+        setNotice(`Downloaded all ${processedFiles.length} converted images in frebies-converted.zip.`);
       }
     } catch (thrown) {
       setNotice(
@@ -452,13 +458,13 @@ function ImageConvertStudioInner({
 
   async function handleDownloadZip() {
     const filesToZip = items
-      .map((item) => results[item.id])
+      .map((item) => resultsRef.current[item.id] || results[item.id])
       .filter((res): res is ConvertedResult => Boolean(res))
       .map((res) => ({ blob: res.blob, name: res.name }));
 
     if (filesToZip.length === 0) return;
     await downloadAllAsZip(filesToZip, "frebies-converted.zip");
-    setNotice(`Downloaded ${filesToZip.length} converted images in a single ZIP archive.`);
+    setNotice(`Downloaded ${filesToZip.length} converted images in frebies-converted.zip.`);
   }
 
   function handleCustomWidthChange(val: number) {

@@ -13,6 +13,8 @@ export type CompressItem = {
   height?: number;
 };
 
+export type ResizeMode = "original" | "scale" | "maxEdge" | "custom";
+
 export type CompressSettings = {
   goal: CompressGoal;
   quality: number;
@@ -21,30 +23,53 @@ export type CompressSettings = {
   percent: number;
   format: OutputFormat;
   resize: ResizeOption;
+  resizeMode: ResizeMode;
+  scalePercent: number;
+  maxEdgePx: number;
+  customWidth: number;
+  customHeight: number;
+  lockAspect: boolean;
+  customMaxEdge?: number;
   keepSmaller: boolean;
   stripMetadata: boolean;
   progressive: boolean;
   sharpen: boolean;
+  sharpenAmount: number;
+  grayscale: boolean;
+  backgroundColor: string;
+  customColor: string;
+  preserveAlpha: boolean;
   subsampling: string;
   colorProfile: string;
 };
 
-export const MAX_FILES = 10;
-export const MIN_QUALITY = 20;
+export const MAX_FILES = 20;
+export const MIN_QUALITY = 5;
 export const MAX_QUALITY = 100;
 
 export const DEFAULT_SETTINGS: CompressSettings = {
-  goal: "quality",
-  quality: 72,
-  targetValue: "200",
+  goal: "target",
+  quality: 80,
+  targetValue: "100",
   targetUnit: "KB",
   percent: 60,
   format: "auto",
   resize: "original",
+  resizeMode: "original",
+  scalePercent: 75,
+  maxEdgePx: 1600,
+  customWidth: 1920,
+  customHeight: 1080,
+  lockAspect: true,
   keepSmaller: true,
   stripMetadata: true,
   progressive: true,
   sharpen: false,
+  sharpenAmount: 0,
+  grayscale: false,
+  backgroundColor: "#ffffff",
+  customColor: "#ffffff",
+  preserveAlpha: true,
   subsampling: "Auto",
   colorProfile: "Keep original",
 };

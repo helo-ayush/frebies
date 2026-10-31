@@ -4,7 +4,7 @@ export type ResizeMode = "dimensions" | "percent" | "crop";
 export type FitMode = "fill" | "fit" | "stretch";
 export type CropRatioId = "free" | "1:1" | "4:5" | "16:9" | "3:2" | "9:16";
 export type ResizeFormat = "auto" | "jpg" | "png" | "webp" | "avif";
-export type Background = "white" | "black" | "transparent";
+export type Background = "white" | "black" | "transparent" | "custom";
 
 export type CropRect = {
   x: number;
@@ -31,16 +31,18 @@ export type ResizeSettings = {
   neverUpscale: boolean;
   removeMetadata: boolean;
   sharpen: boolean;
+  grayscale?: boolean;
+  customBackground?: string;
   progressive: boolean;
 };
 
 export const DEFAULT_RESIZE_SETTINGS: ResizeSettings = {
-  mode: "dimensions",
+  mode: "crop",
   width: "1200",
   height: "800",
   linked: true,
   percent: 75,
-  cropRatio: "4:5",
+  cropRatio: "free",
   crop: null,
   fit: "fill",
   rotation: 0,
@@ -52,6 +54,8 @@ export const DEFAULT_RESIZE_SETTINGS: ResizeSettings = {
   neverUpscale: true,
   removeMetadata: true,
   sharpen: false,
+  grayscale: false,
+  customBackground: "#ffffff",
   progressive: true,
 };
 
@@ -235,24 +239,26 @@ export function computeResizeOutput(
   capped: boolean;
 } {
   const rotated = settings.rotation === 90 || settings.rotation === 270;
+  const sourceWidth = rotated ? originalHeight : originalWidth;
+  const sourceHeight = rotated ? originalWidth : originalHeight;
 
   if (settings.mode === "crop") {
     const ratio = cropRatioValue(settings.cropRatio);
     const crop =
       settings.crop ??
       cropForRatio(
-        originalWidth && originalHeight ? originalWidth / originalHeight : 1,
+        sourceWidth && sourceHeight ? sourceWidth / sourceHeight : 1,
         ratio,
       );
-    const pixels = cropPixels(crop, originalWidth, originalHeight);
-    const width = rotated ? pixels.height : pixels.width;
-    const height = rotated ? pixels.width : pixels.height;
-    const scale = originalWidth
-      ? Math.round((pixels.width / originalWidth) * 100)
+    const pixels = cropPixels(crop, sourceWidth, sourceHeight);
+    const width = pixels.width;
+    const height = pixels.height;
+    const scale = sourceWidth
+      ? Math.round((pixels.width / sourceWidth) * 100)
       : 100;
     return {
-      sourceWidth: originalWidth,
-      sourceHeight: originalHeight,
+      sourceWidth,
+      sourceHeight,
       width,
       height,
       scale,
@@ -261,8 +267,6 @@ export function computeResizeOutput(
     };
   }
 
-  const sourceWidth = rotated ? originalHeight : originalWidth;
-  const sourceHeight = rotated ? originalWidth : originalHeight;
   let width = 0;
   let height = 0;
   let capped = false;
@@ -346,6 +350,7 @@ export function ratioLabel(width: number, height: number): string {
 export function backgroundValue(settings: ResizeSettings): string | null {
   if (settings.background === "white") return "#ffffff";
   if (settings.background === "black") return "#111111";
+  if (settings.background === "custom") return settings.customBackground || "#ffffff";
   return null;
 }
 

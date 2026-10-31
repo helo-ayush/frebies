@@ -18,48 +18,47 @@ export type ResizeRender = { canvas: HTMLCanvasElement; format: EncodeFormat };
 
 /**
  * Build the final resize/crop result on a canvas, entirely on the device.
- *
- * Crop mode mirrors the studio: the crop rectangle is taken from the source,
- * then rotation and flips are applied to the cropped result (which is why the
- * output dimensions swap for a quarter turn).
+ * Transforms rotation & flip first, so crop operates directly on the oriented image.
  */
 export function renderResize(
   image: HTMLImageElement,
   file: File,
   settings: ResizeSettings,
 ): ResizeRender {
-  const width = image.naturalWidth || image.width;
-  const height = image.naturalHeight || image.height;
   const format = resolveEncodeFormat(settings, file);
 
-  if (settings.mode === "crop") {
-    const crop =
-      settings.crop ??
-      cropForRatio(
-        width && height ? width / height : 1,
-        cropRatioValue(settings.cropRatio),
-      );
-    const rect = cropPixels(crop, width || 1, height || 1);
-    const cropped = drawRegion(
-      image,
-      rect,
-      { width: rect.width, height: rect.height },
-      { fit: "stretch" },
-    );
-    const canvas = transformCanvas(cropped, cropped.width, cropped.height, {
-      rotation: settings.rotation,
-      flipX: settings.flipX,
-      flipY: settings.flipY,
-    });
-    return { canvas, format };
-  }
-
+  // Apply rotation and flips to source image first
   const transformed = transformImage(image, {
     rotation: settings.rotation,
     flipX: settings.flipX,
     flipY: settings.flipY,
   });
-  const output = computeResizeOutput(settings, width, height);
+
+  const tWidth = transformed.width;
+  const tHeight = transformed.height;
+
+  if (settings.mode === "crop") {
+    const crop =
+      settings.crop ??
+      cropForRatio(
+        tWidth && tHeight ? tWidth / tHeight : 1,
+        cropRatioValue(settings.cropRatio),
+      );
+    const rect = cropPixels(crop, tWidth || 1, tHeight || 1);
+    const canvas = drawRegion(
+      transformed,
+      rect,
+      { width: rect.width, height: rect.height },
+      { fit: "stretch", sharpen: settings.sharpen ? 0.45 : 0, grayscale: Boolean(settings.grayscale) },
+    );
+    return { canvas, format };
+  }
+
+  const output = computeResizeOutput(
+    settings,
+    image.naturalWidth || image.width,
+    image.naturalHeight || image.height,
+  );
   if (!output.width || !output.height) {
     throw new Error("Set a width and height first, then try again.");
   }
@@ -79,9 +78,13 @@ export function renderResize(
     { width: output.width, height: output.height },
     {
       fit,
-      background: fit === "contain" ? backgroundValue(settings) : null,
+      background:
+        fit === "contain" || format === "jpeg"
+          ? backgroundValue(settings) || (format === "jpeg" ? "#ffffff" : null)
+          : null,
       anchor: { x: 0.5, y: 0.5 },
-      sharpen: settings.sharpen ? 0.55 : 0,
+      sharpen: settings.sharpen ? 0.45 : 0,
+      grayscale: Boolean(settings.grayscale),
     },
   );
 

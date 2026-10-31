@@ -21,9 +21,14 @@ export type CompressRequest = {
   format: EncodeFormat;
   /** Longest-edge limit, or null to keep the source size. */
   maxEdge: number | null;
+  customWidth?: number;
+  customHeight?: number;
+  scalePercent?: number;
+  backgroundColor?: string | null;
   /** Return the original file when re-encoding makes it bigger. */
   keepOriginalIfLarger: boolean;
   sharpen?: number;
+  grayscale?: boolean;
 };
 
 export type CompressOutcome = {
@@ -38,8 +43,8 @@ export type CompressOutcome = {
   format: EncodeFormat;
 };
 
-const QUALITY_FLOOR = 20;
-const QUALITY_CEILING = 96;
+const QUALITY_FLOOR = 5;
+const QUALITY_CEILING = 98;
 
 function scaleCanvas(source: HTMLCanvasElement, width: number, height: number): HTMLCanvasElement {
   const canvas = createCanvas(width, height);
@@ -106,15 +111,32 @@ export async function compressFile(
   const naturalWidth = image.naturalWidth || image.width;
   const naturalHeight = image.naturalHeight || image.height;
 
-  const limit = request.maxEdge
-    ? fitWithin(naturalWidth, naturalHeight, request.maxEdge)
-    : { width: naturalWidth, height: naturalHeight };
+  let targetWidth = naturalWidth;
+  let targetHeight = naturalHeight;
+
+  if (request.customWidth && request.customHeight) {
+    targetWidth = Math.max(16, Math.round(request.customWidth));
+    targetHeight = Math.max(16, Math.round(request.customHeight));
+  } else if (request.scalePercent && request.scalePercent < 100) {
+    const scale = Math.max(0.05, Math.min(1, request.scalePercent / 100));
+    targetWidth = Math.max(16, Math.round(naturalWidth * scale));
+    targetHeight = Math.max(16, Math.round(naturalHeight * scale));
+  } else if (request.maxEdge) {
+    const limit = fitWithin(naturalWidth, naturalHeight, request.maxEdge);
+    targetWidth = limit.width;
+    targetHeight = limit.height;
+  }
 
   let canvas = drawRegion(
     image,
     { x: 0, y: 0, width: naturalWidth, height: naturalHeight },
-    { width: limit.width, height: limit.height },
-    { fit: "stretch", sharpen: request.sharpen ? 0.45 : 0 },
+    { width: targetWidth, height: targetHeight },
+    {
+      fit: "stretch",
+      background: request.backgroundColor || null,
+      sharpen: request.sharpen ?? 0,
+      grayscale: Boolean(request.grayscale),
+    },
   );
 
   const targetBytes =
@@ -136,9 +158,9 @@ export async function compressFile(
     quality = fitted.quality;
 
     let attempts = 0;
-    while (blob.size > targetBytes && attempts < 4) {
+    while (blob.size > targetBytes && attempts < 5) {
       attempts += 1;
-      const factor = Math.min(0.92, Math.max(0.35, Math.sqrt(targetBytes / blob.size) * 0.98));
+      const factor = Math.min(0.95, Math.max(0.2, Math.sqrt(targetBytes / blob.size) * 0.97));
       const nextWidth = Math.max(32, Math.round(canvas.width * factor));
       const nextHeight = Math.max(32, Math.round(canvas.height * factor));
       if (nextWidth === canvas.width && nextHeight === canvas.height) break;
