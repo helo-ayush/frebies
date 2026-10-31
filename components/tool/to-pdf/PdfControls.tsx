@@ -1,6 +1,5 @@
 "use client";
 
-import type { CSSProperties } from "react";
 import {
   Check,
   FileText,
@@ -11,6 +10,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { RailSection } from "@/components/tool/studio/RailSection";
+import { RailSlider } from "@/components/tool/studio/RailSlider";
+import { Switch } from "@/components/arc/switch/switch";
 import {
   MARGINS,
   ORIENTATIONS,
@@ -292,27 +293,27 @@ export function PdfControls({
             </div>
           </div>
 
-          <div className="rounded-[12px] border border-line bg-[#fbfaf8] p-3.5">
-            <label className="flex cursor-pointer items-start justify-between gap-3">
-              <span className="min-w-0">
+          <div className="rounded-[12px] border border-line bg-[#fbfaf8] p-3.5 transition-colors hover:border-[#cfc9bd]">
+            <div className="flex items-start justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => onPatch({ pageNumbers: !settings.pageNumbers })}
+                className="min-w-0 flex-1 text-left"
+              >
                 <span className="block text-[12.5px] font-semibold text-ink">
                   Print page numbers
                 </span>
                 <span className="mt-0.5 block text-[11px] leading-relaxed text-faint">
                   Stamp 1 / {pageCount || 1} on each footer.
                 </span>
-              </span>
-              <input
-                type="checkbox"
+              </button>
+              <Switch
                 checked={settings.pageNumbers}
-                onChange={(event) => onPatch({ pageNumbers: event.target.checked })}
-                className="peer sr-only"
+                onCheckedChange={(checked) => onPatch({ pageNumbers: checked })}
+                aria-label="Print page numbers"
+                className="mt-0.5 shrink-0"
               />
-              <span
-                aria-hidden
-                className="relative mt-0.5 h-[22px] w-10 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-[18px] peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2"
-              />
-            </label>
+            </div>
 
             {settings.pageNumbers && (
               <div className="mt-3 border-t border-line/70 pt-3">
@@ -375,8 +376,12 @@ export function PdfControls({
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-start justify-between gap-3 rounded-[12px] border border-line bg-[#fbfaf8] p-3.5 transition-colors hover:border-[#cfc9bd]">
-            <span className="min-w-0">
+          <div className="flex items-start justify-between gap-3 rounded-[12px] border border-line bg-[#fbfaf8] p-3.5 transition-colors hover:border-[#cfc9bd]">
+            <button
+              type="button"
+              onClick={() => onPatch({ grayscale: !settings.grayscale })}
+              className="min-w-0 flex-1 text-left"
+            >
               <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-ink">
                 <ScanLine size={13} aria-hidden />
                 B&W document scan
@@ -385,18 +390,14 @@ export function PdfControls({
                 Turns color photos into crisp black & white pages for contracts,
                 receipts and notes.
               </span>
-            </span>
-            <input
-              type="checkbox"
+            </button>
+            <Switch
               checked={settings.grayscale}
-              onChange={(event) => onPatch({ grayscale: event.target.checked })}
-              className="peer sr-only"
+              onCheckedChange={(checked) => onPatch({ grayscale: checked })}
+              aria-label="B&W document scan"
+              className="mt-0.5 shrink-0"
             />
-            <span
-              aria-hidden
-              className="relative mt-0.5 h-[22px] w-10 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-[18px] peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2"
-            />
-          </label>
+          </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-3">
@@ -405,16 +406,14 @@ export function PdfControls({
                 {settings.quality}%
               </span>
             </div>
-            <input
-              type="range"
+            <RailSlider
+              label="PDF image quality"
+              value={settings.quality}
               min={50}
               max={100}
               step={1}
-              value={settings.quality}
-              onChange={(event) => onPatch({ quality: Number(event.target.value) })}
-              style={rangeFill(settings.quality, 50, 100)}
-              aria-label="PDF image quality"
-              className="range w-full"
+              onValueChange={(quality) => onPatch({ quality })}
+              className="mt-2"
             />
             <div className="mt-1.5 flex justify-between text-[10.5px] text-faint">
               <span>Smaller file</span>
@@ -525,9 +524,4 @@ function FitDiagram({ id }: { id: PdfFit }) {
       {id === "cover" && <span className="h-[22px] w-[26px] rounded-[1px] bg-ink/25" />}
     </span>
   );
-}
-
-function rangeFill(value: number, min: number, max: number): CSSProperties {
-  const percent = ((value - min) / (max - min)) * 100;
-  return { "--fill": `${Math.min(100, Math.max(0, percent))}%` } as CSSProperties;
 }

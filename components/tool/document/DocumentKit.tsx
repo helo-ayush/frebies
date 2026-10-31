@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
+import { Switch } from "@/components/arc/switch/switch";
 import { ArrowRightGlyph, LockGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
 
 
@@ -145,24 +146,24 @@ export function ToggleRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-3">
-      <span className="min-w-0">
+    <div className="flex items-start justify-between gap-3">
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className="min-w-0 flex-1 text-left"
+      >
         <span className="block text-[11.5px] font-medium text-ink">{label}</span>
         {description ? (
           <span className="mt-0.5 block text-[10px] leading-relaxed text-faint">{description}</span>
         ) : null}
-      </span>
-      <input
-        type="checkbox"
+      </button>
+      <Switch
         checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="peer sr-only"
+        onCheckedChange={onChange}
+        aria-label={label}
+        className="mt-0.5 shrink-0"
       />
-      <span
-        aria-hidden
-        className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent"
-      />
-    </label>
+    </div>
   );
 }
 

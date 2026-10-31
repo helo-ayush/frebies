@@ -9,6 +9,7 @@ import {
   ToggleRow,
 } from "../DocumentKit";
 import { formatBytes } from "../model";
+import { RailSlider } from "@/components/tool/studio/RailSlider";
 import {
   NUMBER_FORMAT_OPTIONS,
   NUMBER_POSITION_OPTIONS,
@@ -132,15 +133,13 @@ export function MergeSettings({
                     {settings.numberSize} pt
                   </span>
                 </div>
-                <input
-                  type="range"
+                <RailSlider
+                  label="Page number size"
+                  value={settings.numberSize}
                   min={8}
                   max={14}
-                  step={1}
-                  value={settings.numberSize}
-                  onChange={(event) => onChange({ numberSize: Number(event.target.value) })}
-                  aria-label="Page number size"
-                  className="range mt-3.5 h-1 w-full cursor-pointer appearance-none rounded-full bg-[#e6e1d7]"
+                  onValueChange={(numberSize) => onChange({ numberSize })}
+                  className="mt-1"
                 />
               </div>
             </div>

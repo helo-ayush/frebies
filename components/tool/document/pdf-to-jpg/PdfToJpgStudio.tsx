@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
+import { RailSlider } from "@/components/tool/studio/RailSlider";
 import {
   PreviewNote,
   RailSection,
@@ -352,18 +353,17 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             </RailSection>
 
             <RailSection title="Quality" hint={lossy ? `${quality}%` : "Lossless"} className="border-t border-line-soft pt-4">
-              <input
-                type="range"
+              <RailSlider
+                label="Image quality"
+                value={lossy ? quality : 100}
                 min={40}
                 max={100}
-                value={lossy ? quality : 100}
                 disabled={!lossy}
-                onChange={(event) => {
-                  setQuality(Number(event.target.value));
+                onValueChange={(next) => {
+                  setQuality(next);
                   patch();
                 }}
-                aria-label="Image quality"
-                className="h-1.5 w-full cursor-pointer accent-[#171717] disabled:cursor-not-allowed disabled:opacity-35"
+                className="mt-1"
               />
               <div className="flex justify-between text-[10px] text-faint">
                 <span>Smaller file</span>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   Check,
   Crop,
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { RailSwitch } from "@/components/tool/studio/RailSwitch";
+import { RailSlider } from "@/components/tool/studio/RailSlider";
 import {
   RailSection,
   RAIL_CARD_ACTIVE,
@@ -91,11 +92,6 @@ const BG_PRESETS: { id: Background; label: string; swatch: string }[] = [
   { id: "black", label: "Black", swatch: "border border-ink bg-ink" },
   { id: "custom", label: "Custom", swatch: "border border-line bg-[#f0eee6]" },
 ];
-
-function rangeFill(value: number, min = 0, max = 100): CSSProperties {
-  const percent = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
-  return { "--fill": `${percent}%` } as CSSProperties;
-}
 
 
 function AspectRatioMiniature({ id, active }: { id: CropRatioId; active: boolean }) {
@@ -548,16 +544,14 @@ export function ImageResizeSettings({
               </div>
 
               <div>
-                <input
-                  type="range"
+                <RailSlider
+                  label="Scale percent"
+                  value={settings.percent}
                   min={10}
                   max={200}
                   step={5}
-                  value={settings.percent}
-                  onChange={(event) => onPatch({ percent: Number(event.target.value) })}
-                  aria-label="Scale percent"
-                  style={rangeFill(settings.percent, 10, 200)}
-                  className="range w-full"
+                  onValueChange={(percent) => onPatch({ percent })}
+                  className=""
                 />
                 <div className="mt-1.5 flex justify-between text-[10.5px] tabular-nums text-faint">
                   <span>10%</span>
@@ -729,16 +723,14 @@ export function ImageResizeSettings({
                     {settings.quality}%
                   </span>
                 </div>
-                <input
-                  type="range"
+                <RailSlider
+                  label="Output quality"
+                  value={settings.quality}
                   min={10}
                   max={100}
                   step={2}
-                  value={settings.quality}
-                  onChange={(event) => onPatch({ quality: Number(event.target.value) })}
-                  aria-label="Output quality"
-                  style={rangeFill(settings.quality, 10, 100)}
-                  className="range mt-2.5 w-full"
+                  onValueChange={(quality) => onPatch({ quality })}
+                  className="mt-2.5"
                 />
                 <div className="mt-2.5 grid grid-cols-5 gap-1.5">
                   {QUALITY_PRESETS.map((preset) => {

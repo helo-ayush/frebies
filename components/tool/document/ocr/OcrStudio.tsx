@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Check,
-  Copy,
   FileText,
   Languages,
   ScanText,
@@ -12,6 +11,7 @@ import {
   TriangleAlert,
   X,
 } from "lucide-react";
+import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { PaidRail } from "@/components/tool/paid/PaidRail";
 import { PaidRunCard } from "@/components/tool/paid/PaidRunCard";
@@ -72,7 +72,6 @@ export function OcrStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const [tables, setTables] = useState(true);
   const [numbers, setNumbers] = useState(true);
   const [gateOpen, setGateOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const isImage = activeItem?.kind === "image";
@@ -81,16 +80,6 @@ export function OcrStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   function patch() {
     setNotice(null);
-  }
-
-  async function copySample() {
-    try {
-      await navigator.clipboard.writeText(SAMPLE_TEXT);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setNotice("Copying needs clipboard permission in this browser.");
-    }
   }
 
   return (
@@ -187,14 +176,7 @@ export function OcrStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
                         Extracted text
                       </span>
-                      <button
-                        type="button"
-                        onClick={copySample}
-                        className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                      >
-                        {copied ? <Check size={10} aria-hidden /> : <Copy size={10} aria-hidden />}
-                        {copied ? "Copied" : "Copy"}
-                      </button>
+                      <CopyButton value={SAMPLE_TEXT} label="Copy extracted text" iconOnly variant="plain" />
                     </div>
 
                     <div className="studio-rail min-h-0 flex-1 overflow-y-auto px-3 py-2.5">

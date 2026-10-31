@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
+import { ImageCompare } from "@/components/arc/image-compare/image-compare";
 import { ArrowRightGlyph, LockGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
 import { StudioDropzone, StudioChip } from "@/components/tool/studio/StudioDropzone";
 import { useImageQueue } from "@/components/tool/studio/useImageQueue";
@@ -628,16 +629,14 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                     <div className="relative m-auto flex items-center justify-center shrink-0">
                       {activeResult && viewMode === "split" ? (
                         <div
-                          className="relative overflow-hidden rounded-[8px] shadow-md select-none border border-black/10 shrink-0"
+                          className="relative select-none shrink-0"
                           style={{
                             width: `${renderedW}px`,
                             height: `${renderedH}px`,
                             maxWidth: scaleToFit ? "100%" : "none",
                             maxHeight: scaleToFit ? "100%" : "none",
-                            aspectRatio: `${currentW} / ${currentH}`,
                           }}
                         >
-                          {/* Corner Badges */}
                           <span className="pointer-events-none absolute left-2.5 top-2.5 z-20 rounded-md border border-white/20 bg-black/65 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white shadow-xs backdrop-blur-xs">
                             Before ({formatBytes(activeItem.file.size)})
                           </span>
@@ -645,48 +644,26 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                             After ({formatBytes(activeResult.bytes)})
                           </span>
 
-                          {/* Base image: Compressed / After (visible on the right side) */}
-                          <img
-                            src={activeResult.previewUrl}
-                            alt="Compressed"
-                            className="w-full h-full object-contain select-none"
-                            style={{
-                              imageRendering: isMagnified ? "pixelated" : "auto",
-                            }}
-                          />
-                          {/* Clipped foreground: Original / Before (visible on the left side) */}
-                          <div
-                            className="absolute inset-y-0 left-0 overflow-hidden"
-                            style={{ width: `${splitPos}%` }}
-                          >
-                            <img
-                              src={activeItem.preview}
-                              alt="Original"
-                              className="w-full h-full object-contain max-w-none select-none"
-                              style={{
-                                width: `${renderedW}px`,
-                                height: `${renderedH}px`,
-                                imageRendering: isMagnified ? "pixelated" : "auto",
-                              }}
-                            />
-                          </div>
-                          {/* Split line handle */}
-                          <div
-                            className="absolute inset-y-0 w-0.5 bg-white shadow-[0_0_8px_rgba(0,0,0,0.5)] cursor-ew-resize z-10"
-                            style={{ left: `${splitPos}%` }}
-                          >
-                            <div className="absolute top-1/2 -left-3 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white text-[9px] shadow-lg">
-                              ↔
-                            </div>
-                          </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            value={splitPos}
-                            onChange={(e) => setSplitPos(Number(e.target.value))}
-                            aria-label="Before after split slider"
-                            className="absolute inset-0 opacity-0 cursor-ew-resize w-full h-full z-20"
+                          <ImageCompare
+                            before={
+                              <img
+                                src={activeItem.preview}
+                                alt="Original"
+                                style={{ objectFit: "contain", imageRendering: isMagnified ? "pixelated" : "auto" }}
+                              />
+                            }
+                            after={
+                              <img
+                                src={activeResult.previewUrl}
+                                alt="Compressed"
+                                style={{ objectFit: "contain", imageRendering: isMagnified ? "pixelated" : "auto" }}
+                              />
+                            }
+                            position={splitPos}
+                            onPositionChange={setSplitPos}
+                            labels={false}
+                            label="Before after split slider"
+                            className="h-full w-full rounded-[8px] shadow-md"
                           />
                         </div>
                       ) : (

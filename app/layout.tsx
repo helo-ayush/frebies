@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Inter_Tight } from "next/font/google";
 import { SoundEffects } from "@/components/ui/sound";
+import { ArcLinkProvider } from "@/components/ArcLinkProvider";
+import "@/components/arc/foundation.css";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -22,9 +24,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-scroll-behavior="smooth">
+    <html lang="en" data-scroll-behavior="smooth" data-accent="coral">
       <body className={`${inter.variable} ${interTight.variable} font-sans`}>
-        <SoundEffects>{children}</SoundEffects>
+        <ArcLinkProvider>
+          <SoundEffects>{children}</SoundEffects>
+        </ArcLinkProvider>
       </body>
     </html>
   );

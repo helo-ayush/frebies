@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   ChevronDown,
@@ -12,6 +14,8 @@ import {
 } from "lucide-react";
 import type { Tool } from "@/lib/registry/tools";
 import { buttonClasses } from "@/components/ui/Button";
+import { RailSlider } from "@/components/tool/studio/RailSlider";
+import { Switch } from "@/components/arc/switch/switch";
 
 export function PreviewNotice() {
   return (
@@ -217,16 +221,10 @@ export function RangeField({
   left?: string;
   right?: string;
 }) {
+  const [value, setValue] = useState(defaultValue);
   return (
-    <Field label={label} hint={`${defaultValue}${suffix}`}>
-      <input
-        type="range"
-        aria-label={label}
-        min={min}
-        max={max}
-        defaultValue={defaultValue}
-        className="h-1.5 w-full cursor-pointer accent-[#171717]"
-      />
+    <Field label={label} hint={`${value}${suffix}`}>
+      <RailSlider label={label} value={value} min={min} max={max} onValueChange={setValue} className="mt-2" />
       {(left || right) && (
         <div className="mt-1.5 flex justify-between text-micro text-faint"><span>{left}</span><span>{right}</span></div>
       )}
@@ -243,18 +241,19 @@ export function Toggle({
   description?: string;
   defaultChecked?: boolean;
 }) {
+  const [checked, setChecked] = useState(defaultChecked);
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-4">
-      <span>
+    <div className="flex items-start justify-between gap-4">
+      <button
+        type="button"
+        onClick={() => setChecked((value) => !value)}
+        className="min-w-0 flex-1 text-left"
+      >
         <span className="block text-ui font-medium text-ink">{label}</span>
         {description && <span className="mt-1 block text-micro leading-relaxed text-faint">{description}</span>}
-      </span>
-      <input type="checkbox" defaultChecked={defaultChecked} className="peer sr-only" />
-      <span
-        aria-hidden
-        className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-[#d8d8d5] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent"
-      />
-    </label>
+      </button>
+      <Switch checked={checked} onCheckedChange={setChecked} aria-label={label} className="mt-0.5 shrink-0" />
+    </div>
   );
 }
 

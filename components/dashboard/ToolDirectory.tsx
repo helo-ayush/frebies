@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import { LayoutGrid, List, Search, X } from "lucide-react";
 import { categories, tools, type CategorySlug } from "@/lib/registry/tools";
 import { ToolCard, ToolRow } from "@/components/tools/ToolCard";
+import { ChipGroup } from "@/components/arc/chip-group/chip-group";
+import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
+import { EmptyState } from "@/components/arc/empty-state/empty-state";
 
 const tabs = [
   { id: "all", label: "All tools" },
@@ -11,20 +14,20 @@ const tabs = [
 ];
 
 const tiers = [
-  ["all", "All access", "All"],
-  ["free", "Free", "Free"],
-  ["credits", "AI credits", "AI"],
+  { value: "all", label: "All access" },
+  { value: "free", label: "Free" },
+  { value: "credits", label: "AI credits" },
 ] as const;
 
-type Tier = (typeof tiers)[number][0];
+type Tier = (typeof tiers)[number]["value"];
 
 const statuses = [
-  ["all", "Any status", "Any"],
-  ["live", "Ready now", "Ready"],
-  ["soon", "Coming soon", "Soon"],
+  { value: "all", label: "Any status" },
+  { value: "live", label: "Ready now" },
+  { value: "soon", label: "Coming soon" },
 ] as const;
 
-type StatusFilter = (typeof statuses)[number][0];
+type StatusFilter = (typeof statuses)[number]["value"];
 
 const views = [
   ["list", List, "List view"],
@@ -147,45 +150,20 @@ export function ToolDirectory({ category }: { category?: CategorySlug }) {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {tiers.map(([id, label, shortLabel]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTier(id)}
-            aria-pressed={tier === id}
-            aria-label={label}
-            className={`h-8 rounded-lg border px-3 text-ui font-medium transition-colors ${
-              tier === id
-                ? "border-ink bg-ink text-white"
-                : "border-line bg-white text-muted hover:bg-hover hover:text-ink"
-            }`}
-          >
-            <span className="sm:hidden">{shortLabel}</span>
-            <span className="hidden sm:inline">{label}</span>
-          </button>
-        ))}
+        <ChipGroup
+          label="Filter by access"
+          multiple={false}
+          options={[...tiers]}
+          value={[tier]}
+          onValueChange={(next) => setTier((next[0] as Tier) ?? "all")}
+        />
 
-        <div
-          role="group"
-          aria-label="Filter by availability"
-          className="flex h-8 items-center gap-0.5 rounded-lg border border-line bg-white p-0.5"
-        >
-          {statuses.map(([id, label, shortLabel]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setStatus(id)}
-              aria-pressed={status === id}
-              aria-label={label}
-              className={`h-7 rounded-md px-2 text-[11.5px] font-medium transition-colors ${
-                status === id ? "bg-active text-ink" : "text-muted hover:text-ink"
-              }`}
-            >
-              <span className="sm:hidden">{shortLabel}</span>
-              <span className="hidden sm:inline">{label}</span>
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          label="Filter by availability"
+          options={[...statuses]}
+          value={status}
+          onValueChange={(next) => setStatus(next as StatusFilter)}
+        />
 
         <label className="ml-auto flex items-center gap-2 text-micro text-faint">
           <span className="hidden sm:inline">Sort</span>
@@ -212,17 +190,21 @@ export function ToolDirectory({ category }: { category?: CategorySlug }) {
       </div>
 
       {visible.length === 0 ? (
-        <div className="mt-3 rounded-xl border border-dashed border-line px-5 py-14 text-center">
-          <p className="text-sm font-medium text-ink">No tools match those filters</p>
-          <p className="mt-1 text-ui text-muted">Try another search or show all access types.</p>
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="mt-4 h-8 rounded-lg border border-line bg-white px-3 text-ui font-medium hover:bg-hover"
-          >
-            Clear filters
-          </button>
-        </div>
+        <EmptyState
+          className="mt-3"
+          icon={<Search size={24} strokeWidth={1.5} />}
+          title="No tools match those filters"
+          description="Try another search or show all access types."
+          action={
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="h-9 rounded-lg border border-line bg-white px-3 text-ui font-medium hover:bg-hover"
+            >
+              Clear filters
+            </button>
+          }
+        />
       ) : view === "list" ? (
         <div className="mt-3 overflow-hidden rounded-xl border border-line">
           <div className="hidden grid-cols-[minmax(0,1fr)_110px_120px_16px] gap-4 border-b border-line-soft px-4 py-2.5 text-micro text-faint sm:grid">

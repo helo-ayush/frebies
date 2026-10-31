@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Check,
@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { RailSwitch } from "@/components/tool/studio/RailSwitch";
+import { RailSlider } from "@/components/tool/studio/RailSlider";
 import {
   RailSection,
   RAIL_CARD_ACTIVE,
@@ -169,13 +170,6 @@ function qualityBand(quality: number) {
   if (quality >= 70) return { label: "Balanced", dot: "bg-[#c49a4a]" };
   if (quality >= 50) return { label: "Smaller file", dot: "bg-[#c4814a]" };
   return { label: "Aggressive", dot: "bg-[#b35c4a]" };
-}
-
-function rangeFill(value: number, min: number, max: number): CSSProperties {
-  const percent = Math.min(100, Math.max(0, ((value - min) / Math.max(1, max - min)) * 100));
-  return {
-    background: `linear-gradient(to right, var(--color-ink) 0%, var(--color-ink) ${percent}%, var(--color-line-soft) ${percent}%, var(--color-line-soft) 100%)`,
-  };
 }
 
 export function ImageCompressSettings({
@@ -418,16 +412,13 @@ export function ImageCompressSettings({
                 </span>
               </div>
 
-              <input
-                type="range"
+              <RailSlider
+                label="Quality percent"
+                value={settings.quality}
                 min={10}
                 max={100}
-                step={1}
-                value={settings.quality}
-                onChange={(event) => onPatch({ quality: Number(event.target.value) })}
-                aria-label="Quality percent"
-                style={rangeFill(settings.quality, 10, 100)}
-                className="range mt-3 w-full"
+                onValueChange={(quality) => onPatch({ quality })}
+                className="mt-3"
               />
               <div className="mt-1.5 flex justify-between text-[10.5px] text-faint">
                 <span>Maximum compression</span>
@@ -478,16 +469,13 @@ export function ImageCompressSettings({
                 </span>
               </div>
 
-              <input
-                type="range"
+              <RailSlider
+                label="Percentage reduction"
+                value={settings.percent}
                 min={10}
                 max={95}
-                step={1}
-                value={settings.percent}
-                onChange={(event) => onPatch({ percent: Number(event.target.value) })}
-                aria-label="Percentage reduction"
-                style={rangeFill(settings.percent, 10, 95)}
-                className="range mt-3 w-full"
+                onValueChange={(percent) => onPatch({ percent })}
+                className="mt-3"
               />
               <div className="mt-1.5 flex justify-between text-[10.5px] text-faint">
                 <span>Light trim</span>
@@ -654,16 +642,13 @@ export function ImageCompressSettings({
                       {settings.scalePercent}%
                     </span>
                   </div>
-                  <input
-                    type="range"
+                  <RailSlider
+                    label="Scale percent"
+                    value={settings.scalePercent}
                     min={10}
                     max={100}
-                    step={1}
-                    value={settings.scalePercent}
-                    onChange={(event) => onPatch({ scalePercent: Number(event.target.value) })}
-                    aria-label="Scale percent"
-                    style={rangeFill(settings.scalePercent, 10, 100)}
-                    className="range mt-2.5 w-full"
+                    onValueChange={(scalePercent) => onPatch({ scalePercent })}
+                    className="mt-2.5"
                   />
                   <div className="mt-2.5 grid grid-cols-3 gap-1.5">
                     {[100, 75, 50, 33, 25, 10].map((value) => {

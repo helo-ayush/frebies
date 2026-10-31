@@ -1,8 +1,8 @@
-import Link from "next/link";
-import { ChevronRight, Cloud, Lock, MonitorDown } from "lucide-react";
+import { Cloud, Lock, MonitorDown } from "lucide-react";
 import type { Category, Tool } from "@/lib/registry/tools";
 import { PointerHighlight } from "@/components/aceternity/pointer-highlight";
 import { Badge } from "@/components/ui/Badge";
+import { Breadcrumb } from "@/components/arc/breadcrumb/breadcrumb";
 
 export function ToolHeader({ tool, category }: { tool: Tool; category: Category }) {
   const Icon = tool.icon;
@@ -15,13 +15,12 @@ export function ToolHeader({ tool, category }: { tool: Tool; category: Category 
           <Icon size={21} strokeWidth={1.5} aria-hidden />
         </span>
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-micro font-medium text-faint">
-            <Link href={`/${category.slug}`} className="transition-colors hover:text-ink">
-              {category.title}
-            </Link>
-            <ChevronRight size={11} aria-hidden />
-            <span>Workspace</span>
-          </div>
+          <Breadcrumb
+            items={[
+              { label: category.title, href: `/${category.slug}` },
+              { label: "Workspace" },
+            ]}
+          />
           <h1 className="mt-1.5 flex items-center gap-2 font-display text-[30px] font-semibold tracking-[-0.035em]">
             <PointerHighlight
               rectangleClassName="border-accent/30"

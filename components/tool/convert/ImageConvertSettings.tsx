@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   AppWindow,
@@ -23,6 +23,8 @@ import {
   Wand2,
 } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
+import { RailSlider } from "@/components/tool/studio/RailSlider";
+import { Switch } from "@/components/arc/switch/switch";
 import {
   FORMAT_INFO,
   FORMAT_LABEL,
@@ -526,16 +528,13 @@ export function ImageConvertSettings({
                         {settings.scalePercent}%
                       </span>
                     </div>
-                    <input
-                      type="range"
+                    <RailSlider
+                      label="Scale percent"
+                      value={settings.scalePercent}
                       min={10}
                       max={100}
-                      step={1}
-                      value={settings.scalePercent}
-                      onChange={(event) => onPatch({ scalePercent: Number(event.target.value) })}
-                      aria-label="Scale percent"
-                      style={rangeFill(settings.scalePercent, 10, 100)}
-                      className="range mt-2.5"
+                      onValueChange={(scalePercent) => onPatch({ scalePercent })}
+                      className="mt-2.5"
                     />
                     <div className="mt-1 flex justify-between text-[10.5px] text-faint">
                       <span>10%</span>
@@ -578,16 +577,14 @@ export function ImageConvertSettings({
                         <span className="ml-0.5 text-[12px] font-medium text-muted">px</span>
                       </span>
                     </div>
-                    <input
-                      type="range"
+                    <RailSlider
+                      label="Longest edge in pixels"
+                      value={Math.min(longestEdge, settings.maxEdgePx)}
                       min={Math.min(16, longestEdge)}
                       max={longestEdge}
                       step={Math.max(1, Math.round(longestEdge / 100))}
-                      value={Math.min(longestEdge, settings.maxEdgePx)}
-                      onChange={(event) => onPatch({ maxEdgePx: Number(event.target.value) })}
-                      aria-label="Longest edge in pixels"
-                      style={rangeFill(Math.min(longestEdge, settings.maxEdgePx), 16, longestEdge)}
-                      className="range mt-2.5"
+                      onValueChange={(maxEdgePx) => onPatch({ maxEdgePx })}
+                      className="mt-2.5"
                     />
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {[0.75, 0.5, 0.25]
@@ -730,17 +727,13 @@ export function ImageConvertSettings({
                       </span>
                     </div>
 
-                    <input
-                      type="range"
+                    <RailSlider
+                      label={`Compression quality, ${band.label}`}
+                      value={settings.quality}
                       min={10}
                       max={100}
-                      step={1}
-                      value={settings.quality}
-                      onChange={(event) => onPatch({ quality: Number(event.target.value) })}
-                      aria-label="Compression quality"
-                      aria-valuetext={`${settings.quality} percent quality, ${band.label}`}
-                      style={rangeFill(settings.quality, 10, 100)}
-                      className="range mt-3"
+                      onValueChange={(quality) => onPatch({ quality })}
+                      className="mt-3"
                     />
                     <div className="mt-1 flex justify-between text-[10.5px] text-faint">
                       <span>Smaller file</span>
@@ -1039,24 +1032,24 @@ function SwitchRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-3">
-      <span className="min-w-0">
+    <div className="flex items-start justify-between gap-3">
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className="min-w-0 flex-1 text-left"
+      >
         <span className="block text-[11.5px] font-medium text-ink">{label}</span>
         <span className="mt-0.5 block text-[10.5px] leading-relaxed text-faint">
           {description}
         </span>
-      </span>
-      <input
-        type="checkbox"
+      </button>
+      <Switch
         checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="peer sr-only"
+        onCheckedChange={onChange}
+        aria-label={label}
+        className="mt-0.5 shrink-0"
       />
-      <span
-        aria-hidden
-        className="relative mt-0.5 h-6 w-10 shrink-0 rounded-full bg-[#ddd9d1] transition-colors after:absolute after:left-[3px] after:top-[3px] after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent"
-      />
-    </label>
+    </div>
   );
 }
 
@@ -1093,7 +1086,3 @@ function DimensionField({
   );
 }
 
-function rangeFill(value: number, min: number, max: number): CSSProperties {
-  const percent = ((value - min) / Math.max(1, max - min)) * 100;
-  return { "--fill": `${Math.min(100, Math.max(0, percent))}%` } as CSSProperties;
-}

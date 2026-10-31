@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -15,7 +15,10 @@ import {
 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
 import { ArrowRightGlyph, LockGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
+import { Progress } from "@/components/arc/progress/progress";
+import { Switch } from "@/components/arc/switch/switch";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
+import { RailSlider } from "@/components/tool/studio/RailSlider";
 import { AudioDropzone } from "@/components/tool/audio/AudioDropzone";
 import { AudioFileMeta } from "@/components/tool/audio/AudioFileMeta";
 import { AudioPlayer, type AudioSelection } from "@/components/tool/audio/AudioPlayer";
@@ -451,27 +454,11 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
           action={
             busy ? (
               <div className="w-full">
-                <div className="flex items-center justify-between gap-3 text-micro">
-                  <span className="flex min-w-0 items-center gap-2 truncate text-muted">
-                    <Loader2 size={12} className="shrink-0 animate-spin text-accent" aria-hidden />
-                    {progress.label}
-                  </span>
-                  <span className="shrink-0 font-medium tabular-nums text-ink">
-                    {Math.round(progress.value * 100)}%
-                  </span>
-                </div>
-                <div
-                  className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e9e4da]"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(progress.value * 100)}
-                >
-                  <div
-                    className="h-full rounded-full bg-accent transition-[width] duration-200"
-                    style={{ width: `${Math.round(progress.value * 100)}%` }}
-                  />
-                </div>
+                <Progress
+                  value={Math.round(progress.value * 100)}
+                  label={progress.label}
+                  showValue
+                />
                 <div className="mt-2.5 flex items-center justify-between gap-3">
                   <p className="flex items-center gap-1.5 text-micro text-faint">
                     <ShieldCheck size={12} aria-hidden />
@@ -812,22 +799,22 @@ function AudioToggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-3">
-      <span className="min-w-0">
+    <div className="flex items-start justify-between gap-3">
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className="min-w-0 flex-1 text-left"
+      >
         <span className="block text-[11.5px] font-medium text-ink">{title}</span>
         <span className="mt-0.5 block text-[10px] leading-relaxed text-faint">{description}</span>
-      </span>
-      <input
-        type="checkbox"
+      </button>
+      <Switch
         checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="peer sr-only"
+        onCheckedChange={onChange}
+        aria-label={title}
+        className="mt-0.5 shrink-0"
       />
-      <span
-        aria-hidden
-        className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent"
-      />
-    </label>
+    </div>
   );
 }
 
@@ -902,22 +889,15 @@ function FadeSlider({
         <span className="font-medium text-muted">{label}</span>
         <span className="tabular-nums text-faint">{value.toFixed(1)} s</span>
       </div>
-      <input
-        type="range"
+      <RailSlider
+        label={label}
+        value={value}
         min={0}
         max={3}
         step={0.1}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        aria-label={label}
-        style={rangeFill(value, 0, 3)}
-        className="range mt-1.5"
+        onValueChange={onChange}
+        className="mt-1"
       />
     </div>
   );
-}
-
-function rangeFill(value: number, min: number, max: number): CSSProperties {
-  const percent = ((value - min) / (max - min)) * 100;
-  return { "--fill": `${Math.min(100, Math.max(0, percent))}%` } as CSSProperties;
 }
