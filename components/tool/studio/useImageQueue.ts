@@ -279,6 +279,17 @@ export function useImageQueue({
     });
   }
 
+  function reorderItem(id: string, toIndex: number) {
+    setItems((current) => {
+      const fromIndex = current.findIndex((item) => item.id === id);
+      if (fromIndex < 0 || toIndex < 0 || toIndex >= current.length || fromIndex === toIndex) return current;
+      const next = [...current];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }
+
   function reverseItems() {
     setItems((current) => [...current].reverse());
   }
@@ -318,6 +329,7 @@ export function useImageQueue({
     removeItem,
     clearAll,
     moveItem,
+    reorderItem,
     reverseItems,
   };
 }

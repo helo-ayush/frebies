@@ -1,21 +1,14 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  ArrowDownUp,
-  ArrowRight,
-  Check,
   ChevronLeft,
   ChevronRight,
   Download,
-  Eye,
   FileText,
   Grid,
-  ImagePlus,
   Layers3,
   Loader2,
-  Maximize2,
-  Minimize2,
   Plus,
   RotateCw,
   ScanLine,
@@ -40,12 +33,22 @@ import {
   marginMeta,
   pageAspect,
   pageLabel,
-  pageSizeMeta,
   pdfFilename,
   type PdfSettings,
 } from "./model";
 
 const MAX_FILES = 25;
+const FILMSTRIP_H = 80;
+
+function thumbWidth(item: { width?: number; height?: number }, rotation = 0): number {
+  const isRotatedQuarter = rotation === 90 || rotation === 270;
+  const rawW = item.width || 800;
+  const rawH = item.height || 600;
+  const w = isRotatedQuarter ? rawH : rawW;
+  const h = isRotatedQuarter ? rawW : rawH;
+  const aspect = w / h;
+  return Math.min(130, Math.max(54, Math.round(FILMSTRIP_H * aspect)));
+}
 
 export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const {
@@ -64,6 +67,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     removeItem,
     clearAll,
     moveItem,
+    reorderItem,
     reverseItems,
   } = useImageQueue({
     maxFiles: MAX_FILES,
@@ -84,6 +88,10 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   // Per-page rotation overrides: { [itemId]: degrees } (0, 90, 180, 270)
   const [pageRotations, setPageRotations] = useState<Record<string, number>>({});
+
+  // Internal drag-to-reorder state (separate from file-drop drag from useImageQueue)
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   // Desk stage measurement
   const deskRef = useRef<HTMLDivElement>(null);
@@ -146,6 +154,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   const label = pageLabel(settings, aspect);
   const margin = marginMeta(settings.margin);
+  const effectiveMarginPercent = settings.pageSize === "fit" ? 0 : margin.percent;
   const background = backgroundValue(settings.background);
 
   // Compute responsive PDF paper sheet dimensions for the desk stage
@@ -174,9 +183,47 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   }
 
   function patch(next: Partial<PdfSettings>) {
-    setSettings((current) => ({ ...current, ...next }));
+    setSettings((current) => {
+      const merged = { ...current, ...next };
+      if (next.pageSize === "fit") {
+        merged.margin = "none";
+      } else if (current.pageSize === "fit" && next.pageSize && current.margin === "none") {
+        merged.margin = "medium";
+      }
+      return merged;
+    });
     setNotice(null);
     setResult(null);
+  }
+
+  function handleItemDragStart(e: React.DragEvent, id: string) {
+    setDragId(id);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", id);
+  }
+  function handleItemDragOver(e: React.DragEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    if (id !== dragOverId) setDragOverId(id);
+  }
+  function handleItemDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragId || !dragOverId || dragId === dragOverId) {
+      setDragId(null);
+      setDragOverId(null);
+      return;
+    }
+    const fromIdx = items.findIndex((i) => i.id === dragId);
+    const toIdx = items.findIndex((i) => i.id === dragOverId);
+    if (fromIdx !== -1 && toIdx !== -1) reorderItem(dragId, toIdx);
+    setDragId(null);
+    setDragOverId(null);
+  }
+  function handleItemDragEnd() {
+    setDragId(null);
+    setDragOverId(null);
   }
 
   function rotatePage(id: string) {
@@ -205,7 +252,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     setResult(null);
 
     try {
-      const marginPercent = marginMeta(settings.margin).percent;
+      const marginPercent = settings.pageSize === "fit" ? 0 : marginMeta(settings.margin).percent;
       const background = backgroundValue(settings.background);
       const textColor =
         settings.background === "black" ? "rgba(255,255,255,0.6)" : "#8b8578";
@@ -362,33 +409,33 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                     <button
                       type="button"
                       onClick={() => setStageView("single")}
-                      className={`flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      className={`flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[12px] font-medium transition-colors ${
                         stageView === "single"
                           ? "bg-ink font-semibold text-white shadow-2xs"
                           : "text-muted hover:text-ink"
                       }`}
                       title="Inspect active page"
                     >
-                      <FileText size={12} aria-hidden />
+                      <FileText size={13} aria-hidden />
                       <span>Single Page</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setStageView("grid")}
-                      className={`flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      className={`flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[12px] font-medium transition-colors ${
                         stageView === "grid"
                           ? "bg-ink font-semibold text-white shadow-2xs"
                           : "text-muted hover:text-ink"
                       }`}
                       title="View all pages in document grid"
                     >
-                      <Grid size={12} aria-hidden />
+                      <Grid size={13} aria-hidden />
                       <span>All Pages ({items.length})</span>
                     </button>
                   </div>
 
                   {/* Document Specs Pill */}
-                  <span className="flex items-center gap-1.5 rounded-[8px] border border-line bg-white/95 px-2.5 py-1 text-[10.5px] font-semibold text-ink shadow-2xs backdrop-blur-sm">
+                  <span className="flex items-center gap-1.5 rounded-[9px] border border-line bg-white/95 px-3 py-1.5 text-[11px] font-semibold text-ink shadow-2xs backdrop-blur-sm">
                     {stageView === "single" ? (
                       <>
                         <span>Page {activeIndex + 1} of {items.length}</span>
@@ -409,10 +456,10 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       <button
                         type="button"
                         onClick={() => rotatePage(activeItem.id)}
-                        className="inline-flex h-8 items-center gap-1 rounded-[9px] border border-line bg-white/95 px-2.5 text-[11px] font-semibold text-ink shadow-2xs backdrop-blur-sm hover:bg-hover"
+                        className="inline-flex h-8.5 items-center gap-1.5 rounded-[9px] border border-line bg-white/95 px-3 text-[11.5px] font-semibold text-ink shadow-2xs backdrop-blur-sm hover:bg-hover"
                         title="Rotate active page 90° clockwise"
                       >
-                        <RotateCw size={12} aria-hidden />
+                        <RotateCw size={13} aria-hidden />
                         <span>Rotate</span>
                         {activeRotation !== 0 && (
                           <span className="ml-0.5 rounded bg-ink/10 px-1 py-0.2 text-[9px] font-bold">
@@ -426,7 +473,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                         <button
                           type="button"
                           onClick={() => setZoomMode("fit")}
-                          className={`rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
+                          className={`rounded-[7px] px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
                             zoomMode === "fit"
                               ? "bg-ink font-semibold text-white shadow-2xs"
                               : "text-muted hover:text-ink"
@@ -438,7 +485,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                         <button
                           type="button"
                           onClick={() => setZoomMode("100%")}
-                          className={`rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
+                          className={`rounded-[7px] px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
                             zoomMode === "100%"
                               ? "bg-ink font-semibold text-white shadow-2xs"
                               : "text-muted hover:text-ink"
@@ -453,7 +500,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       <button
                         type="button"
                         onClick={() => handleRemovePage(activeItem.id)}
-                        className="grid h-8 w-8 place-items-center rounded-[9px] border border-line bg-white/95 text-muted shadow-2xs backdrop-blur-sm hover:border-[#a13d30]/40 hover:bg-[#fff5f5] hover:text-[#a13d30]"
+                        className="grid h-8.5 w-8.5 place-items-center rounded-[9px] border border-line bg-white/95 text-muted shadow-2xs backdrop-blur-sm hover:border-[#a13d30]/40 hover:bg-[#fff5f5] hover:text-[#a13d30]"
                         title={`Remove page ${activeIndex + 1}`}
                       >
                         <Trash2 size={13} aria-hidden />
@@ -503,10 +550,10 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       {/* Printable Area / Margins Box */}
                       <div
                         className="relative flex h-full w-full items-center justify-center"
-                        style={{ padding: `${margin.percent}%` }}
+                        style={{ padding: `${effectiveMarginPercent}%` }}
                       >
                         {/* Printable Margin Boundary Guide (subtle dashed border when margins enabled) */}
-                        {margin.percent > 0 && (
+                        {effectiveMarginPercent > 0 && (
                           <div className="pointer-events-none absolute inset-0 m-[inherit] border border-dashed border-black/10 rounded-[2px]" />
                         )}
 
@@ -516,7 +563,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                             src={activeItem.preview}
                             alt={`PDF Page ${activeIndex + 1}`}
                             className={`select-none pointer-events-none transition-transform duration-150 ${
-                              settings.fit === "cover"
+                              effectiveMarginPercent === 0 || settings.fit === "cover"
                                 ? "h-full w-full object-cover"
                                 : settings.fit === "stretch"
                                   ? "h-full w-full object-fill"
@@ -579,16 +626,32 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 {/* VIEW MODE B: All Pages Booklet Grid Overview */}
                 {stageView === "grid" && (
                   <div className="absolute inset-0 overflow-y-auto px-4 pt-14 pb-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 place-items-center">
+                    <div className="flex flex-wrap gap-5 place-content-start">
                       {items.map((item, index) => {
                         const pageRot = pageRotations[item.id] || 0;
                         const isFocused = item.id === activeItem?.id;
+                        const isDragging = dragId === item.id;
+                        const isDragOver = dragOverId === item.id;
+                        const isRotatedQuarter = pageRot === 90 || pageRot === 270;
+                        const rawW = item.width || 800;
+                        const rawH = item.height || 600;
+                        const effW = isRotatedQuarter ? rawH : rawW;
+                        const effH = isRotatedQuarter ? rawW : rawH;
+                        const cardAspect = settings.pageSize === "fit" ? effW / effH : aspect;
+                        // Increased card size for better preview and easier drag-and-drop
+                        const cardH = 190;
+                        const cardW = Math.min(270, Math.max(130, Math.round(cardH * cardAspect)));
                         return (
                           <div
                             key={item.id}
-                            className={`group relative flex flex-col items-center rounded-[10px] p-2 transition-all ${
-                              isFocused ? "bg-white/80 ring-2 ring-ink shadow-xs" : "hover:bg-white/50"
-                            }`}
+                            draggable
+                            onDragStart={(e) => handleItemDragStart(e, item.id)}
+                            onDragOver={(e) => handleItemDragOver(e, item.id)}
+                            onDrop={handleItemDrop}
+                            onDragEnd={handleItemDragEnd}
+                            className={`group relative flex flex-col items-center rounded-[12px] p-2 transition-all cursor-grab active:cursor-grabbing ${
+                              isFocused ? "bg-white/90 ring-2 ring-ink shadow-sm" : "hover:bg-white/60"
+                            } ${isDragging ? "opacity-40 scale-95" : ""} ${isDragOver && !isDragging ? "scale-105 ring-2 ring-ink/40" : ""}`}
                           >
                             {/* Miniature Document Sheet */}
                             <button
@@ -597,24 +660,23 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                                 setActiveId(item.id);
                                 setStageView("single");
                               }}
-                              className="relative overflow-hidden rounded-[3px] border border-black/10 shadow-md bg-white transition-transform group-hover:scale-[1.02]"
+                              className="relative overflow-hidden rounded-[4px] border border-black/10 shadow-md bg-white transition-transform group-hover:scale-[1.02]"
                               style={{
-                                width: "120px",
-                                height: aspect >= 1 ? `${Math.round(120 / aspect)}px` : `${Math.round(120 / aspect)}px`,
-                                maxHeight: "170px",
+                                width: `${cardW}px`,
+                                height: `${cardH}px`,
                                 background,
                               }}
-                              title={`Click to inspect page ${index + 1}`}
+                              title={`Click to inspect page ${index + 1} · Drag to reorder`}
                             >
                               <div
                                 className="flex h-full w-full items-center justify-center overflow-hidden"
-                                style={{ padding: `${Math.min(8, margin.percent * 0.8)}%` }}
+                                style={{ padding: `${effectiveMarginPercent === 0 ? 0 : Math.min(8, effectiveMarginPercent * 0.8)}%` }}
                               >
                                 <img
                                   src={item.preview}
                                   alt={`Page ${index + 1}`}
                                   className={`h-full w-full select-none ${
-                                    settings.fit === "cover"
+                                    effectiveMarginPercent === 0 || settings.fit === "cover"
                                       ? "object-cover"
                                       : settings.fit === "stretch"
                                         ? "object-fill"
@@ -628,64 +690,29 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                               </div>
 
                               {/* Page Stamp Number */}
-                              <span className="absolute bottom-1 right-1 rounded bg-black/65 px-1 py-0.2 text-[8px] font-bold text-white tabular-nums">
+                              <span className="absolute bottom-1.5 right-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white tabular-nums">
                                 {index + 1}
                               </span>
                             </button>
 
-                            {/* Page Controls Overlay */}
-                            <div className="mt-1.5 flex items-center justify-between w-full px-1">
-                              <span className="text-[10px] font-bold text-ink tabular-nums">
+                            {/* Cross delete button on top-right of card */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemovePage(item.id);
+                              }}
+                              className="absolute -right-1.5 -top-1.5 z-20 grid h-6 w-6 place-items-center rounded-full border border-line bg-white text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:border-[#a13d30]/50 hover:bg-[#fff5f5] hover:text-[#a13d30]"
+                              title="Remove page"
+                            >
+                              <X size={12} />
+                            </button>
+
+                            {/* Page label below card */}
+                            <div className="mt-2 flex items-center justify-center w-full px-1">
+                              <span className="text-[11.5px] font-bold text-ink tabular-nums">
                                 Page {index + 1}
                               </span>
-                              <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    rotatePage(item.id);
-                                  }}
-                                  className="grid h-5 w-5 place-items-center rounded bg-white text-muted hover:text-ink shadow-2xs border border-line"
-                                  title="Rotate 90°"
-                                >
-                                  <RotateCw size={9} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    moveItem(item.id, -1);
-                                  }}
-                                  disabled={index === 0}
-                                  className="grid h-5 w-5 place-items-center rounded bg-white text-muted hover:text-ink shadow-2xs border border-line disabled:opacity-20"
-                                  title="Move earlier"
-                                >
-                                  <ChevronLeft size={10} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    moveItem(item.id, 1);
-                                  }}
-                                  disabled={index === items.length - 1}
-                                  className="grid h-5 w-5 place-items-center rounded bg-white text-muted hover:text-ink shadow-2xs border border-line disabled:opacity-20"
-                                  title="Move later"
-                                >
-                                  <ChevronRight size={10} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRemovePage(item.id);
-                                  }}
-                                  className="grid h-5 w-5 place-items-center rounded bg-white text-muted hover:text-[#a13d30] shadow-2xs border border-line"
-                                  title="Delete page"
-                                >
-                                  <X size={10} />
-                                </button>
-                              </div>
                             </div>
                           </div>
                         );
@@ -695,11 +722,11 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       <button
                         type="button"
                         onClick={() => openPicker()}
-                        className="flex flex-col items-center justify-center rounded-[10px] border-2 border-dashed border-[#cbc4b7] p-4 text-center hover:border-ink hover:bg-white/60 transition-all"
-                        style={{ width: "120px", height: aspect >= 1 ? `${Math.round(120 / aspect)}px` : "160px" }}
+                        className="flex flex-col items-center justify-center rounded-[12px] border-2 border-dashed border-[#cbc4b7] p-4 text-center hover:border-ink hover:bg-white/60 transition-all"
+                        style={{ width: `${Math.min(270, Math.max(130, Math.round(190 * aspect)))}px`, height: "190px" }}
                       >
-                        <Plus size={20} className="text-muted mb-1" />
-                        <span className="text-[11px] font-bold text-ink">Add Page</span>
+                        <Plus size={24} className="text-muted mb-1.5" />
+                        <span className="text-[12px] font-bold text-ink">Add Page</span>
                       </button>
                     </div>
                   </div>
@@ -754,10 +781,20 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                     {items.map((item, index) => {
                       const isActive = item.id === activeItem?.id;
                       const pageRot = pageRotations[item.id] || 0;
+                      const tw = thumbWidth(item, pageRot);
+                      const isDragging = dragId === item.id;
+                      const isDragOver = dragOverId === item.id;
                       return (
                         <div
                           key={item.id}
-                          className="group relative flex flex-col items-center shrink-0"
+                          draggable
+                          onDragStart={(e) => handleItemDragStart(e, item.id)}
+                          onDragOver={(e) => handleItemDragOver(e, item.id)}
+                          onDrop={handleItemDrop}
+                          onDragEnd={handleItemDragEnd}
+                          className={`group relative flex flex-col items-center shrink-0 cursor-grab active:cursor-grabbing transition-all ${
+                            isDragging ? "opacity-40 scale-95" : ""
+                          } ${isDragOver && !isDragging ? "scale-105" : ""}`}
                         >
                           <button
                             type="button"
@@ -768,11 +805,12 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                             aria-pressed={isActive}
                             aria-label={`Page ${index + 1}: ${item.file.name}`}
                             title={`Page ${index + 1}: ${item.file.name}`}
-                            className={`relative h-[68px] w-[50px] shrink-0 overflow-hidden rounded-[4px] border bg-white shadow-2xs transition-all ${
+                            className={`relative shrink-0 overflow-hidden rounded-[4px] border bg-white shadow-2xs transition-all ${
                               isActive
                                 ? "border-ink ring-2 ring-ink shadow-xs scale-[1.03]"
                                 : "border-line hover:border-[#cbc5b9]"
                             }`}
+                            style={{ width: `${tw}px`, height: `${FILMSTRIP_H}px` }}
                           >
                             <img
                               src={item.preview}
@@ -795,35 +833,18 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                             )}
                           </button>
 
-                          {/* Thumbnail hover quick actions */}
-                          <div className="mt-1 flex items-center gap-0.5">
-                            <button
-                              type="button"
-                              onClick={() => moveItem(item.id, -1)}
-                              disabled={index === 0}
-                              className="grid h-4 w-4 place-items-center rounded text-faint hover:text-ink disabled:opacity-20"
-                              title="Move left"
-                            >
-                              <ChevronLeft size={10} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => rotatePage(item.id)}
-                              className="grid h-4 w-4 place-items-center rounded text-faint hover:text-ink"
-                              title="Rotate 90°"
-                            >
-                              <RotateCw size={9} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveItem(item.id, 1)}
-                              disabled={index === items.length - 1}
-                              className="grid h-4 w-4 place-items-center rounded text-faint hover:text-ink disabled:opacity-20"
-                              title="Move right"
-                            >
-                              <ChevronRight size={10} />
-                            </button>
-                          </div>
+                          {/* × remove button on hover */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemovePage(item.id);
+                            }}
+                            className="absolute -right-1.5 -top-1.5 z-10 grid h-5 w-5 place-items-center rounded-full border border-line bg-white text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:border-[#a13d30]/50 hover:bg-[#fff5f5] hover:text-[#a13d30]"
+                            title="Remove page"
+                          >
+                            <X size={11} />
+                          </button>
                         </div>
                       );
                     })}
@@ -833,7 +854,8 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       type="button"
                       onClick={() => openPicker()}
                       aria-label="Add more document pages"
-                      className="grid h-[68px] w-[50px] shrink-0 place-items-center rounded-[4px] border-2 border-dashed border-[#d7d2c8] text-faint transition-colors hover:border-[#b8a992] hover:text-ink hover:bg-white"
+                      className="grid shrink-0 place-items-center rounded-[4px] border-2 border-dashed border-[#d7d2c8] text-faint transition-colors hover:border-[#b8a992] hover:text-ink hover:bg-white"
+                      style={{ width: "56px", height: `${FILMSTRIP_H}px` }}
                       title="Add more images as pages"
                     >
                       <Plus size={16} aria-hidden />

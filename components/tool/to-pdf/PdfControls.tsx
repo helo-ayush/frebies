@@ -103,73 +103,93 @@ export function PdfControls({
             </div>
           </div>
 
-          {/* Orientation Selector */}
-          <div>
-            <div className="flex items-baseline justify-between mb-1.5">
-              <span className="text-[11px] font-semibold text-ink">Orientation</span>
-              <span className="text-[10px] text-faint">
-                {settings.pageSize === "fit" ? "Follows source images" : "Page aspect ratio"}
-              </span>
+          {/* Orientation Selector - for standard document paper formats */}
+          {settings.pageSize !== "fit" && (
+            <div>
+              <div className="flex items-baseline justify-between mb-1.5">
+                <span className="text-[12px] font-semibold text-ink">Orientation</span>
+                <span className="text-[10.5px] text-faint">Page aspect ratio</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {ORIENTATIONS.map((orientation) => {
+                  const selected = settings.orientation === orientation.id;
+                  return (
+                    <button
+                      key={orientation.id}
+                      type="button"
+                      onClick={() => onPatch({ orientation: orientation.id as PageOrientation })}
+                      className={`flex flex-col items-center justify-center rounded-[10px] border py-2.5 text-center transition-all ${
+                        selected
+                          ? "border-ink bg-white text-ink shadow-xs ring-1 ring-ink/20 font-semibold"
+                          : "border-line bg-white/70 text-muted hover:border-[#c8c2b7] hover:bg-white hover:text-ink"
+                      }`}
+                    >
+                      <span className="mb-1 text-[14px] leading-none">
+                        {orientation.id === "auto" ? "⚡" : orientation.id === "portrait" ? "↕" : "↔"}
+                      </span>
+                      <span className="text-[12px] font-medium">{orientation.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {ORIENTATIONS.map((orientation) => {
-                const selected = settings.orientation === orientation.id;
-                return (
-                  <button
-                    key={orientation.id}
-                    type="button"
-                    onClick={() => onPatch({ orientation: orientation.id as PageOrientation })}
-                    className={`flex flex-col items-center justify-center rounded-[9px] border py-2 text-center transition-all ${
-                      selected
-                        ? "border-ink bg-white text-ink shadow-xs ring-1 ring-ink/20 font-semibold"
-                        : "border-line bg-white/70 text-muted hover:border-[#c8c2b7] hover:bg-white hover:text-ink"
-                    }`}
-                  >
-                    <span className="mb-1 text-[13px] leading-none">
-                      {orientation.id === "auto" ? "⚡" : orientation.id === "portrait" ? "↕" : "↔"}
-                    </span>
-                    <span className="text-[11.5px] font-medium">{orientation.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          )}
 
           {/* Margins Selector with Visual Previews */}
-          <div>
-            <div className="flex items-baseline justify-between mb-1.5">
-              <span className="text-[11px] font-semibold text-ink">Page margin</span>
-              <span className="text-[10px] text-faint font-medium tabular-nums">{margin.percent}% inset</span>
+          {settings.pageSize === "fit" ? (
+            <div className="rounded-[11px] border border-[#d9e3d5] bg-[#f4f8f2] px-3.5 py-3 text-[11.5px] font-semibold text-[#305e2b]">
+              ✓ Margins removed — page size matches image exactly (bleed to edge)
             </div>
-            <div className="grid grid-cols-4 gap-1.5">
-              {MARGINS.map((option) => {
-                const selected = settings.margin === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => onPatch({ margin: option.id as MarginId })}
-                    className={`flex flex-col items-center justify-center rounded-[9px] border py-1.5 px-1 text-center transition-all ${
-                      selected
-                        ? "border-ink bg-white text-ink shadow-xs ring-1 ring-ink/20 font-semibold"
-                        : "border-line bg-white/70 text-muted hover:border-[#c8c2b7] hover:bg-white hover:text-ink"
-                    }`}
-                  >
-                    <div className="mb-1 grid h-5 w-4 place-items-center rounded-[2px] border border-line bg-white">
-                      <span
-                        className="rounded-[1px] bg-ink/20 transition-all"
-                        style={{
-                          width: `${Math.max(4, 14 - option.percent)}px`,
-                          height: `${Math.max(6, 18 - option.percent)}px`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-[10.5px] font-medium">{option.label}</span>
-                  </button>
-                );
-              })}
+          ) : (
+            <div>
+              <div className="flex items-baseline justify-between mb-1.5">
+                <span className="text-[12px] font-semibold text-ink">Page margin</span>
+                <span className="text-[10.5px] text-faint font-medium tabular-nums">{margin.percent}% inset</span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {MARGINS.map((option) => {
+                  const selected = settings.margin === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => onPatch({ margin: option.id as MarginId })}
+                      className={`flex flex-col items-center justify-center rounded-[10px] border py-2 px-1 text-center transition-all ${
+                        selected
+                          ? "border-ink bg-white text-ink shadow-xs ring-1 ring-ink/20 font-semibold"
+                          : "border-line bg-white/70 text-muted hover:border-[#c8c2b7] hover:bg-white hover:text-ink"
+                      }`}
+                    >
+                      <div className="mb-1.5 grid h-5 w-4 place-items-center rounded-[2px] border border-line bg-white">
+                        <span
+                          className="rounded-[1px] bg-ink/20 transition-all"
+                          style={{
+                            width: `${Math.max(4, 14 - option.percent)}px`,
+                            height: `${Math.max(6, 18 - option.percent)}px`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-medium">{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Quick remove-all-margins toggle */}
+              <label className="mt-2.5 flex cursor-pointer items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={settings.margin === "none"}
+                  onChange={(e) => onPatch({ margin: e.target.checked ? "none" : "medium" })}
+                  className="peer sr-only"
+                />
+                <span
+                  aria-hidden
+                  className="relative h-5 w-9 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4"
+                />
+                <span className="text-[11.5px] font-medium text-ink">Remove all margins (bleed to edge)</span>
+              </label>
             </div>
-          </div>
+          )}
 
           {/* Image Fit */}
           <div>
