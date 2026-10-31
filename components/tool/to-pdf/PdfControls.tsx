@@ -64,7 +64,7 @@ export function PdfControls({
         hint="Standard paper size, orientation and margins"
         defaultOpen={true}
         aside={
-          <span className="rounded-full border border-line bg-white px-2 py-0.5 text-[10px] font-semibold text-ink shadow-2xs">
+          <span className="rounded-full border border-line bg-white px-2.5 py-0.5 text-[10.5px] font-semibold text-ink shadow-2xs">
             {size.label} · {settings.orientation === "auto" ? "Auto" : settings.orientation === "portrait" ? "Portrait" : "Landscape"}
           </span>
         }
@@ -72,8 +72,8 @@ export function PdfControls({
         <div className="space-y-4">
           {/* Paper Size Grid */}
           <div>
-            <span className="block text-[11px] font-semibold text-ink mb-1.5">Paper format</span>
-            <div className="grid grid-cols-2 gap-1.5">
+            <span className="block text-[12px] font-bold text-ink mb-1.5">Paper format</span>
+            <div className="grid grid-cols-2 gap-2">
               {PAGE_SIZES.map((option) => {
                 const selected = settings.pageSize === option.id;
                 return (
@@ -81,7 +81,7 @@ export function PdfControls({
                     key={option.id}
                     type="button"
                     onClick={() => onPatch({ pageSize: option.id as PageSizeId })}
-                    className={`flex items-center gap-2.5 rounded-[10px] border p-2 text-left transition-all ${
+                    className={`flex items-center gap-2.5 rounded-[10px] border p-2.5 text-left transition-all ${
                       selected
                         ? "border-ink bg-white text-ink shadow-xs ring-1 ring-ink/20 font-semibold"
                         : "border-line bg-white/70 text-muted hover:border-[#c8c2b7] hover:bg-white hover:text-ink"
@@ -92,10 +92,10 @@ export function PdfControls({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-[12px] font-bold">{option.label}</span>
-                        {selected && <Check size={11} strokeWidth={2.5} className="text-ink" />}
+                        <span className="text-[12.5px] font-bold">{option.label}</span>
+                        {selected && <Check size={12} strokeWidth={2.5} className="text-ink" />}
                       </div>
-                      <span className="block text-[9.5px] text-faint leading-tight">{option.detail}</span>
+                      <span className="block text-[10px] text-faint leading-tight mt-0.5">{option.detail}</span>
                     </div>
                   </button>
                 );
@@ -107,7 +107,7 @@ export function PdfControls({
           {settings.pageSize !== "fit" && (
             <div>
               <div className="flex items-baseline justify-between mb-1.5">
-                <span className="text-[12px] font-semibold text-ink">Orientation</span>
+                <span className="text-[12px] font-bold text-ink">Orientation</span>
                 <span className="text-[10.5px] text-faint">Page aspect ratio</span>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -118,7 +118,7 @@ export function PdfControls({
                       key={orientation.id}
                       type="button"
                       onClick={() => onPatch({ orientation: orientation.id as PageOrientation })}
-                      className={`flex flex-col items-center justify-center rounded-[10px] border py-2.5 text-center transition-all ${
+                      className={`flex flex-col items-center justify-center rounded-[10px] border py-2 text-center transition-all ${
                         selected
                           ? "border-ink bg-white text-ink shadow-xs ring-1 ring-ink/20 font-semibold"
                           : "border-line bg-white/70 text-muted hover:border-[#c8c2b7] hover:bg-white hover:text-ink"
@@ -127,7 +127,7 @@ export function PdfControls({
                       <span className="mb-1 text-[14px] leading-none">
                         {orientation.id === "auto" ? "⚡" : orientation.id === "portrait" ? "↕" : "↔"}
                       </span>
-                      <span className="text-[12px] font-medium">{orientation.label}</span>
+                      <span className="text-[11.5px] font-medium">{orientation.label}</span>
                     </button>
                   );
                 })}
@@ -135,65 +135,67 @@ export function PdfControls({
             </div>
           )}
 
-          {/* Margins Selector with Visual Previews */}
-          {settings.pageSize === "fit" ? (
-            <div className="rounded-[11px] border border-[#d9e3d5] bg-[#f4f8f2] px-3.5 py-3 text-[11.5px] font-semibold text-[#305e2b]">
-              ✓ Margins removed — page size matches image exactly (bleed to edge)
-            </div>
-          ) : (
-            <div>
-              <div className="flex items-baseline justify-between mb-1.5">
-                <span className="text-[12px] font-semibold text-ink">Page margin</span>
-                <span className="text-[10.5px] text-faint font-medium tabular-nums">{margin.percent}% inset</span>
-              </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {MARGINS.map((option) => {
-                  const selected = settings.margin === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => onPatch({ margin: option.id as MarginId })}
-                      className={`flex flex-col items-center justify-center rounded-[10px] border py-2 px-1 text-center transition-all ${
-                        selected
-                          ? "border-ink bg-white text-ink shadow-xs ring-1 ring-ink/20 font-semibold"
-                          : "border-line bg-white/70 text-muted hover:border-[#c8c2b7] hover:bg-white hover:text-ink"
-                      }`}
-                    >
-                      <div className="mb-1.5 grid h-5 w-4 place-items-center rounded-[2px] border border-line bg-white">
-                        <span
-                          className="rounded-[1px] bg-ink/20 transition-all"
-                          style={{
-                            width: `${Math.max(4, 14 - option.percent)}px`,
-                            height: `${Math.max(6, 18 - option.percent)}px`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-medium">{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {/* Quick remove-all-margins toggle */}
-              <label className="mt-2.5 flex cursor-pointer items-center gap-2.5">
-                <input
-                  type="checkbox"
-                  checked={settings.margin === "none"}
-                  onChange={(e) => onPatch({ margin: e.target.checked ? "none" : "medium" })}
-                  className="peer sr-only"
-                />
-                <span
-                  aria-hidden
-                  className="relative h-5 w-9 shrink-0 rounded-full bg-[#d8d5cf] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-ink peer-checked:after:translate-x-4"
-                />
-                <span className="text-[11.5px] font-medium text-ink">Remove all margins (bleed to edge)</span>
-              </label>
-            </div>
-          )}
-
-          {/* Image Fit */}
+          {/* Margins Selector */}
           <div>
-            <span className="block text-[11px] font-semibold text-ink mb-1.5">Image placement</span>
+            <div className="flex items-baseline justify-between mb-1.5">
+              <span className="text-[12px] font-bold text-ink">Page margin</span>
+              <span className="text-[10.5px] text-faint font-medium tabular-nums">
+                {settings.pageSize === "fit" || settings.margin === "none" ? "0% (Bleed)" : `${margin.percent}% inset`}
+              </span>
+            </div>
+
+            {settings.pageSize === "fit" ? (
+              <div className="rounded-[10px] border border-[#d9e3d5] bg-[#f4f8f2] px-3.5 py-2.5 text-[11.5px] font-semibold text-[#305e2b]">
+                ✓ Auto Bleed — Page size matches each image (0% margin)
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="grid grid-cols-4 gap-1.5">
+                  {MARGINS.map((option) => {
+                    const selected = settings.margin === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => onPatch({ margin: option.id as MarginId })}
+                        className={`flex flex-col items-center justify-center rounded-[10px] border py-2 px-1 text-center transition-all ${
+                          selected
+                            ? "border-ink bg-white text-ink shadow-xs ring-1 ring-ink/20 font-semibold"
+                            : "border-line bg-white/70 text-muted hover:border-[#c8c2b7] hover:bg-white hover:text-ink"
+                        }`}
+                      >
+                        <div className="mb-1.5 grid h-5 w-4 place-items-center rounded-[2px] border border-line bg-white">
+                          <span
+                            className="rounded-[1px] bg-ink/20 transition-all"
+                            style={{
+                              width: `${Math.max(4, 14 - option.percent)}px`,
+                              height: `${Math.max(6, 18 - option.percent)}px`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-[11px] font-medium">{option.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {settings.margin === "none" && (
+                  <p className="rounded-[8px] bg-[#f4f8f2] border border-[#d9e3d5] px-2.5 py-1.5 text-[11px] font-medium text-[#305e2b]">
+                    ✓ Zero margins — image fits longest width/height edge-to-edge
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Image Placement (Fit) */}
+          <div>
+            <div className="flex items-baseline justify-between mb-1.5">
+              <span className="text-[12px] font-bold text-ink">Image placement</span>
+              <span className="text-[10.5px] text-faint">
+                {settings.fit === "contain" ? "No crop" : settings.fit === "cover" ? "Full bleed" : "Stretch"}
+              </span>
+            </div>
             <div className="grid grid-cols-3 gap-1.5">
               {PDF_FITS.map((fit) => {
                 const selected = settings.fit === fit.id;
@@ -202,15 +204,15 @@ export function PdfControls({
                     key={fit.id}
                     type="button"
                     onClick={() => onPatch({ fit: fit.id as PdfFit })}
-                    className={`rounded-[9px] border py-2 px-1 text-center transition-all ${
+                    className={`rounded-[10px] border py-2 px-1.5 text-center transition-all ${
                       selected
                         ? "border-ink bg-white text-ink shadow-xs ring-1 ring-ink/20 font-semibold"
                         : "border-line bg-white/70 text-muted hover:border-[#c8c2b7] hover:bg-white hover:text-ink"
                     }`}
                   >
-                    <span className="block text-[11.5px] font-bold">{fit.label}</span>
-                    <span className="mt-0.5 block text-[9px] text-faint leading-tight">
-                      {fit.id === "contain" ? "Best fit" : fit.id === "cover" ? "Full bleed" : "Stretch"}
+                    <span className="block text-[12px] font-bold">{fit.label}</span>
+                    <span className="mt-0.5 block text-[9.5px] text-faint leading-tight">
+                      {fit.id === "contain" ? "Best fit" : fit.id === "cover" ? "Fill & crop" : "Stretch"}
                     </span>
                   </button>
                 );

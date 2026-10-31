@@ -400,354 +400,377 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               {/* PDF Document Desk Viewport */}
               <div
                 ref={deskRef}
-                className="relative flex min-h-[320px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-line bg-[#ece8df] bg-[radial-gradient(#0000000a_1px,transparent_1px)] [background-size:16px_16px] p-4 select-none"
+                className="flex min-h-[360px] flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-[#f0ede6] shadow-2xs select-none"
               >
-                {/* Top Stage Bar: View Switcher, Page Specs & Quick Actions */}
-                <div className="absolute left-3 top-3 z-30 flex flex-wrap items-center gap-2 pointer-events-auto">
-                  {/* View Mode Switcher */}
-                  <div className="flex rounded-[10px] border border-line bg-white/95 p-1 shadow-2xs backdrop-blur-sm">
-                    <button
-                      type="button"
-                      onClick={() => setStageView("single")}
-                      className={`flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[12px] font-medium transition-colors ${
-                        stageView === "single"
-                          ? "bg-ink font-semibold text-white shadow-2xs"
-                          : "text-muted hover:text-ink"
-                      }`}
-                      title="Inspect active page"
-                    >
-                      <FileText size={13} aria-hidden />
-                      <span>Single Page</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStageView("grid")}
-                      className={`flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[12px] font-medium transition-colors ${
-                        stageView === "grid"
-                          ? "bg-ink font-semibold text-white shadow-2xs"
-                          : "text-muted hover:text-ink"
-                      }`}
-                      title="View all pages in document grid"
-                    >
-                      <Grid size={13} aria-hidden />
-                      <span>All Pages ({items.length})</span>
-                    </button>
+                {/* Pinned Top Stage Toolbar — Never covered by cards or scrolled away */}
+                <div className="flex shrink-0 items-center justify-between border-b border-line bg-white/95 px-3.5 py-2.5 backdrop-blur-sm z-20">
+                  <div className="flex items-center gap-2">
+                    {/* View Mode Switcher */}
+                    <div className="flex rounded-[9px] border border-line bg-[#f8f6f2] p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setStageView("single")}
+                        className={`flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[12px] font-semibold transition-all ${
+                          stageView === "single"
+                            ? "bg-white text-ink shadow-2xs font-bold"
+                            : "text-muted hover:text-ink"
+                        }`}
+                        title="Inspect active page"
+                      >
+                        <FileText size={13} aria-hidden />
+                        <span>Single Page</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStageView("grid")}
+                        className={`flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[12px] font-semibold transition-all ${
+                          stageView === "grid"
+                            ? "bg-white text-ink shadow-2xs font-bold"
+                            : "text-muted hover:text-ink"
+                        }`}
+                        title="View all pages in document grid"
+                      >
+                        <Grid size={13} aria-hidden />
+                        <span>All Pages ({items.length})</span>
+                      </button>
+                    </div>
+
+                    {/* Document Specs Pill */}
+                    <span className="hidden sm:flex items-center gap-1.5 rounded-[8px] border border-line bg-white px-2.5 py-1 text-[11px] font-semibold text-ink shadow-2xs">
+                      {stageView === "single" ? (
+                        <>
+                          <span>Page {activeIndex + 1} of {items.length}</span>
+                          <span className="text-faint">·</span>
+                          <span className="text-muted">{label}</span>
+                        </>
+                      ) : (
+                        <span>All {items.length} Pages · {label}</span>
+                      )}
+                    </span>
                   </div>
 
-                  {/* Document Specs Pill */}
-                  <span className="flex items-center gap-1.5 rounded-[9px] border border-line bg-white/95 px-3 py-1.5 text-[11px] font-semibold text-ink shadow-2xs backdrop-blur-sm">
-                    {stageView === "single" ? (
+                  {/* Top Right Stage Controls: Rotate, Zoom & Delete */}
+                  <div className="flex items-center gap-1.5">
+                    {stageView === "single" && activeItem && (
                       <>
-                        <span>Page {activeIndex + 1} of {items.length}</span>
-                        <span className="text-faint">·</span>
-                        <span className="text-muted">{label}</span>
-                      </>
-                    ) : (
-                      <span>All {items.length} Document Pages · {label}</span>
-                    )}
-                  </span>
-                </div>
-
-                {/* Top Right Stage Controls: Rotate, Zoom & Delete */}
-                <div className="absolute right-3 top-3 z-30 flex items-center gap-1.5 pointer-events-auto">
-                  {stageView === "single" && activeItem && (
-                    <>
-                      {/* Rotate Active Page 90° */}
-                      <button
-                        type="button"
-                        onClick={() => rotatePage(activeItem.id)}
-                        className="inline-flex h-8.5 items-center gap-1.5 rounded-[9px] border border-line bg-white/95 px-3 text-[11.5px] font-semibold text-ink shadow-2xs backdrop-blur-sm hover:bg-hover"
-                        title="Rotate active page 90° clockwise"
-                      >
-                        <RotateCw size={13} aria-hidden />
-                        <span>Rotate</span>
-                        {activeRotation !== 0 && (
-                          <span className="ml-0.5 rounded bg-ink/10 px-1 py-0.2 text-[9px] font-bold">
-                            {activeRotation}°
-                          </span>
-                        )}
-                      </button>
-
-                      {/* Zoom mode */}
-                      <div className="flex rounded-[10px] border border-line bg-white/95 p-1 shadow-2xs backdrop-blur-sm">
+                        {/* Rotate Active Page 90° */}
                         <button
                           type="button"
-                          onClick={() => setZoomMode("fit")}
-                          className={`rounded-[7px] px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
-                            zoomMode === "fit"
-                              ? "bg-ink font-semibold text-white shadow-2xs"
-                              : "text-muted hover:text-ink"
-                          }`}
-                          title="Fit page to stage"
+                          onClick={() => rotatePage(activeItem.id)}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-line bg-white px-2.5 text-[11.5px] font-semibold text-ink shadow-2xs hover:bg-[#faf9f6]"
+                          title="Rotate active page 90° clockwise"
                         >
-                          Fit
+                          <RotateCw size={12} aria-hidden />
+                          <span>Rotate</span>
+                          {activeRotation !== 0 && (
+                            <span className="ml-0.5 rounded bg-ink/10 px-1 py-0.2 text-[9px] font-bold">
+                              {activeRotation}°
+                            </span>
+                          )}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setZoomMode("100%")}
-                          className={`rounded-[7px] px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
-                            zoomMode === "100%"
-                              ? "bg-ink font-semibold text-white shadow-2xs"
-                              : "text-muted hover:text-ink"
-                          }`}
-                          title="View 100% size"
-                        >
-                          100%
-                        </button>
-                      </div>
 
-                      {/* Remove Active Page */}
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePage(activeItem.id)}
-                        className="grid h-8.5 w-8.5 place-items-center rounded-[9px] border border-line bg-white/95 text-muted shadow-2xs backdrop-blur-sm hover:border-[#a13d30]/40 hover:bg-[#fff5f5] hover:text-[#a13d30]"
-                        title={`Remove page ${activeIndex + 1}`}
-                      >
-                        <Trash2 size={13} aria-hidden />
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {/* VIEW MODE A: Single Page Document Reader View */}
-                {stageView === "single" && activeItem && (
-                  <div className="absolute inset-0 flex items-center justify-center overflow-auto px-4 pt-12 pb-7">
-                    {/* Left Page Turn Button */}
-                    {items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => activeIndex > 0 && setActiveId(items[activeIndex - 1].id)}
-                        disabled={activeIndex === 0}
-                        aria-label="Previous document page"
-                        className="absolute left-3 top-1/2 -translate-y-1/2 z-20 grid h-9 w-9 place-items-center rounded-full border border-line bg-white/90 text-ink shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:scale-105 disabled:pointer-events-none disabled:opacity-20"
-                      >
-                        <ChevronLeft size={18} aria-hidden />
-                      </button>
-                    )}
-
-                    {/* Right Page Turn Button */}
-                    {items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => activeIndex < items.length - 1 && setActiveId(items[activeIndex + 1].id)}
-                        disabled={activeIndex === items.length - 1}
-                        aria-label="Next document page"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 z-20 grid h-9 w-9 place-items-center rounded-full border border-line bg-white/90 text-ink shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:scale-105 disabled:pointer-events-none disabled:opacity-20"
-                      >
-                        <ChevronRight size={18} aria-hidden />
-                      </button>
-                    )}
-
-                    {/* Realistic PDF Paper Document Sheet */}
-                    <div
-                      className="relative shrink-0 overflow-hidden rounded-[3px] border border-black/[0.08] shadow-[0_20px_50px_rgba(25,20,15,0.15),0_2px_8px_rgba(25,20,15,0.06)] transition-all duration-150"
-                      style={{
-                        width: `${sheetW}px`,
-                        height: `${sheetH}px`,
-                        background,
-                      }}
-                    >
-                      {/* Printable Area / Margins Box */}
-                      <div
-                        className="relative flex h-full w-full items-center justify-center"
-                        style={{ padding: `${effectiveMarginPercent}%` }}
-                      >
-                        {/* Printable Margin Boundary Guide (subtle dashed border when margins enabled) */}
-                        {effectiveMarginPercent > 0 && (
-                          <div className="pointer-events-none absolute inset-0 m-[inherit] border border-dashed border-black/10 rounded-[2px]" />
-                        )}
-
-                        {/* Page Image */}
-                        <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
-                          <img
-                            src={activeItem.preview}
-                            alt={`PDF Page ${activeIndex + 1}`}
-                            className={`select-none pointer-events-none transition-transform duration-150 ${
-                              effectiveMarginPercent === 0 || settings.fit === "cover"
-                                ? "h-full w-full object-cover"
-                                : settings.fit === "stretch"
-                                  ? "h-full w-full object-fill"
-                                  : "max-h-full max-w-full object-contain"
+                        {/* Zoom mode */}
+                        <div className="flex rounded-[8px] border border-line bg-[#f8f6f2] p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setZoomMode("fit")}
+                            className={`rounded-[6px] px-2.5 py-0.5 text-[11px] font-semibold transition-all ${
+                              zoomMode === "fit" ? "bg-white text-ink shadow-2xs" : "text-muted hover:text-ink"
                             }`}
-                            style={{
-                              transform: activeRotation !== 0 ? `rotate(${activeRotation}deg)` : undefined,
-                              filter: settings.grayscale ? "grayscale(100%) contrast(108%)" : undefined,
-                            }}
-                          />
+                            title="Fit page to stage"
+                          >
+                            Fit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setZoomMode("100%")}
+                            className={`rounded-[6px] px-2.5 py-0.5 text-[11px] font-semibold transition-all ${
+                              zoomMode === "100%" ? "bg-white text-ink shadow-2xs" : "text-muted hover:text-ink"
+                            }`}
+                            title="View 100% size"
+                          >
+                            100%
+                          </button>
                         </div>
-                      </div>
 
-                      {/* Printed Page Number Footer */}
-                      {settings.pageNumbers && (
-                        <div
-                          className={`absolute bottom-2 inset-x-3 text-[9px] font-medium tabular-nums ${
-                            settings.background === "black" ? "text-white/60" : "text-[#7f796d]"
-                          } ${
-                            settings.pageNumberPosition === "bottom-right"
-                              ? "text-right"
-                              : settings.pageNumberPosition === "bottom-left"
-                                ? "text-left"
-                                : "text-center"
-                          }`}
+                        {/* Remove Active Page */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePage(activeItem.id)}
+                          className="grid h-8 w-8 place-items-center rounded-[8px] border border-line bg-white text-muted shadow-2xs hover:border-[#a13d30]/40 hover:bg-[#fff5f5] hover:text-[#a13d30]"
+                          title={`Remove page ${activeIndex + 1}`}
                         >
-                          {activeIndex + 1} / {items.length}
-                        </div>
+                          <Trash2 size={13} aria-hidden />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Desk Workspace Canvas */}
+                <div className="relative flex-1 overflow-hidden bg-[#ece8df] bg-[radial-gradient(#0000000a_1px,transparent_1px)] [background-size:16px_16px]">
+                  {/* VIEW MODE A: Single Page Document Reader View */}
+                  {stageView === "single" && activeItem && (
+                    <div className="absolute inset-0 flex items-center justify-center overflow-auto px-4 py-8">
+                      {/* Left Page Turn Button */}
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => activeIndex > 0 && setActiveId(items[activeIndex - 1].id)}
+                          disabled={activeIndex === 0}
+                          aria-label="Previous document page"
+                          className="absolute left-3.5 top-1/2 -translate-y-1/2 z-20 grid h-9 w-9 place-items-center rounded-full border border-line bg-white/95 text-ink shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:scale-105 disabled:pointer-events-none disabled:opacity-20"
+                        >
+                          <ChevronLeft size={18} aria-hidden />
+                        </button>
                       )}
 
-                      {/* Fine Paper Sheet Edge Highlight */}
-                      <span className="pointer-events-none absolute inset-0 rounded-[3px] ring-1 ring-inset ring-black/5" />
-                    </div>
+                      {/* Right Page Turn Button */}
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => activeIndex < items.length - 1 && setActiveId(items[activeIndex + 1].id)}
+                          disabled={activeIndex === items.length - 1}
+                          aria-label="Next document page"
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 z-20 grid h-9 w-9 place-items-center rounded-full border border-line bg-white/95 text-ink shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:scale-105 disabled:pointer-events-none disabled:opacity-20"
+                        >
+                          <ChevronRight size={18} aria-hidden />
+                        </button>
+                      )}
 
-                    {/* Bottom Floating Quick Page Navigator Pill */}
-                    <div className="absolute bottom-2.5 z-20 flex items-center gap-1.5 rounded-full border border-line bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-ink shadow-xs backdrop-blur-sm">
-                      <button
-                        type="button"
-                        onClick={() => activeIndex > 0 && setActiveId(items[activeIndex - 1].id)}
-                        disabled={activeIndex === 0}
-                        className="text-muted hover:text-ink disabled:opacity-30"
+                      {/* Realistic PDF Paper Document Sheet */}
+                      <div
+                        className="relative shrink-0 overflow-hidden rounded-[3px] border border-black/[0.12] shadow-[0_20px_50px_rgba(25,20,15,0.18),0_2px_8px_rgba(25,20,15,0.08)] transition-all duration-150"
+                        style={{
+                          width: `${sheetW}px`,
+                          height: `${sheetH}px`,
+                          background,
+                        }}
                       >
-                        <ChevronLeft size={13} />
-                      </button>
-                      <span className="tabular-nums px-1">
-                        Page {activeIndex + 1} of {items.length}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => activeIndex < items.length - 1 && setActiveId(items[activeIndex + 1].id)}
-                        disabled={activeIndex === items.length - 1}
-                        className="text-muted hover:text-ink disabled:opacity-30"
-                      >
-                        <ChevronRight size={13} />
-                      </button>
-                    </div>
-                  </div>
-                )}
+                        {/* Printable Area / Margins Box */}
+                        <div
+                          className="relative flex h-full w-full items-center justify-center overflow-hidden"
+                          style={{ padding: `${effectiveMarginPercent}%` }}
+                        >
+                          {/* Printable Margin Boundary Guide (subtle dashed border when margins enabled) */}
+                          {effectiveMarginPercent > 0 && (
+                            <div className="pointer-events-none absolute inset-0 m-[inherit] border border-dashed border-black/15 rounded-[2px]" />
+                          )}
 
-                {/* VIEW MODE B: All Pages Booklet Grid Overview */}
-                {stageView === "grid" && (
-                  <div className="absolute inset-0 overflow-y-auto px-4 pt-14 pb-4">
-                    <div className="flex flex-wrap gap-5 place-content-start">
-                      {items.map((item, index) => {
-                        const pageRot = pageRotations[item.id] || 0;
-                        const isFocused = item.id === activeItem?.id;
-                        const isDragging = dragId === item.id;
-                        const isDragOver = dragOverId === item.id;
-                        const isRotatedQuarter = pageRot === 90 || pageRot === 270;
-                        const rawW = item.width || 800;
-                        const rawH = item.height || 600;
-                        const effW = isRotatedQuarter ? rawH : rawW;
-                        const effH = isRotatedQuarter ? rawW : rawH;
-                        const cardAspect = settings.pageSize === "fit" ? effW / effH : aspect;
-                        // Increased card size for better preview and easier drag-and-drop
-                        const cardH = 190;
-                        const cardW = Math.min(270, Math.max(130, Math.round(cardH * cardAspect)));
-                        return (
-                          <div
-                            key={item.id}
-                            draggable
-                            onDragStart={(e) => handleItemDragStart(e, item.id)}
-                            onDragOver={(e) => handleItemDragOver(e, item.id)}
-                            onDrop={handleItemDrop}
-                            onDragEnd={handleItemDragEnd}
-                            className={`group relative flex flex-col items-center rounded-[12px] p-2 transition-all cursor-grab active:cursor-grabbing ${
-                              isFocused ? "bg-white/90 ring-2 ring-ink shadow-sm" : "hover:bg-white/60"
-                            } ${isDragging ? "opacity-40 scale-95" : ""} ${isDragOver && !isDragging ? "scale-105 ring-2 ring-ink/40" : ""}`}
-                          >
-                            {/* Miniature Document Sheet */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveId(item.id);
-                                setStageView("single");
-                              }}
-                              className="relative overflow-hidden rounded-[4px] border border-black/10 shadow-md bg-white transition-transform group-hover:scale-[1.02]"
+                          {/* Page Image: fits the longest dimension edge-to-edge when margin is 0 */}
+                          <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
+                            <img
+                              src={activeItem.preview}
+                              alt={`PDF Page ${activeIndex + 1}`}
+                              className={`select-none pointer-events-none transition-transform duration-150 ${
+                                settings.fit === "cover"
+                                  ? "h-full w-full object-cover"
+                                  : settings.fit === "stretch"
+                                    ? "h-full w-full object-fill"
+                                    : "h-full w-full object-contain"
+                              }`}
                               style={{
-                                width: `${cardW}px`,
-                                height: `${cardH}px`,
-                                background,
+                                transform: activeRotation !== 0 ? `rotate(${activeRotation}deg)` : undefined,
+                                filter: settings.grayscale ? "grayscale(100%) contrast(108%)" : undefined,
                               }}
-                              title={`Click to inspect page ${index + 1} · Drag to reorder`}
-                            >
-                              <div
-                                className="flex h-full w-full items-center justify-center overflow-hidden"
-                                style={{ padding: `${effectiveMarginPercent === 0 ? 0 : Math.min(8, effectiveMarginPercent * 0.8)}%` }}
-                              >
-                                <img
-                                  src={item.preview}
-                                  alt={`Page ${index + 1}`}
-                                  className={`h-full w-full select-none ${
-                                    effectiveMarginPercent === 0 || settings.fit === "cover"
-                                      ? "object-cover"
-                                      : settings.fit === "stretch"
-                                        ? "object-fill"
-                                        : "object-contain"
-                                  }`}
-                                  style={{
-                                    transform: pageRot !== 0 ? `rotate(${pageRot}deg)` : undefined,
-                                    filter: settings.grayscale ? "grayscale(100%) contrast(108%)" : undefined,
-                                  }}
-                                />
-                              </div>
-
-                              {/* Page Stamp Number */}
-                              <span className="absolute bottom-1.5 right-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white tabular-nums">
-                                {index + 1}
-                              </span>
-                            </button>
-
-                            {/* Cross delete button on top-right of card */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemovePage(item.id);
-                              }}
-                              className="absolute -right-1.5 -top-1.5 z-20 grid h-6 w-6 place-items-center rounded-full border border-line bg-white text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:border-[#a13d30]/50 hover:bg-[#fff5f5] hover:text-[#a13d30]"
-                              title="Remove page"
-                            >
-                              <X size={12} />
-                            </button>
-
-                            {/* Page label below card */}
-                            <div className="mt-2 flex items-center justify-center w-full px-1">
-                              <span className="text-[11.5px] font-bold text-ink tabular-nums">
-                                Page {index + 1}
-                              </span>
-                            </div>
+                            />
                           </div>
-                        );
-                      })}
+                        </div>
 
-                      {/* Add Page Card */}
-                      <button
-                        type="button"
-                        onClick={() => openPicker()}
-                        className="flex flex-col items-center justify-center rounded-[12px] border-2 border-dashed border-[#cbc4b7] p-4 text-center hover:border-ink hover:bg-white/60 transition-all"
-                        style={{ width: `${Math.min(270, Math.max(130, Math.round(190 * aspect)))}px`, height: "190px" }}
-                      >
-                        <Plus size={24} className="text-muted mb-1.5" />
-                        <span className="text-[12px] font-bold text-ink">Add Page</span>
-                      </button>
+                        {/* Printed Page Number Footer */}
+                        {settings.pageNumbers && (
+                          <div
+                            className={`absolute bottom-2 inset-x-3 text-[9.5px] font-medium tabular-nums ${
+                              settings.background === "black" ? "text-white/60" : "text-[#7f796d]"
+                            } ${
+                              settings.pageNumberPosition === "bottom-right"
+                                ? "text-right"
+                                : settings.pageNumberPosition === "bottom-left"
+                                  ? "text-left"
+                                  : "text-center"
+                            }`}
+                          >
+                            {activeIndex + 1} / {items.length}
+                          </div>
+                        )}
+
+                        {/* Fine Paper Sheet Edge Highlight */}
+                        <span className="pointer-events-none absolute inset-0 rounded-[3px] ring-1 ring-inset ring-black/5" />
+                      </div>
+
+                      {/* Bottom Floating Quick Page Navigator Pill */}
+                      <div className="absolute bottom-3 z-20 flex items-center gap-1.5 rounded-full border border-line bg-white/95 px-3 py-1.5 text-[11.5px] font-semibold text-ink shadow-sm backdrop-blur-sm">
+                        <button
+                          type="button"
+                          onClick={() => activeIndex > 0 && setActiveId(items[activeIndex - 1].id)}
+                          disabled={activeIndex === 0}
+                          className="text-muted hover:text-ink disabled:opacity-30"
+                        >
+                          <ChevronLeft size={14} />
+                        </button>
+                        <span className="tabular-nums px-1.5">
+                          Page {activeIndex + 1} of {items.length}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => activeIndex < items.length - 1 && setActiveId(items[activeIndex + 1].id)}
+                          disabled={activeIndex === items.length - 1}
+                          className="text-muted hover:text-ink disabled:opacity-30"
+                        >
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {/* VIEW MODE B: All Pages Booklet Grid Overview */}
+                  {stageView === "grid" && (
+                    <div className="absolute inset-0 overflow-y-auto p-5 sm:p-6">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 place-items-center">
+                        {items.map((item, index) => {
+                          const pageRot = pageRotations[item.id] || 0;
+                          const isFocused = item.id === activeItem?.id;
+                          const isDragging = dragId === item.id;
+                          const isDragOver = dragOverId === item.id;
+                          const isRotatedQuarter = pageRot === 90 || pageRot === 270;
+                          const rawW = item.width || 800;
+                          const rawH = item.height || 600;
+                          const effW = isRotatedQuarter ? rawH : rawW;
+                          const effH = isRotatedQuarter ? rawW : rawH;
+                          const cardAspect = settings.pageSize === "fit" ? effW / effH : aspect;
+
+                          // Grid card dimensions: 165px tall, width following page aspect ratio
+                          const gridSheetH = 165;
+                          const gridSheetW = Math.max(100, Math.min(235, Math.round(gridSheetH * cardAspect)));
+
+                          return (
+                            <div
+                              key={item.id}
+                              draggable
+                              onDragStart={(e) => handleItemDragStart(e, item.id)}
+                              onDragOver={(e) => handleItemDragOver(e, item.id)}
+                              onDrop={handleItemDrop}
+                              onDragEnd={handleItemDragEnd}
+                              className={`group relative flex flex-col items-center rounded-[12px] p-3 transition-all cursor-grab active:cursor-grabbing ${
+                                isFocused
+                                  ? "bg-white/95 ring-2 ring-ink shadow-sm"
+                                  : "bg-white/50 hover:bg-white/80 shadow-2xs"
+                              } ${isDragging ? "opacity-30 scale-95" : ""} ${isDragOver && !isDragging ? "scale-105 ring-2 ring-ink/60" : ""}`}
+                            >
+                              {/* Miniature Document Sheet */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveId(item.id);
+                                  setStageView("single");
+                                }}
+                                className="relative overflow-hidden rounded-[3px] border border-black/10 shadow-[0_4px_12px_rgba(0,0,0,0.08)] transition-transform group-hover:scale-[1.02]"
+                                style={{
+                                  width: `${gridSheetW}px`,
+                                  height: `${gridSheetH}px`,
+                                  background,
+                                }}
+                                title={`Click to inspect page ${index + 1} · Drag to reorder`}
+                              >
+                                <div
+                                  className="flex h-full w-full items-center justify-center overflow-hidden"
+                                  style={{ padding: `${effectiveMarginPercent}%` }}
+                                >
+                                  <img
+                                    src={item.preview}
+                                    alt={`Page ${index + 1}`}
+                                    className={`h-full w-full select-none pointer-events-none ${
+                                      settings.fit === "cover"
+                                        ? "object-cover"
+                                        : settings.fit === "stretch"
+                                          ? "object-fill"
+                                          : "object-contain"
+                                    }`}
+                                    style={{
+                                      transform: pageRot !== 0 ? `rotate(${pageRot}deg)` : undefined,
+                                      filter: settings.grayscale ? "grayscale(100%) contrast(108%)" : undefined,
+                                    }}
+                                  />
+                                </div>
+
+                                {/* Page Stamp Number inside Sheet */}
+                                {settings.pageNumbers && (
+                                  <span className="absolute bottom-1 right-1.5 text-[8.5px] font-semibold text-black/40 tabular-nums">
+                                    {index + 1}
+                                  </span>
+                                )}
+                              </button>
+
+                              {/* Hover action: Rotate 90° on top-left */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  rotatePage(item.id);
+                                }}
+                                className="absolute left-1.5 top-1.5 z-20 grid h-6 w-6 place-items-center rounded-full border border-line bg-white/95 text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:text-ink hover:bg-white"
+                                title="Rotate 90° clockwise"
+                              >
+                                <RotateCw size={11} />
+                              </button>
+
+                              {/* Hover action: Delete on top-right */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemovePage(item.id);
+                                }}
+                                className="absolute right-1.5 top-1.5 z-20 grid h-6 w-6 place-items-center rounded-full border border-line bg-white text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:border-[#a13d30]/50 hover:bg-[#fff5f5] hover:text-[#a13d30]"
+                                title="Remove page"
+                              >
+                                <X size={12} />
+                              </button>
+
+                              {/* Page label below card */}
+                              <div className="mt-2 flex items-center justify-center">
+                                <span className="text-[12px] font-bold text-ink tabular-nums">
+                                  Page {index + 1}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Add Page Card */}
+                        <button
+                          type="button"
+                          onClick={() => openPicker()}
+                          className="flex flex-col items-center justify-center rounded-[12px] border-2 border-dashed border-[#cbc4b7] p-4 text-center hover:border-ink hover:bg-white/70 transition-all cursor-pointer min-h-[195px] w-[140px] sm:w-[170px]"
+                          title="Add more images as pages"
+                        >
+                          <Plus size={24} className="text-muted mb-1.5" />
+                          <span className="text-[12px] font-bold text-ink">Add Page</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Document Pages Filmstrip Tray */}
               {items.length > 0 && (
-                <div className="mt-2.5 shrink-0 rounded-[12px] border border-line bg-white p-2.5 shadow-2xs">
+                <div className="mt-2.5 shrink-0 rounded-[14px] border border-line bg-white p-3 shadow-2xs">
                   <div className="flex items-center justify-between gap-3 mb-2 px-1">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint flex items-center gap-1.5">
-                      <Layers3 size={11} className="text-muted" />
-                      Document Pages ({items.length})
-                    </span>
                     <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink flex items-center gap-1.5">
+                        <Layers3 size={13} className="text-muted" />
+                        Document Pages ({items.length})
+                      </span>
+                      <span className="text-micro text-faint hidden sm:inline">· Drag to reorder</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
                       <button
                         type="button"
                         onClick={() => openPicker()}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-ink transition-colors hover:text-muted"
+                        className="inline-flex items-center gap-1 text-[11.5px] font-bold text-ink transition-colors hover:text-muted"
                       >
-                        <Plus size={11} />
+                        <Plus size={12} />
                         Add pages
                       </button>
                       <span className="text-line">·</span>
@@ -758,7 +781,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           setNotice(null);
                         }}
                         disabled={items.length < 2}
-                        className="text-[10.5px] font-medium text-faint transition-colors hover:text-ink disabled:opacity-40"
+                        className="text-[11px] font-medium text-faint transition-colors hover:text-ink disabled:opacity-40"
                       >
                         Reverse
                       </button>
@@ -769,21 +792,22 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           clearAll();
                           setNotice(null);
                         }}
-                        className="text-[10.5px] font-medium text-faint transition-colors hover:text-[#a13d30]"
+                        className="text-[11px] font-medium text-faint transition-colors hover:text-[#a13d30]"
                       >
                         Clear
                       </button>
                     </div>
                   </div>
 
-                  {/* Scrollable Filmstrip */}
-                  <div className="flex gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin">
+                  {/* Scrollable Filmstrip Track */}
+                  <div className="flex gap-2.5 overflow-x-auto pb-1.5 pt-1 scrollbar-thin">
                     {items.map((item, index) => {
                       const isActive = item.id === activeItem?.id;
                       const pageRot = pageRotations[item.id] || 0;
                       const tw = thumbWidth(item, pageRot);
                       const isDragging = dragId === item.id;
                       const isDragOver = dragOverId === item.id;
+
                       return (
                         <div
                           key={item.id}
@@ -793,7 +817,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           onDrop={handleItemDrop}
                           onDragEnd={handleItemDragEnd}
                           className={`group relative flex flex-col items-center shrink-0 cursor-grab active:cursor-grabbing transition-all ${
-                            isDragging ? "opacity-40 scale-95" : ""
+                            isDragging ? "opacity-30 scale-95" : ""
                           } ${isDragOver && !isDragging ? "scale-105" : ""}`}
                         >
                           <button
@@ -804,30 +828,43 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                             }}
                             aria-pressed={isActive}
                             aria-label={`Page ${index + 1}: ${item.file.name}`}
-                            title={`Page ${index + 1}: ${item.file.name}`}
-                            className={`relative shrink-0 overflow-hidden rounded-[4px] border bg-white shadow-2xs transition-all ${
+                            title={`Page ${index + 1}: ${item.file.name} · Click to view`}
+                            className={`relative shrink-0 overflow-hidden rounded-[6px] border transition-all ${
                               isActive
-                                ? "border-ink ring-2 ring-ink shadow-xs scale-[1.03]"
-                                : "border-line hover:border-[#cbc5b9]"
+                                ? "border-ink ring-2 ring-ink shadow-sm scale-[1.02]"
+                                : "border-line bg-white hover:border-[#b8a992] shadow-2xs"
                             }`}
-                            style={{ width: `${tw}px`, height: `${FILMSTRIP_H}px` }}
+                            style={{ width: `${tw}px`, height: `${FILMSTRIP_H}px`, background }}
                           >
-                            <img
-                              src={item.preview}
-                              alt=""
-                              className="h-full w-full object-cover select-none pointer-events-none"
-                              style={{
-                                transform: pageRot !== 0 ? `rotate(${pageRot}deg)` : undefined,
-                                filter: settings.grayscale ? "grayscale(100%)" : undefined,
-                              }}
-                            />
-                            {/* Page Number Pill */}
-                            <span className="absolute left-1 top-1 grid h-4 w-4 place-items-center rounded-[3px] bg-ink text-[8.5px] font-bold text-white shadow-2xs">
+                            <div
+                              className="flex h-full w-full items-center justify-center overflow-hidden"
+                              style={{ padding: `${effectiveMarginPercent}%` }}
+                            >
+                              <img
+                                src={item.preview}
+                                alt=""
+                                className={`h-full w-full select-none pointer-events-none ${
+                                  settings.fit === "cover"
+                                    ? "object-cover"
+                                    : settings.fit === "stretch"
+                                      ? "object-fill"
+                                      : "object-contain"
+                                }`}
+                                style={{
+                                  transform: pageRot !== 0 ? `rotate(${pageRot}deg)` : undefined,
+                                  filter: settings.grayscale ? "grayscale(100%)" : undefined,
+                                }}
+                              />
+                            </div>
+
+                            {/* Clean bottom-left page pill badge that doesn't cover top image content */}
+                            <span className="absolute bottom-1 left-1 rounded-[3px] bg-black/75 px-1.5 py-0.2 text-[8px] font-bold text-white tabular-nums shadow-xs">
                               {index + 1}
                             </span>
+
                             {/* Rotation Indicator */}
                             {pageRot !== 0 && (
-                              <span className="absolute right-0.5 top-0.5 rounded bg-white/90 px-0.5 text-[7px] font-bold text-ink">
+                              <span className="absolute right-1 top-1 rounded bg-black/70 px-1 text-[7px] font-bold text-white">
                                 {pageRot}°
                               </span>
                             )}
@@ -854,11 +891,11 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       type="button"
                       onClick={() => openPicker()}
                       aria-label="Add more document pages"
-                      className="grid shrink-0 place-items-center rounded-[4px] border-2 border-dashed border-[#d7d2c8] text-faint transition-colors hover:border-[#b8a992] hover:text-ink hover:bg-white"
-                      style={{ width: "56px", height: `${FILMSTRIP_H}px` }}
+                      className="grid shrink-0 place-items-center rounded-[6px] border-2 border-dashed border-[#d7d2c8] text-faint transition-colors hover:border-ink hover:text-ink hover:bg-white"
+                      style={{ width: "60px", height: `${FILMSTRIP_H}px` }}
                       title="Add more images as pages"
                     >
-                      <Plus size={16} aria-hidden />
+                      <Plus size={18} aria-hidden />
                     </button>
                   </div>
                 </div>
