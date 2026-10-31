@@ -45,19 +45,26 @@ export function Reveal({
   );
 }
 
-/** Headline that rises word by word out of a mask. */
-export function Words({ lines, className = "" }: { lines: string[]; className?: string }) {
+/** Headline that rises word by word out of a mask. Lines can be strings or rich nodes. */
+export function Words({ lines, className = "" }: { lines: (string | ReactNode)[]; className?: string }) {
   let n = 0;
   return (
     <h1 className={className}>
       {lines.map((line, i) => (
         <span key={i} className="block">
-          {line.split(" ").map((w) => (
-            <span key={n} className="mr-[0.22em] inline-block overflow-hidden pb-[0.1em] align-bottom">
+          {typeof line === "string" ? (
+            line.split(" ").map((w) => (
+              <span key={n} className="mr-[0.22em] inline-block overflow-hidden pb-[0.1em] align-bottom">
+                <motion.span className="inline-block" initial={{ y: "110%" }} animate={{ y: 0 }}
+                  transition={{ duration: 0.95, delay: 0.1 + 0.07 * n++, ease }}>{w}</motion.span>
+              </span>
+            ))
+          ) : (
+            <span className="inline-block overflow-hidden pb-[0.1em] align-bottom">
               <motion.span className="inline-block" initial={{ y: "110%" }} animate={{ y: 0 }}
-                transition={{ duration: 0.95, delay: 0.1 + 0.07 * n++, ease }}>{w}</motion.span>
+                transition={{ duration: 0.95, delay: 0.1 + 0.07 * n++, ease }}>{line}</motion.span>
             </span>
-          ))}
+          )}
         </span>
       ))}
     </h1>

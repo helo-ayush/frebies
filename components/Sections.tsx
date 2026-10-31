@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { motion, useInView } from "framer-motion";
 import {
   Check,
   Crop,
   Eraser,
+  FileText,
   Image as ImageIcon,
   Layers,
   Minimize2,
@@ -18,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "./Navbar";
-import { CometCard } from "./aceternity/comet-card";
+import { EncryptedText } from "./aceternity/encrypted-text";
 import { FlipWords } from "./aceternity/flip-words";
 import { HoverBorderGradient } from "./aceternity/hover-border-gradient";
 import { PointerHighlight } from "./aceternity/pointer-highlight";
@@ -26,12 +27,16 @@ import { Spotlight } from "./aceternity/spotlight";
 import { AnimatedGradientText } from "./magicui/animated-gradient-text";
 import { BorderBeam } from "./magicui/border-beam";
 import { DotPattern } from "./magicui/dot-pattern";
-import { GridPattern } from "./magicui/grid-pattern";
 import { Marquee as MagicMarquee } from "./magicui/marquee";
 import { NumberTicker } from "./magicui/number-ticker";
+import { BentoGrid, BentoGridItem } from "./ui/bento-grid";
+import { GlowingEffect } from "./ui/glowing-effect";
+import { LampContainer } from "./ui/lamp";
+import { TextHoverEffect } from "./ui/text-hover-effect";
+import { TracingBeam } from "./ui/tracing-beam";
 import { Btn, Reveal, ease, grads } from "./ui";
 
-function Head({
+export function Head({
   label,
   title,
   copy,
@@ -66,47 +71,6 @@ function Head({
           </div>
         )}
       </div>
-    </Reveal>
-  );
-}
-
-function Card({
-  bg,
-  title,
-  sub,
-  children,
-}: {
-  bg?: string;
-  title: string;
-  sub: string;
-  children: ReactNode;
-}) {
-  return (
-    <Reveal className="h-full">
-      <CometCard className="h-full" rotateDepth={4} translateDepth={4}>
-        <div
-          className={`relative h-full min-h-[540px] overflow-hidden rounded-[28px] p-5 md:p-6 ${
-            bg ? "grain text-white" : "bg-card"
-          }`}
-          style={bg ? { background: bg } : undefined}
-        >
-          {bg && (
-            <BorderBeam
-              size={200}
-              duration={16}
-              colorFrom="#ffffff"
-              colorTo="#ffd7a8"
-              borderWidth={1}
-              className="opacity-60"
-            />
-          )}
-          <div className="relative z-10 flex h-full min-h-[490px] flex-col">
-            <div className="flex flex-1 items-center justify-center py-6">{children}</div>
-            <p className={`text-[15px] ${bg ? "text-white/75" : "text-muted"}`}>{title}</p>
-            <p className="mt-1 max-w-md text-lg leading-snug">{sub}</p>
-          </div>
-        </div>
-      </CometCard>
     </Reveal>
   );
 }
@@ -201,74 +165,223 @@ function DropMock() {
   );
 }
 
-function Scene({ blur }: { blur?: boolean }) {
+const UPSCALE_SRC = "/showcase/ai-upscale.jpg";
+
+/** Draws the photo into a tiny bitmap so the "before" pane is a genuine low-resolution source. */
+function LowResPane({ src }: { src: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+
+    const image = new window.Image();
+    image.src = src;
+    image.onload = () => {
+      // 1/4 of the 320px-tall card, so each source pixel lands as a 4px block.
+      const width = 120;
+      const height = Math.round((image.naturalHeight / image.naturalWidth) * width);
+      canvas.width = width;
+      canvas.height = height;
+      context.imageSmoothingEnabled = false;
+      context.drawImage(image, 0, 0, width, height);
+    };
+  }, [src]);
+
   return (
-    <div
-      className={`absolute inset-0 overflow-hidden ${blur ? "scale-110" : ""}`}
-      style={{
-        filter: blur ? "blur(7px)" : undefined,
-        background:
-          "radial-gradient(circle at 72% 28%,#fff1c2 0 8%,transparent 9%),linear-gradient(180deg,#ffb07a,#ff5f8f 55%,#3d2a7c)",
-      }}
-    >
-      <div
-        className="absolute inset-x-0 bottom-0 h-1/2 bg-[#1b1340]"
-        style={{ clipPath: "polygon(0 100%,0 58%,22% 24%,42% 62%,68% 14%,100% 52%,100% 100%)" }}
-      />
-    </div>
+    <canvas
+      ref={ref}
+      aria-hidden
+      className="h-full w-full object-cover"
+      style={{ imageRendering: "pixelated" }}
+    />
   );
 }
 
 function UpscaleMock() {
-  const transition = { duration: 6, repeat: Infinity, ease: "easeInOut" as const };
+  // Sweep sharp detail across the frame, hold, then cross-fade back to the 1× source and loop.
+  const reveal = {
+    duration: 8,
+    times: [0, 0.55, 0.85, 1],
+    repeat: Infinity,
+    repeatDelay: 0.5,
+    ease: ["easeInOut", "linear", "easeIn"] as const,
+  };
+
   return (
-    <div className="relative h-72 w-full max-w-sm overflow-hidden rounded-2xl shadow-xl">
-      <Scene />
+    <div className="relative h-80 w-full max-w-sm overflow-hidden rounded-2xl bg-neutral-900 shadow-xl">
+      <LowResPane src={UPSCALE_SRC} />
+      <motion.img
+        src={UPSCALE_SRC}
+        alt="Upscaled classical painting restored to full detail"
+        className="absolute inset-0 h-full w-full object-cover"
+        animate={{
+          clipPath: ["inset(0 100% 0 0)", "inset(0 0% 0 0)", "inset(0 0% 0 0)", "inset(0 0% 0 0)"],
+          opacity: [1, 1, 1, 0],
+        }}
+        transition={reveal}
+      />
       <motion.div
-        className="absolute inset-0"
-        animate={{ clipPath: ["inset(0 70% 0 0)", "inset(0 30% 0 0)", "inset(0 70% 0 0)"] }}
-        transition={transition}
+        className="absolute inset-y-0 z-10 w-px bg-white/90 shadow-[0_0_24px_4px_rgba(255,255,255,0.45)]"
+        animate={{
+          left: ["0%", "100%", "100%", "100%"],
+          opacity: [1, 1, 1, 0],
+        }}
+        transition={reveal}
       >
-        <Scene blur />
+        <span className="absolute left-1/2 top-1/2 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white text-ink shadow-lg">
+          <Sparkles size={13} strokeWidth={2} />
+        </span>
       </motion.div>
-      <motion.div
-        className="absolute inset-y-0 w-0.5 bg-white"
-        animate={{ left: ["30%", "70%", "30%"] }}
-        transition={transition}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/45 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/55 to-transparent" />
+      <span className="absolute left-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-xs text-white/80 backdrop-blur">
+        1× original
+      </span>
+      <motion.span
+        className="absolute right-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-ink backdrop-blur"
+        animate={{ opacity: [0.45, 1, 1] }}
+        transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 0.4 }}
       >
-        <span className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow" />
-      </motion.div>
-      <span className="absolute left-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-xs backdrop-blur">1×</span>
-      <span className="absolute right-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-xs backdrop-blur">4× AI</span>
+        4× AI
+      </motion.span>
+      <div className="absolute inset-x-3 bottom-3 flex items-end justify-between text-[11px] text-white/80">
+        <span>1864 px</span>
+        <motion.span
+          className="flex items-center gap-1.5 rounded-full bg-white/10 px-2 py-0.5 backdrop-blur"
+          animate={{ opacity: [0.55, 1, 0.55] }}
+          transition={{ duration: 2.4, repeat: Infinity }}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-[#9ff0c4]" />
+          detail reconstructed
+        </motion.span>
+        <span>7456 px</span>
+      </div>
     </div>
   );
 }
 
-const Bars = ({ widths }: { widths: number[] }) => (
-  <div className="space-y-2">
-    {widths.map((width, index) => (
-      <div key={index} style={{ width: `${width}%` }} className="h-2 rounded bg-neutral-200" />
-    ))}
-  </div>
-);
+const PDF_PROMPT = "Make paragraph 2 friendlier";
+const PDF_INTRO =
+  "We shipped the new checkout flow last week. Early numbers look steady, and payment-error tickets are down by half.";
+const PDF_BEFORE =
+  "The remaining risk is the vendor migration. It is still not signed off, and the timeline has not moved.";
+const PDF_AFTER =
+  "Almost there. The only open item is the vendor migration, and once sign-off lands we will share the new timeline with everyone.";
+
+type PdfPhase = "typing" | "thinking" | "rewriting" | "done";
 
 function PdfMock() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const [cycle, setCycle] = useState(0);
+  const [phase, setPhase] = useState<PdfPhase>("typing");
+  const [typed, setTyped] = useState(0);
+
+  useEffect(() => {
+    if (!inView) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const at = (ms: number, fn: () => void) => timers.push(setTimeout(fn, ms));
+    const typedEnd = 600 + PDF_PROMPT.length * 45;
+
+    setPhase("typing");
+    setTyped(0);
+    for (let index = 1; index <= PDF_PROMPT.length; index += 1) {
+      at(600 + index * 45, () => setTyped(index));
+    }
+
+    at(typedEnd + 500, () => setPhase("thinking"));
+    at(typedEnd + 1500, () => setPhase("rewriting"));
+    at(typedEnd + 4400, () => setPhase("done"));
+    at(typedEnd + 7400, () => setCycle((value) => value + 1));
+
+    return () => timers.forEach(clearTimeout);
+  }, [inView, cycle]);
+
+  const highlighted = phase === "rewriting" || phase === "done";
+  const status =
+    phase === "thinking"
+      ? "Reading paragraph 2"
+      : phase === "rewriting"
+        ? "Rewriting with your tone"
+        : phase === "done"
+          ? "1 change applied"
+          : "Describe the change";
+
   return (
-    <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-sm">
-      <Bars widths={[90, 100, 82]} />
-      <motion.div
-        className="my-3 rounded-lg bg-amber-100 p-2"
-        animate={{ opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 3, repeat: Infinity }}
-      >
-        <Bars widths={[96, 70, 88]} />
-      </motion.div>
-      <Bars widths={[100, 76]} />
-      <div className="mt-5 flex items-center gap-2 rounded-full border border-line p-1.5 pl-4 text-sm">
-        <span className="flex-1 text-muted">Make paragraph 2 friendlier</span>
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-white">
-          <Sparkles size={14} />
+    <div ref={ref} className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between text-[11px] text-faint">
+        <span className="flex items-center gap-1.5">
+          <FileText size={12} strokeWidth={1.6} /> brief.pdf
         </span>
+        <span>page 1 of 2</span>
+      </div>
+
+      <p className="mt-3 text-[13px] font-medium tracking-[-0.01em]">Design review — Q4</p>
+      <p className="mt-2 text-[11.5px] leading-[1.6] text-neutral-600">{PDF_INTRO}</p>
+
+      <motion.div
+        className="-mx-2 mt-1 rounded-lg px-2 py-1.5"
+        animate={{ backgroundColor: highlighted ? "rgba(253,214,120,0.24)" : "rgba(253,214,120,0)" }}
+        transition={{ duration: 0.45 }}
+      >
+        <p className="text-[11.5px] leading-[1.6] text-neutral-600">
+          {highlighted ? (
+            <EncryptedText
+              key={cycle}
+              text={PDF_AFTER}
+              revealDelayMs={11}
+              flipDelayMs={45}
+              encryptedClassName="text-[#bd923c]"
+            />
+          ) : (
+            PDF_BEFORE
+          )}
+        </p>
+      </motion.div>
+
+      <div className="mt-4 flex items-center gap-2 rounded-full border border-line p-1.5 pl-3.5 text-[12px]">
+        <span className="min-w-0 flex-1 truncate text-muted">
+          {PDF_PROMPT.slice(0, typed)}
+          {phase === "typing" && (
+            <motion.span
+              className="ml-0.5 inline-block h-3 w-px translate-y-0.5 bg-ink align-middle"
+              animate={{ opacity: [1, 0, 1] }}
+              transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
+            />
+          )}
+        </span>
+        <motion.span
+          className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${
+            phase === "thinking" ? "border border-line bg-white" : "bg-ink text-white"
+          }`}
+          animate={{ scale: phase === "thinking" ? 0.92 : 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          {phase === "thinking" ? (
+            <motion.span
+              className="h-3 w-3 rounded-full border-2 border-neutral-200 border-t-ink"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+            />
+          ) : (
+            <Sparkles size={13} />
+          )}
+        </motion.span>
+      </div>
+
+      <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-muted">
+        {phase === "done" ? (
+          <Check size={12} strokeWidth={2.2} className="text-[#3f9d6b]" />
+        ) : (
+          <motion.span
+            className="h-1.5 w-1.5 rounded-full bg-[#d8b168]"
+            animate={{ opacity: phase === "typing" ? [0.35, 1, 0.35] : 1 }}
+            transition={{ duration: 1.6, repeat: Infinity }}
+          />
+        )}
+        {status}
       </div>
     </div>
   );
@@ -285,18 +398,33 @@ export function Showcase() {
           cta="Browse free tools"
           ctaHref="/dashboard"
         />
-        <div className="mt-12 grid gap-3 md:grid-cols-2">
-          <Card
-            bg={grads.sun}
-            title="Format converter"
-            sub="JPG, PNG, WebP, PDF and the audio formats you actually use."
-          >
-            <ConverterMock />
-          </Card>
-          <Card title="Files stay yours" sub="Free browser tools are designed to process on your device, not ours.">
-            <DropMock />
-          </Card>
-        </div>
+        <BentoGrid className="mt-12">
+          <BentoGridItem
+            className="grain text-white md:col-span-4 md:row-span-2 md:p-8"
+            style={{ background: grads.sun }}
+            header={
+              <div className="flex flex-1 items-center justify-center py-6">
+                <ConverterMock />
+              </div>
+            }
+            title={<span className="text-xl text-white">Format converter</span>}
+            description={
+              <span className="block text-[14px] leading-snug text-white/80">
+                JPG, PNG, WebP, PDF and the audio formats you actually use.
+              </span>
+            }
+          />
+          <BentoGridItem
+            className="md:col-span-2 md:row-span-2 md:p-7"
+            header={
+              <div className="flex flex-1 items-center justify-center py-6">
+                <DropMock />
+              </div>
+            }
+            title="Files stay yours"
+            description="Free browser tools are designed to process on your device, not ours."
+          />
+        </BentoGrid>
       </div>
 
       <div>
@@ -307,14 +435,54 @@ export function Showcase() {
           cta="See AI tools"
           ctaHref="/image/upscaler"
         />
-        <div className="mt-12 grid gap-3 md:grid-cols-2">
-          <Card bg={grads.iris} title="Image upscaler" sub="Enlarge photos up to 4× and keep the detail.">
-            <UpscaleMock />
-          </Card>
-          <Card title="AI PDF editor" sub="Edit a PDF by typing what you want changed.">
-            <PdfMock />
-          </Card>
-        </div>
+        <BentoGrid className="mt-12">
+          <BentoGridItem
+            className="grain text-white md:col-span-2 md:row-span-2 md:p-7"
+            style={{ background: grads.iris }}
+            header={
+              <div className="flex flex-1 items-center justify-center py-6">
+                <UpscaleMock />
+              </div>
+            }
+            title={<span className="text-xl text-white">Image upscaler</span>}
+            description={
+              <span className="block text-[14px] leading-snug text-white/80">
+                Enlarge photos up to 4× and keep the detail.
+              </span>
+            }
+          />
+          <BentoGridItem
+            className="md:col-span-2 md:row-span-2 md:p-7"
+            header={
+              <div className="flex flex-1 items-center justify-center py-6">
+                <PdfMock />
+              </div>
+            }
+            title="AI PDF editor"
+            description="Edit a PDF by typing what you want changed."
+          />
+          <BentoGridItem
+            className="grain bg-ink text-white hover:bg-ink md:col-span-2 md:row-span-2 md:p-7"
+            header={
+              <div className="relative flex flex-1 items-center justify-center">
+                <div className="absolute h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(253,168,43,0.45),transparent_70%)] blur-xl" />
+                <div className="relative text-center">
+                  <NumberTicker
+                    value={25}
+                    className="text-[64px] leading-none tracking-[-0.05em] text-white"
+                  />
+                  <p className="mt-2 text-sm text-white/60">free credits for AI tools</p>
+                </div>
+              </div>
+            }
+            title={<span className="text-xl text-white">25 credits on the house</span>}
+            description={
+              <span className="block text-[14px] leading-snug text-white/70">
+                Metered runs, refunded when they fail, with no surprise subscription.
+              </span>
+            }
+          />
+        </BentoGrid>
       </div>
     </section>
   );
@@ -342,7 +510,19 @@ export function Tools() {
       />
       <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {TOOLS.map(([Icon, name, note, href, isAi]) => (
-          <motion.div key={name} whileHover={{ y: -4 }} transition={{ duration: 0.3, ease }}>
+          <motion.div
+            key={name}
+            whileHover={{ y: -4 }}
+            transition={{ duration: 0.3, ease }}
+            className="relative rounded-[24px]"
+          >
+            <GlowingEffect
+              disabled={false}
+              proximity={80}
+              spread={30}
+              inactiveZone={0.45}
+              borderWidth={1}
+            />
             <Link
               href={href}
               className="group relative flex min-h-[190px] flex-col justify-between overflow-hidden rounded-[24px] bg-card p-6 transition-colors hover:bg-white hover:shadow-[0_0_0_1px_#e8e7e4]"
@@ -422,6 +602,14 @@ export function Pricing() {
       <div className="mt-12 grid gap-3 md:grid-cols-2">
         {PLANS.map((plan) => (
           <Reveal key={plan.name} className="h-full">
+            <div className="relative h-full rounded-[28px]">
+              <GlowingEffect
+                disabled={false}
+                proximity={90}
+                spread={34}
+                inactiveZone={0.55}
+                borderWidth={1}
+              />
             <div
               className={`relative flex h-full flex-col overflow-hidden rounded-[28px] p-8 ${
                 plan.pro ? "bg-ink text-white" : "bg-card"
@@ -481,6 +669,7 @@ export function Pricing() {
                 </HoverBorderGradient>
               </div>
               </div>
+            </div>
             </div>
           </Reveal>
         ))}
@@ -549,39 +738,46 @@ export function Privacy() {
         </h2>
         <Btn dark={false} href="/dashboard">Explore the tools</Btn>
       </Reveal>
-      <div className="mt-12 grid gap-3 md:grid-cols-3">
-        {SAFE.map((item, index) => {
-          const Art = ART[index];
-          return (
-            <Reveal key={item.title} className="h-full">
-              <CometCard className="h-full" rotateDepth={4} translateDepth={4}>
-                <div className="flex h-full min-h-[440px] flex-col justify-between rounded-[28px] bg-card p-6">
-                  <div className="relative grid flex-1 place-items-center overflow-hidden rounded-[18px]">
-                  <DotPattern
-                    width={18}
-                    height={18}
-                    cr={0.9}
-                    className="opacity-45 [mask-image:radial-gradient(ellipse_at_center,black,transparent_72%)]"
-                  />
-                  <svg
-                    viewBox="0 0 200 200"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1"
-                    className="h-52 w-52"
-                  >
-                    <Art />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-lg">{item.title}</p>
-                  <p className="mt-1 text-[15px] leading-snug text-muted">{item.copy}</p>
-                </div>
-                </div>
-              </CometCard>
-            </Reveal>
-          );
-        })}
+      <div className="mt-14">
+        <TracingBeam className="pl-2 md:pl-12">
+          <div className="space-y-6 pb-16">
+            {SAFE.map((item, index) => {
+              const Art = ART[index];
+              return (
+                <Reveal key={item.title}>
+                  <div className="rounded-[28px] border border-line bg-card p-6 md:p-8">
+                    <div className="grid items-center gap-6 md:grid-cols-[200px_minmax(0,1fr)]">
+                      <div className="relative grid h-44 place-items-center overflow-hidden rounded-[18px] bg-[#fbfbfa]">
+                        <DotPattern
+                          width={18}
+                          height={18}
+                          cr={0.9}
+                          className="opacity-45 [mask-image:radial-gradient(ellipse_at_center,black,transparent_72%)]"
+                        />
+                        <svg
+                          viewBox="0 0 200 200"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1"
+                          className="relative h-32 w-32"
+                        >
+                          <Art />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm text-faint">0{index + 1}</p>
+                        <p className="mt-2 text-xl">{item.title}</p>
+                        <p className="mt-2 max-w-md text-[15px] leading-snug text-muted">
+                          {item.copy}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Reveal>
+              );
+            })}
+          </div>
+        </TracingBeam>
       </div>
     </section>
   );
@@ -591,53 +787,31 @@ export function CTA() {
   return (
     <section className="mx-auto mt-28 max-w-[1280px] px-5">
       <Reveal>
-        <div className="relative overflow-hidden rounded-[32px] bg-ink px-6 py-24 text-center text-white md:py-32">
-          <GridPattern
-            width={56}
-            height={56}
-            strokeDasharray="4 4"
-            className="opacity-[0.14] [mask-image:radial-gradient(ellipse_at_center,black,transparent_76%)]"
-          />
-          <BorderBeam
-            size={280}
-            duration={18}
-            colorFrom="#ffaa40"
-            colorTo="#9c40ff"
-            borderWidth={1}
-          />
-          <Spotlight fill="#ffd7a8" className="-top-[360px] left-1/2 z-0 -translate-x-1/2" />
-          <motion.div
-            className="absolute -bottom-48 left-1/2 -ml-[220px] h-[440px] w-[440px] rounded-full opacity-80 blur-2xl"
-            style={{ background: grads.sun }}
-            animate={{ scale: [1, 1.08, 1] }}
-            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          />
-          <div className="relative z-10">
-            <h2 className="mx-auto max-w-3xl text-[clamp(2.2rem,5vw,4rem)] leading-[1.04] tracking-[-0.035em]">
-              Get your{" "}
-              <FlipWords
-                words={["images", "PDFs", "audio", "files"]}
-                className="text-[#ffd7a8]"
-              />{" "}
-              sorted before your coffee cools.
-            </h2>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <HoverBorderGradient
-                as={Link}
-                href="/dashboard"
-                containerClassName="rounded-full"
-                className="rounded-full bg-white px-6 py-3.5 text-[15px] font-medium text-ink transition-colors hover:bg-neutral-100"
-              >
-                Start for free
-              </HoverBorderGradient>
-            </div>
-            <p className="mt-6 text-sm text-white/55">
-              New accounts get{" "}
-              <NumberTicker value={25} className="font-medium text-white" /> free credits for
-              the AI tools.
-            </p>
+        <LampContainer className="grain">
+          <h2 className="mx-auto max-w-3xl text-center text-[clamp(2.2rem,5vw,4rem)] leading-[1.04] tracking-[-0.035em]">
+            Get your{" "}
+            <FlipWords
+              words={["images", "PDFs", "audio", "files"]}
+              className="text-[#ffd7a8]"
+            />{" "}
+            sorted before your coffee cools.
+          </h2>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <HoverBorderGradient
+              as={Link}
+              href="/dashboard"
+              containerClassName="rounded-full"
+              className="rounded-full bg-white px-6 py-3.5 text-[15px] font-medium text-ink transition-colors hover:bg-neutral-100"
+            >
+              Start for free
+            </HoverBorderGradient>
           </div>
-        </div>
+          <p className="mt-6 text-sm text-white/55">
+            New accounts get{" "}
+            <NumberTicker value={25} className="font-medium text-white" /> free credits for
+            the AI tools.
+          </p>
+        </LampContainer>
       </Reveal>
     </section>
   );
@@ -674,7 +848,7 @@ const COLS: { title: string; links: [string, string][] }[] = [
 
 export function Footer() {
   return (
-    <footer className="mx-auto mt-28 max-w-[1280px] px-5 pb-12">
+    <footer className="mx-auto mt-28 max-w-[1280px] px-5 pb-10">
       <div className="grid gap-10 border-t border-line pt-12 md:grid-cols-[1.5fr_repeat(3,1fr)]">
         <div>
           <Logo />
@@ -697,7 +871,13 @@ export function Footer() {
           </div>
         ))}
       </div>
-      <p className="mt-12 text-sm text-muted">© 2026 frebies. All rights reserved.</p>
+      <div className="mt-14 aspect-[1240/240] w-full">
+        <TextHoverEffect text="frebies" viewBox="0 0 1240 240" fontSize={300} />
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6 text-sm text-muted">
+        <p>© 2026 frebies. All rights reserved.</p>
+        <p>Made for the small jobs.</p>
+      </div>
     </footer>
   );
 }

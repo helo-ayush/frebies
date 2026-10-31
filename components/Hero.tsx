@@ -11,6 +11,8 @@ import { AnimatedGradientText } from "./magicui/animated-gradient-text";
 import { BorderBeam } from "./magicui/border-beam";
 import { BlurFade } from "./magicui/blur-fade";
 import { NumberTicker } from "./magicui/number-ticker";
+import { SparklesCore } from "./ui/sparkles";
+import { Highlight } from "./ui/hero-highlight";
 import { Btn, Orb, Words, ease, type G } from "./ui";
 
 type HeroItem = { t: string; d: string; g: G; href: string };
@@ -88,8 +90,8 @@ const PILLS = [
 ] as const;
 
 const ARROWS = [
-  { direction: -1, position: "left-3 md:left-[22%]", Icon: ArrowLeft, label: "Previous tool" },
-  { direction: 1, position: "right-3 md:right-[22%]", Icon: ArrowRight, label: "Next tool" },
+  { direction: -1, position: "left-1.5", Icon: ArrowLeft, label: "Previous tool" },
+  { direction: 1, position: "right-1.5", Icon: ArrowRight, label: "Next tool" },
 ];
 
 export default function Hero() {
@@ -106,165 +108,180 @@ export default function Hero() {
   }, [count, tab, active]);
 
   return (
-    <section className="relative mx-auto max-w-[1280px] px-5 pt-16 md:pt-28">
+    <section className="relative mx-auto max-w-[1280px] px-5 pt-12 md:pt-20">
       <DottedGlowBackground
-        className="inset-x-0 top-0 h-[560px] w-full [mask-image:radial-gradient(ellipse_at_top,black_10%,transparent_72%)]"
+        className="inset-x-0 top-0 h-[620px] w-full [mask-image:radial-gradient(ellipse_at_top,black_10%,transparent_72%)]"
         gap={24}
         radius={1.1}
         opacity={0.55}
       />
 
-      <div className="relative">
-        <div className="grid gap-8 md:grid-cols-2 md:items-end">
-          <div>
-            <AnimatedGradientText
-              speed={1.6}
-              colorFrom="#8f8578"
-              colorTo="#d98b63"
-              className="mb-5 inline-block text-[12px] font-medium uppercase tracking-[0.18em]"
-            >
-              Free file tools, quietly powerful
-            </AnimatedGradientText>
-            <Words
-              lines={["Every tool you need,", "mostly free."]}
-              className="text-[clamp(2.8rem,7vw,5.4rem)] leading-[1.02] tracking-[-0.04em]"
-            />
-          </div>
-          <BlurFade delay={0.35} duration={0.7} offset={10} className="md:ml-auto">
-            <p className="max-w-xl text-lg leading-snug">
+      <div className="relative grid items-center gap-12 lg:grid-cols-[minmax(0,1.04fr)_minmax(0,0.96fr)] lg:gap-10">
+        <div>
+          <AnimatedGradientText
+            speed={1.6}
+            colorFrom="#8f8578"
+            colorTo="#d98b63"
+            className="mb-5 inline-block text-[12px] font-medium uppercase tracking-[0.18em]"
+          >
+            Free file tools, quietly powerful
+          </AnimatedGradientText>
+          <Words
+            lines={[
+              "Every tool",
+              "you need,",
+              <>
+                mostly <Highlight className="px-2 pb-1.5">free.</Highlight>
+              </>,
+            ]}
+            className="text-[clamp(2.8rem,7vw,5.4rem)] leading-[1.02] tracking-[-0.04em]"
+          />
+
+          <BlurFade delay={0.35} duration={0.7} offset={10}>
+            <p className="mt-6 max-w-lg text-lg leading-snug">
               A growing toolbox for creators, students and teams. Convert images, tidy PDFs,
               trim audio and bring in AI when a job needs more. Free for everyday work, with
               clear credit pricing when you need extra power.
             </p>
           </BlurFade>
-        </div>
 
-        <BlurFade delay={0.45} duration={0.7} offset={8} className="mt-8 flex flex-wrap items-center gap-3">
-          <HoverBorderGradient
-            as={Link}
-            href="/dashboard"
-            containerClassName="rounded-full"
-            className="rounded-full bg-ink px-6 py-3.5 text-[15px] font-medium text-white transition-colors hover:bg-neutral-800"
-          >
-            Get started free
-          </HoverBorderGradient>
-          <Btn dark={false} href="#tools">Browse tools</Btn>
-        </BlurFade>
-
-        <BlurFade delay={0.55} duration={0.7} offset={6} className="mt-7 flex flex-wrap items-baseline gap-x-7 gap-y-2 text-[13px] text-muted">
-          <span className="inline-flex items-baseline gap-1.5">
-            <NumberTicker value={tools.length} className="font-display text-[20px] font-semibold text-ink" />
-            tools in the box
-          </span>
-          <span className="inline-flex items-baseline gap-1.5">
-            <NumberTicker value={liveTools.length} className="font-display text-[20px] font-semibold text-ink" />
-            ready on your device
-          </span>
-          <span className="inline-flex items-baseline gap-1.5">
-            <NumberTicker value={0} className="font-display text-[20px] font-semibold text-ink" />
-            uploads required
-          </span>
-        </BlurFade>
-
-        <div className="relative mt-14 overflow-hidden rounded-[28px] border border-line bg-card/60 p-2">
-          <BorderBeam
-            size={190}
-            duration={16}
-            colorFrom="#e55e40"
-            colorTo="#fda82b"
-            className="opacity-70"
-          />
-        <div className="grid grid-cols-3 rounded-[22px] bg-[#eeedea] p-1">
-          {tabNames.map((name) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => {
-                setTab(name);
-                setActive(0);
-              }}
-              aria-pressed={tab === name}
-              className={`relative rounded-[18px] py-4 text-[15px] transition-colors ${
-                tab === name ? "text-ink" : "text-neutral-500 hover:text-ink"
-              }`}
+          <BlurFade delay={0.45} duration={0.7} offset={8} className="mt-8 flex flex-wrap items-center gap-3">
+            <HoverBorderGradient
+              as={Link}
+              href="/dashboard"
+              containerClassName="rounded-full"
+              className="rounded-full bg-ink px-6 py-3.5 text-[15px] font-medium text-white transition-colors hover:bg-neutral-800"
             >
-              {tab === name && (
-                <motion.span
-                  layoutId="hero-tab"
-                  transition={{ duration: 0.4, ease }}
-                  className="absolute inset-0 rounded-[18px] bg-white shadow-sm"
-                />
-              )}
-              <span className="relative">{name}</span>
-            </button>
-          ))}
+              Get started free
+            </HoverBorderGradient>
+            <Btn dark={false} href="#tools">Browse tools</Btn>
+          </BlurFade>
+
+          <BlurFade delay={0.55} duration={0.7} offset={6} className="mt-7 flex flex-wrap items-baseline gap-x-7 gap-y-2 border-t border-line pt-5 text-[13px] text-muted">
+            <span className="inline-flex items-baseline gap-1.5">
+              <NumberTicker value={tools.length} className="font-display text-[20px] font-semibold text-ink" />
+              tools in the box
+            </span>
+            <span className="inline-flex items-baseline gap-1.5">
+              <NumberTicker value={liveTools.length} className="font-display text-[20px] font-semibold text-ink" />
+              ready on your device
+            </span>
+            <span className="inline-flex items-baseline gap-1.5">
+              <NumberTicker value={0} className="font-display text-[20px] font-semibold text-ink" />
+              uploads required
+            </span>
+          </BlurFade>
         </div>
 
-        <div className="relative mt-6 h-[440px] overflow-hidden">
-          {items.map((item, index) => {
-            const offset = ((index - active + count + half) % count) - half;
-            return (
-              <motion.div
-                key={`${tab}-${index}`}
-                className="absolute left-1/2 top-4 -ml-[180px] w-[360px] text-center"
-                initial={{ opacity: 0, scale: 0.85, x: offset * 400 }}
-                animate={{ opacity: offset === 0 ? 1 : 0.5, scale: offset === 0 ? 1 : 0.78, x: offset * 400 }}
-                transition={{ duration: 0.9, ease }}
-              >
-                <motion.div
-                  animate={offset === 0 ? { y: [0, -10, 0] } : { y: 0 }}
-                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+        <BlurFade delay={0.3} duration={0.8} offset={16} className="relative">
+          <div className="relative overflow-hidden rounded-[28px] border border-line bg-card/60 p-2 shadow-[0_40px_100px_rgba(25,20,12,0.10)]">
+            <BorderBeam
+              size={220}
+              duration={16}
+              colorFrom="#e55e40"
+              colorTo="#fda82b"
+              className="opacity-70"
+            />
+            <div className="grid grid-cols-3 rounded-[22px] bg-[#eeedea] p-1">
+              {tabNames.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => {
+                    setTab(name);
+                    setActive(0);
+                  }}
+                  aria-pressed={tab === name}
+                  className={`relative rounded-[18px] py-3.5 text-[14px] transition-colors ${
+                    tab === name ? "text-ink" : "text-neutral-500 hover:text-ink"
+                  }`}
                 >
-                  <Orb g={item.g} className="mx-auto h-64 w-64 md:h-72 md:w-72" />
-                </motion.div>
-                <h3 className="mt-8 flex items-center justify-center gap-1 text-xl">
-                  {offset === 0 ? (
-                    <Link href={item.href} className="inline-flex items-center gap-1 hover:underline">
-                      {item.t}
-                      <ArrowUpRight size={16} aria-hidden />
-                    </Link>
-                  ) : (
-                    item.t
+                  {tab === name && (
+                    <motion.span
+                      layoutId="hero-tab"
+                      transition={{ duration: 0.4, ease }}
+                      className="absolute inset-0 rounded-[18px] bg-white shadow-sm"
+                    />
                   )}
-                </h3>
-                <p className="mx-auto mt-2 max-w-[260px] text-[15px] leading-snug text-muted">
-                  {item.d}
-                </p>
-              </motion.div>
-            );
-          })}
-          {ARROWS.map(({ direction, position, Icon, label }) => (
-            <button
-              key={label}
-              type="button"
-              aria-label={label}
-              onClick={() => setActive((current) => (current + direction + count) % count)}
-              className={`absolute top-[36%] z-10 grid h-10 w-10 place-items-center rounded-full bg-white/80 backdrop-blur transition hover:bg-white ${position}`}
-            >
-              <Icon size={18} />
-            </button>
-          ))}
-        </div>
+                  <span className="relative">{name}</span>
+                </button>
+              ))}
+            </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-4 px-4 pb-4 pt-2 md:px-14">
-          <div className="flex flex-wrap gap-1 text-[15px]">
-            {PILLS.map(([label, href], index) => (
-              <Link
-                key={label}
-                href={href}
-                className={`rounded-full px-4 py-2.5 transition-colors ${
-                  index === 0
-                    ? "border border-line bg-white"
-                    : "text-neutral-600 hover:text-ink"
-                }`}
-              >
-                {label}
-              </Link>
-            ))}
+            <div className="relative mt-3 h-[420px] overflow-hidden">
+              <SparklesCore
+                id="hero-tool-sparkles"
+                background="transparent"
+                minSize={0.5}
+                maxSize={1.4}
+                particleDensity={24}
+                speed={1.1}
+                particleColor="#d98b63"
+                className="pointer-events-none absolute inset-0 h-full w-full"
+              />
+              {items.map((item, index) => {
+                const offset = ((index - active + count + half) % count) - half;
+                return (
+                  <motion.div
+                    key={`${tab}-${index}`}
+                    className="absolute left-1/2 top-2 -ml-[150px] w-[300px] text-center sm:-ml-[175px] sm:w-[350px]"
+                    style={{ zIndex: offset === 0 ? 2 : 1 }}
+                    initial={{ opacity: 0, scale: 0.85, x: offset * 260 }}
+                    animate={{
+                      opacity: offset === 0 ? 1 : 0.3,
+                      scale: offset === 0 ? 1 : 0.8,
+                      x: offset * 260,
+                    }}
+                    transition={{ duration: 0.9, ease }}
+                  >
+                    <motion.div
+                      animate={offset === 0 ? { y: [0, -10, 0] } : { y: 0 }}
+                      transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <Orb g={item.g} className="mx-auto h-56 w-56 sm:h-64 sm:w-64" />
+                    </motion.div>
+                    {offset === 0 && (
+                      <>
+                        <h3 className="mt-6 flex items-center justify-center gap-1 text-lg">
+                          <Link href={item.href} className="inline-flex items-center gap-1 hover:underline">
+                            {item.t}
+                            <ArrowUpRight size={15} aria-hidden />
+                          </Link>
+                        </h3>
+                        <p className="mx-auto mt-1.5 max-w-[250px] text-sm leading-snug text-muted">
+                          {item.d}
+                        </p>
+                      </>
+                    )}
+                  </motion.div>
+                );
+              })}
+              {ARROWS.map(({ direction, position, Icon, label }) => (
+                <button
+                  key={label}
+                  type="button"
+                  aria-label={label}
+                  onClick={() => setActive((current) => (current + direction + count) % count)}
+                  className={`absolute top-[34%] z-10 grid h-9 w-9 place-items-center rounded-full bg-white/85 backdrop-blur transition hover:bg-white ${position}`}
+                >
+                  <Icon size={16} />
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-1 px-2 pb-2 pt-1">
+              {PILLS.map(([label, href]) => (
+                <Link
+                  key={label}
+                  href={href}
+                  className="rounded-full px-3 py-1.5 text-[13px] text-neutral-600 transition-colors hover:bg-white hover:text-ink"
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
           </div>
-          <Btn href="/dashboard">Get started</Btn>
-        </div>
-        </div>
+        </BlurFade>
       </div>
     </section>
   );
