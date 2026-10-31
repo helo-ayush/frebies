@@ -11,6 +11,7 @@ import {
   ImagePlus,
   Loader2,
   Maximize2,
+  Plus,
   ShieldCheck,
   Sparkles,
   TriangleAlert,
@@ -548,42 +549,44 @@ function ImageConvertStudioInner({
     grayscale,
   };
 
-  // Dynamic stage measurement for true full-container "Fit" scaling
-  const stageRef = useRef<HTMLDivElement | null>(null);
+  // Dynamic stage measurement for true full-container "Fit" scaling.
+  // The stage only mounts once an image is added, so it is tracked through a
+  // callback ref rather than a mount-only effect.
+  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
+  const [stageHeaderH, setStageHeaderH] = useState(32);
   const [stageSize, setStageSize] = useState<{ width: number; height: number }>({
     width: 760,
     height: 480,
   });
 
   useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
+    if (!stageEl) return;
 
     const updateSize = () => {
-      const rect = el.getBoundingClientRect();
+      const rect = stageEl.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
         setStageSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
+      }
+      const header = stageEl.querySelector<HTMLElement>("[data-stage-header]");
+      if (header) {
+        const h = Math.round(header.getBoundingClientRect().height);
+        if (h > 0) setStageHeaderH(h);
       }
     };
 
     updateSize();
 
     if (typeof ResizeObserver !== "undefined") {
-      const ro = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const { width, height } = entry.contentRect;
-          if (width > 0 && height > 0) {
-            setStageSize({ width: Math.round(width), height: Math.round(height) });
-          }
-        }
-      });
-      ro.observe(el);
+      const ro = new ResizeObserver(updateSize);
+      ro.observe(stageEl);
+      const header = stageEl.querySelector<HTMLElement>("[data-stage-header]");
+      if (header) ro.observe(header);
       return () => ro.disconnect();
     }
 
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
-  }, []);
+  }, [stageEl]);
 
   // Active preview dimensions (either converted output resolution or original source dimensions)
   const currentW =
@@ -601,7 +604,7 @@ function ImageConvertStudioInner({
 
   // Dynamic available bounds inside the stage (accounting for top & bottom overlays + margins)
   const availableW = Math.max(120, stageSize.width - 48);
-  const availableH = Math.max(120, stageSize.height - 120);
+  const availableH = Math.max(120, stageSize.height - stageHeaderH - 84);
 
   // Fit multiplier: scale image so it comfortably fills available stage width & height
   const scaleX = availableW / Math.max(1, currentW);
@@ -691,90 +694,97 @@ function ImageConvertStudioInner({
             >
               {/* Active Image Stage */}
               <div
-                ref={stageRef}
+                ref={setStageEl}
                 className={`relative flex min-h-[320px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-line transition-colors ${
                   showGrid
                     ? "bg-[repeating-conic-gradient(#00000008_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] bg-[#fbfaf8]"
                     : "bg-[#f1efeb]"
                 }`}
               >
-                {/* Stage Header: Format and Resolution Overlay */}
-                <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-1.5 pointer-events-auto">
-                  <span className="rounded-lg border border-line bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-ink backdrop-blur-sm shadow-2xs">
-                    {sourceFormat(activeItem?.file)}
-                  </span>
-                  <span className="flex items-center gap-1 rounded-lg border border-[#cbe4c7] bg-[#f4faf2]/95 px-2.5 py-1 text-[11px] font-semibold text-[#305e2b] backdrop-blur-sm shadow-2xs">
-                    <span>→ {FORMAT_LABEL[activeTargetFormat]}</span>
-                    {previewBusy && <Loader2 size={11} className="animate-spin ml-0.5" />}
-                  </span>
-                </div>
-
-                {/* Top Right Controls: Scale-to-Fit, Transparency Grid & Dimensions */}
-                <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5 pointer-events-auto">
-                  {/* Scale to Fit toggle */}
-                  <div className="flex rounded-[10px] border border-line bg-white/95 p-1 shadow-2xs backdrop-blur-sm">
-                    <button
-                      type="button"
-                      onClick={() => setScaleToFit(true)}
-                      className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
-                        scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
-                      }`}
-                      title={`Fit to stage (${Math.round(fitMultiplier * 100)}%)`}
-                    >
-                      <Maximize2 size={11} aria-hidden />
+                {/* Top Overlay: format/outcome pills + view controls (wraps on narrow stages) */}
+                <div data-stage-header className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start justify-between gap-x-2 gap-y-1.5">
+                  <div className="pointer-events-auto flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-lg border border-line bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-ink backdrop-blur-sm shadow-2xs">
+                      {sourceFormat(activeItem?.file)}
+                    </span>
+                    <span className="flex items-center gap-1 rounded-lg border border-[#cbe4c7] bg-[#f4faf2]/95 px-2.5 py-1 text-[11px] font-semibold text-[#305e2b] backdrop-blur-sm shadow-2xs">
                       <span>
-                        {scaleToFit
-                          ? `Fit (${Math.round(fitMultiplier * 100)}%)`
-                          : "Fit"}
+                        → {FORMAT_LABEL[activeTargetFormat]}
+                        {activeResult ? ` · ${formatBytes(activeResult.bytes)}` : ""}
                       </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setScaleToFit(false)}
-                      className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
-                        !scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
-                      }`}
-                      title="Show actual size (100%, one image pixel per screen pixel)"
-                      aria-label="Show actual size"
-                    >
-                      <span>100%</span>
-                    </button>
+                      {previewBusy && <Loader2 size={11} className="animate-spin ml-0.5" />}
+                    </span>
                   </div>
 
-                  {/* Checkerboard toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setShowGrid(!showGrid)}
-                    className={`grid h-8 w-8 place-items-center rounded-[9px] border transition-colors ${
-                      showGrid
-                        ? "border-ink bg-rail text-ink shadow-2xs"
-                        : "border-line bg-white/95 text-muted hover:text-ink"
-                    }`}
-                    title="Toggle transparency grid"
-                    aria-label="Toggle transparency grid"
-                  >
-                    <Grid size={12} aria-hidden />
-                  </button>
-
-                  {/* Resolution readout */}
-                  {dimensions && (
-                    <div className="rounded-[9px] border border-line bg-white/95 px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted backdrop-blur-sm shadow-2xs">
-                      {targetSize && (targetSize.width !== dimensions.width || targetSize.height !== dimensions.height) ? (
+                  <div className="pointer-events-auto ml-auto flex flex-wrap items-center justify-end gap-1.5">
+                    {/* Scale to Fit toggle */}
+                    <div className="flex rounded-[10px] border border-line bg-white/95 p-1 shadow-2xs backdrop-blur-sm">
+                      <button
+                        type="button"
+                        onClick={() => setScaleToFit(true)}
+                        className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
+                          scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
+                        }`}
+                        title={`Fit to stage (${Math.round(fitMultiplier * 100)}%)`}
+                      >
+                        <Maximize2 size={11} aria-hidden />
                         <span>
-                          <span className="line-through text-faint mr-1">{dimensions.width}×{dimensions.height}</span>
-                          <span className="font-bold text-ink">{targetSize.width}×{targetSize.height} px</span>
+                          {scaleToFit
+                            ? `Fit (${Math.round(fitMultiplier * 100)}%)`
+                            : "Fit"}
                         </span>
-                      ) : (
-                        <span>{dimensions.width} × {dimensions.height} px</span>
-                      )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScaleToFit(false)}
+                        className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
+                          !scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
+                        }`}
+                        title="Show actual size (100%, one image pixel per screen pixel)"
+                        aria-label="Show actual size"
+                      >
+                        <span>100%</span>
+                      </button>
                     </div>
-                  )}
+
+                    {/* Checkerboard toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setShowGrid(!showGrid)}
+                      className={`grid h-8 w-8 place-items-center rounded-[9px] border transition-colors ${
+                        showGrid
+                          ? "border-ink bg-rail text-ink shadow-2xs"
+                          : "border-line bg-white/95 text-muted hover:text-ink"
+                      }`}
+                      title="Toggle transparency grid"
+                      aria-label="Toggle transparency grid"
+                    >
+                      <Grid size={12} aria-hidden />
+                    </button>
+
+                    {/* Resolution readout */}
+                    {dimensions && stageSize.width >= 320 && (
+                      <div className="rounded-[9px] border border-line bg-white/95 px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted backdrop-blur-sm shadow-2xs">
+                        {targetSize && (targetSize.width !== dimensions.width || targetSize.height !== dimensions.height) ? (
+                          <span>
+                            <span className="line-through text-faint mr-1">{dimensions.width}×{dimensions.height}</span>
+                            <span className="font-bold text-ink">{targetSize.width}×{targetSize.height} px</span>
+                          </span>
+                        ) : (
+                          <span>{dimensions.width} × {dimensions.height} px</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Center Image Viewport (scrollable in 100% mode if larger than stage) */}
                 {activeItem && (
-                  <div className="absolute inset-0 flex items-center justify-center overflow-auto p-4 pt-14 pb-16">
-                    <div className="relative flex items-center justify-center shrink-0">
+                  <div
+                    className="absolute inset-0 flex overflow-auto p-4 pb-16"
+                    style={{ paddingTop: stageHeaderH + 20 }}
+                  >
+                    <div className="relative m-auto flex items-center justify-center shrink-0">
                       {activeResult && viewMode === "split" ? (
                         <div
                           className="relative overflow-hidden rounded-[8px] shadow-md select-none border border-black/10 shrink-0"
@@ -899,7 +909,7 @@ function ImageConvertStudioInner({
                     )}
                   </div>
 
-                  {/* Right: Quick Save & Format */}
+                  {/* Right: Quick Save */}
                   <div className="pointer-events-auto ml-auto flex items-center gap-1.5">
                     {activeResult && (
                       <button
@@ -914,10 +924,6 @@ function ImageConvertStudioInner({
                         </span>
                       </button>
                     )}
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-[10px] border border-white/80 bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-ink shadow-sm backdrop-blur-sm">
-                      <ArrowRightGlyph size={11} aria-hidden />
-                      <span>{FORMAT_LABEL[activeTargetFormat]}</span>
-                    </span>
                   </div>
                 </div>
               </div>
@@ -1009,7 +1015,7 @@ function ImageConvertStudioInner({
 
           {/* Batch Thumbnails Filmstrip */}
           {items.length > 1 && (
-            <div className="mt-3">
+            <div className="mt-3 shrink-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
                   Batch queue ({items.length}) · {formatBytes(totalInputBytes)}
@@ -1035,13 +1041,13 @@ function ImageConvertStudioInner({
                       <button
                         type="button"
                         onClick={() => setActiveId(item.id)}
-                        className={`group relative flex w-[150px] flex-col rounded-[11px] border p-2 text-left transition-all ${
+                        className={`group relative flex h-[126px] w-[140px] flex-col rounded-[11px] border p-2 text-left transition-all ${
                           isSelected
                             ? "border-ink bg-white shadow-xs ring-1 ring-ink/20"
                             : "border-line bg-white/70 hover:border-[#d5d1c8] hover:bg-white"
                         }`}
                       >
-                        <div className="relative aspect-4/3 w-full overflow-hidden rounded-[7px] bg-[#f2efe9]">
+                        <div className="relative h-[78px] w-full overflow-hidden rounded-[7px] bg-[#f2efe9]">
                           <img
                             src={itemRes ? itemRes.previewUrl : item.preview}
                             alt=""
@@ -1073,6 +1079,17 @@ function ImageConvertStudioInner({
                     </li>
                   );
                 })}
+                <li className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => openPicker()}
+                    aria-label="Add more images to batch"
+                    className="flex h-full min-h-[140px] w-[90px] flex-col items-center justify-center rounded-[11px] border border-dashed border-[#d5d1c8] bg-white/40 text-faint transition-colors hover:border-[#b5ae9f] hover:bg-white hover:text-ink"
+                  >
+                    <Plus size={18} aria-hidden />
+                    <span className="mt-1 text-[11px] font-medium">Add</span>
+                  </button>
+                </li>
               </ul>
             </div>
           )}

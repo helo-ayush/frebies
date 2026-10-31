@@ -367,41 +367,41 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   }
 
   // Dynamic stage measurement for true full-container "Fit" scaling
-  const stageRef = useRef<HTMLDivElement | null>(null);
+  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
+  const [stageHeaderH, setStageHeaderH] = useState(32);
   const [stageSize, setStageSize] = useState<{ width: number; height: number }>({
     width: 760,
     height: 480,
   });
 
   useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
+    if (!stageEl) return;
 
     const updateSize = () => {
-      const rect = el.getBoundingClientRect();
+      const rect = stageEl.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
         setStageSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
+      }
+      const header = stageEl.querySelector<HTMLElement>("[data-stage-header]");
+      if (header) {
+        const h = Math.round(header.getBoundingClientRect().height);
+        if (h > 0) setStageHeaderH(h);
       }
     };
 
     updateSize();
 
     if (typeof ResizeObserver !== "undefined") {
-      const ro = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const { width, height } = entry.contentRect;
-          if (width > 0 && height > 0) {
-            setStageSize({ width: Math.round(width), height: Math.round(height) });
-          }
-        }
-      });
-      ro.observe(el);
+      const ro = new ResizeObserver(updateSize);
+      ro.observe(stageEl);
+      const header = stageEl.querySelector<HTMLElement>("[data-stage-header]");
+      if (header) ro.observe(header);
       return () => ro.disconnect();
     }
 
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
-  }, []);
+  }, [stageEl]);
 
   const currentW =
     viewMode === "original"
@@ -417,7 +417,7 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
         : (dimensions?.height || 1);
 
   const availableW = Math.max(120, stageSize.width - 48);
-  const availableH = Math.max(120, stageSize.height - 120);
+  const availableH = Math.max(120, stageSize.height - stageHeaderH - 84);
 
   const scaleX = availableW / Math.max(1, currentW);
   const scaleY = availableH / Math.max(1, currentH);
@@ -516,104 +516,108 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             >
               {/* Active Image Stage */}
               <div
-                ref={stageRef}
-                className={`relative flex min-h-[240px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-line transition-colors ${
+                ref={setStageEl}
+                className={`relative flex min-h-[280px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-line transition-colors ${
                   showGrid
                     ? "bg-[repeating-conic-gradient(#00000008_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] bg-[#fbfaf8]"
                     : "bg-[#f1efeb]"
                 }`}
               >
-                {/* Stage Header: Format and Outcome Tag */}
-                <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-1.5 pointer-events-auto">
-                  <span className="rounded-lg border border-line bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-ink backdrop-blur-sm shadow-2xs">
-                    {sourceFormat(activeItem?.file)}
-                  </span>
-                  <span className="flex items-center gap-1 rounded-lg border border-[#cbe4c7] bg-[#f4faf2]/95 px-2.5 py-1 text-[11px] font-semibold text-[#305e2b] backdrop-blur-sm shadow-2xs">
-                    <span>
-                      → {activeResult ? `${formatBytes(activeResult.bytes)}` : "Compressing…"}
+                {/* Top Overlay: format/outcome pills + view controls (wraps on narrow stages) */}
+                <div data-stage-header className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start justify-between gap-x-2 gap-y-1.5">
+                  <div className="pointer-events-auto flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-lg border border-line bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-ink backdrop-blur-sm shadow-2xs">
+                      {sourceFormat(activeItem?.file)}
                     </span>
-                    {previewBusy && <Loader2 size={11} className="animate-spin ml-0.5" />}
-                  </span>
-                </div>
-
-                {/* Top Right Controls: Scale-to-Fit, Transparency Grid & Size Readout */}
-                <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5 pointer-events-auto">
-                  {/* Scale to Fit toggle */}
-                  <div className="flex rounded-[10px] border border-line bg-white/95 p-1 shadow-2xs backdrop-blur-sm">
-                    <button
-                      type="button"
-                      onClick={() => setScaleToFit(true)}
-                      className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
-                        scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
-                      }`}
-                      title={`Fit to stage (${Math.round(fitMultiplier * 100)}%)`}
-                    >
-                      <Maximize2 size={11} aria-hidden />
+                    <span className="flex items-center gap-1 rounded-lg border border-[#cbe4c7] bg-[#f4faf2]/95 px-2.5 py-1 text-[11px] font-semibold text-[#305e2b] backdrop-blur-sm shadow-2xs">
                       <span>
-                        {scaleToFit
-                          ? `Fit (${Math.round(fitMultiplier * 100)}%)`
-                          : "Fit"}
+                        → {activeResult ? `${formatBytes(activeResult.bytes)}` : "Compressing…"}
                       </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setScaleToFit(false)}
-                      className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
-                        !scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
-                      }`}
-                      title="Show actual size (100%, 1:1 screen pixels)"
-                      aria-label="Show actual size"
-                    >
-                      <span>100%</span>
-                    </button>
+                      {previewBusy && <Loader2 size={11} className="animate-spin ml-0.5" />}
+                    </span>
                   </div>
 
-                  {/* Checkerboard toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setShowGrid(!showGrid)}
-                    className={`grid h-8 w-8 place-items-center rounded-[9px] border transition-colors ${
-                      showGrid
-                        ? "border-ink bg-rail text-ink shadow-2xs"
-                        : "border-line bg-white/95 text-muted hover:text-ink"
-                    }`}
-                    title="Toggle transparency grid"
-                    aria-label="Toggle transparency grid"
-                  >
-                    <Grid size={12} aria-hidden />
-                  </button>
-
-                  {/* Resolution & Size readout */}
-                  {activeItem && (
-                    <div className="rounded-[9px] border border-line bg-white/95 px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted backdrop-blur-sm shadow-2xs">
-                      {targetSize && dimensions && (targetSize.width !== dimensions.width || targetSize.height !== dimensions.height) ? (
+                  <div className="pointer-events-auto ml-auto flex flex-wrap items-center justify-end gap-1.5">
+                    {/* Scale to Fit toggle */}
+                    <div className="flex rounded-[10px] border border-line bg-white/95 p-1 shadow-2xs backdrop-blur-sm">
+                      <button
+                        type="button"
+                        onClick={() => setScaleToFit(true)}
+                        className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
+                          scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
+                        }`}
+                        title={`Fit to stage (${Math.round(fitMultiplier * 100)}%)`}
+                      >
+                        <Maximize2 size={11} aria-hidden />
                         <span>
-                          <span className="line-through text-faint mr-1">{dimensions.width}×{dimensions.height}</span>
-                          <span className="font-bold text-ink">{targetSize.width}×{targetSize.height} px</span>
+                          {scaleToFit
+                            ? `Fit (${Math.round(fitMultiplier * 100)}%)`
+                            : "Fit"}
                         </span>
-                      ) : activeResult ? (
-                        <span>
-                          <span className="line-through text-faint mr-1">
-                            {formatBytes(activeResult.originalBytes)}
-                          </span>
-                          <span className="font-bold text-[#305e2b]">
-                            {formatBytes(activeResult.bytes)}
-                          </span>
-                          <span className="ml-1 text-[10px] text-faint font-normal">
-                            ({reductionPercent(activeResult.originalBytes, activeResult.bytes) > 0 ? `−${reductionPercent(activeResult.originalBytes, activeResult.bytes)}%` : "0%"})
-                          </span>
-                        </span>
-                      ) : (
-                        <span>{formatBytes(activeItem.file.size)}</span>
-                      )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScaleToFit(false)}
+                        className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
+                          !scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
+                        }`}
+                        title="Show actual size (100%, 1:1 screen pixels)"
+                        aria-label="Show actual size"
+                      >
+                        <span>100%</span>
+                      </button>
                     </div>
-                  )}
+
+                    {/* Checkerboard toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setShowGrid(!showGrid)}
+                      className={`grid h-8 w-8 place-items-center rounded-[9px] border transition-colors ${
+                        showGrid
+                          ? "border-ink bg-rail text-ink shadow-2xs"
+                          : "border-line bg-white/95 text-muted hover:text-ink"
+                      }`}
+                      title="Toggle transparency grid"
+                      aria-label="Toggle transparency grid"
+                    >
+                      <Grid size={12} aria-hidden />
+                    </button>
+
+                    {/* Resolution & Size readout */}
+                    {activeItem && stageSize.width >= 320 && (
+                      <div className="rounded-[9px] border border-line bg-white/95 px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted backdrop-blur-sm shadow-2xs">
+                        {targetSize && dimensions && (targetSize.width !== dimensions.width || targetSize.height !== dimensions.height) ? (
+                          <span>
+                            <span className="line-through text-faint mr-1">{dimensions.width}×{dimensions.height}</span>
+                            <span className="font-bold text-ink">{targetSize.width}×{targetSize.height} px</span>
+                          </span>
+                        ) : activeResult ? (
+                          <span>
+                            <span className="line-through text-faint mr-1">
+                              {formatBytes(activeResult.originalBytes)}
+                            </span>
+                            <span className="font-bold text-[#305e2b]">
+                              {formatBytes(activeResult.bytes)}
+                            </span>
+                            <span className="ml-1 text-[10px] text-faint font-normal">
+                              ({reductionPercent(activeResult.originalBytes, activeResult.bytes) > 0 ? `−${reductionPercent(activeResult.originalBytes, activeResult.bytes)}%` : "0%"})
+                            </span>
+                          </span>
+                        ) : (
+                          <span>{formatBytes(activeItem.file.size)}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Center Image Viewport */}
                 {activeItem && (
-                  <div className="absolute inset-0 flex items-center justify-center overflow-auto p-4 pt-14 pb-16">
-                    <div className="relative flex items-center justify-center shrink-0">
+                  <div
+                    className="absolute inset-0 flex overflow-auto p-4 pb-16"
+                    style={{ paddingTop: stageHeaderH + 20 }}
+                  >
+                    <div className="relative m-auto flex items-center justify-center shrink-0">
                       {activeResult && viewMode === "split" ? (
                         <div
                           className="relative overflow-hidden rounded-[8px] shadow-md select-none border border-black/10 shrink-0"
