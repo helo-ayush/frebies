@@ -1,6 +1,5 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import { useMotionValueEvent, useScroll } from "motion/react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 
@@ -17,26 +16,45 @@ export const StickyScroll = ({
 }) => {
   const [activeCard, setActiveCard] = React.useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start center", "end center"],
-  });
-  const cardLength = content.length;
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  useMotionValueEvent(scrollYProgress, "change", (latest) => {
-    const cardsBreakpoints = content.map((_, index) => index / cardLength);
-    const closestBreakpointIndex = cardsBreakpoints.reduce(
-      (acc, breakpoint, index) => {
-        const distance = Math.abs(latest - breakpoint);
-        if (distance < Math.abs(latest - cardsBreakpoints[acc])) {
-          return index;
+  useEffect(() => {
+    const updateActive = () => {
+      const viewportCenter = window.innerHeight / 2;
+      let closest = 0;
+      let closestDistance = Infinity;
+
+      itemRefs.current.forEach((node, index) => {
+        if (!node) return;
+        const rect = node.getBoundingClientRect();
+        const distance = Math.abs(rect.top + rect.height / 2 - viewportCenter);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closest = index;
         }
-        return acc;
-      },
-      0,
-    );
-    setActiveCard(closestBreakpointIndex);
-  });
+      });
+
+      setActiveCard(closest);
+    };
+
+    let frame = 0;
+    const schedule = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        updateActive();
+      });
+    };
+
+    updateActive();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
+  }, []);
 
   const backgroundColors = ["#fbfbfa", "#fdf6f0", "#f7f5fb"];
   const linearGradients = [
@@ -67,6 +85,9 @@ export const StickyScroll = ({
           {content.map((item, index) => (
             <div
               key={item.title + index}
+              ref={(node) => {
+                itemRefs.current[index] = node;
+              }}
               className="flex min-h-[42vh] flex-col justify-center py-10"
             >
               <motion.h3
@@ -89,7 +110,7 @@ export const StickyScroll = ({
         <div
           style={{ background: backgroundGradient }}
           className={cn(
-            "sticky top-24 flex h-[24rem] w-full items-center justify-center overflow-hidden rounded-[28px] p-8 shadow-[0_30px_80px_rgba(25,20,12,0.18)]",
+            "sticky top-[max(5.5rem,calc(50vh-12rem))] flex h-[24rem] w-full items-center justify-center overflow-hidden rounded-[28px] p-8 shadow-[0_30px_80px_rgba(25,20,12,0.18)]",
             contentClassName,
           )}
         >
