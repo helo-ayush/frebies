@@ -43,7 +43,7 @@ export function pagePoints({
  * that will be JPEG-encoded and embedded in the document.
  */
 export function renderPdfPage(
-  image: HTMLImageElement,
+  image: CanvasImageSource,
   options: {
     /** Page pixel size. */
     width: number;
@@ -52,7 +52,9 @@ export function renderPdfPage(
     fit: PdfPageFit;
     background: string;
     pageNumber?: string;
+    pageNumberPosition?: "bottom-center" | "bottom-right" | "bottom-left";
     textColor?: string;
+    grayscale?: boolean;
   },
 ): HTMLCanvasElement {
   const width = Math.max(1, Math.round(options.width));
@@ -68,14 +70,17 @@ export function renderPdfPage(
   const areaWidth = Math.max(1, Math.round(width - insetX * 2));
   const areaHeight = Math.max(1, Math.round(height - insetY * 2));
 
-  const imageWidth = image.naturalWidth || image.width;
-  const imageHeight = image.naturalHeight || image.height;
+  const imageWidth = (image as HTMLImageElement).naturalWidth || (image as HTMLCanvasElement).width || 1;
+  const imageHeight = (image as HTMLImageElement).naturalHeight || (image as HTMLCanvasElement).height || 1;
 
   const fitted = drawRegion(
     image,
     { x: 0, y: 0, width: imageWidth, height: imageHeight },
     { width: areaWidth, height: areaHeight },
-    { fit: options.fit === "cover" ? "cover" : options.fit === "stretch" ? "stretch" : "contain" },
+    {
+      fit: options.fit === "cover" ? "cover" : options.fit === "stretch" ? "stretch" : "contain",
+      grayscale: Boolean(options.grayscale),
+    },
   );
 
   context.drawImage(fitted, Math.round(insetX), Math.round(insetY));
@@ -84,13 +89,32 @@ export function renderPdfPage(
     const fontSize = Math.max(9, Math.round(height * 0.012));
     context.font = `500 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
     context.fillStyle = options.textColor ?? "#8b8578";
-    context.textAlign = "right";
-    context.textBaseline = "bottom";
-    context.fillText(
-      options.pageNumber,
-      width - Math.max(insetX * 0.5, 8),
-      height - Math.max(insetY * 0.4, 8),
-    );
+    const pos = options.pageNumberPosition ?? "bottom-center";
+    if (pos === "bottom-center") {
+      context.textAlign = "center";
+      context.textBaseline = "bottom";
+      context.fillText(
+        options.pageNumber,
+        width / 2,
+        height - Math.max(insetY * 0.4, 8),
+      );
+    } else if (pos === "bottom-right") {
+      context.textAlign = "right";
+      context.textBaseline = "bottom";
+      context.fillText(
+        options.pageNumber,
+        width - Math.max(insetX * 0.5, 8),
+        height - Math.max(insetY * 0.4, 8),
+      );
+    } else {
+      context.textAlign = "left";
+      context.textBaseline = "bottom";
+      context.fillText(
+        options.pageNumber,
+        Math.max(insetX * 0.5, 8),
+        height - Math.max(insetY * 0.4, 8),
+      );
+    }
   }
 
   return canvas;

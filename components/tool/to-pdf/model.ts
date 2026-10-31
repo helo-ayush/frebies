@@ -4,6 +4,8 @@ export type MarginId = "none" | "small" | "medium" | "large";
 export type PdfFit = "contain" | "cover" | "stretch";
 export type PdfBackground = "white" | "cream" | "black";
 
+export type PageNumberPosition = "bottom-center" | "bottom-right" | "bottom-left";
+
 export type PdfSettings = {
   pageSize: PageSizeId;
   orientation: PageOrientation;
@@ -13,6 +15,8 @@ export type PdfSettings = {
   quality: number;
   optimize: boolean;
   pageNumbers: boolean;
+  pageNumberPosition: PageNumberPosition;
+  grayscale: boolean;
   keepMetadata: boolean;
   filename: string;
 };
@@ -23,9 +27,11 @@ export const DEFAULT_PDF_SETTINGS: PdfSettings = {
   margin: "medium",
   fit: "contain",
   background: "white",
-  quality: 82,
+  quality: 85,
   optimize: true,
-  pageNumbers: false,
+  pageNumbers: true,
+  pageNumberPosition: "bottom-center",
+  grayscale: false,
   keepMetadata: true,
   filename: "images",
 };
