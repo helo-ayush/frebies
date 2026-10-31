@@ -158,8 +158,9 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const background = backgroundValue(settings.background);
 
   // Compute responsive PDF paper sheet dimensions for the desk stage
-  const availableW = Math.max(160, deskSize.width - 64);
-  const availableH = Math.max(160, deskSize.height - 84);
+  // Ample margins for breathing room so sheet NEVER clips or touches edges
+  const availableW = Math.max(160, deskSize.width - 120);
+  const availableH = Math.max(160, deskSize.height - 150);
 
   let sheetW: number;
   let sheetH: number;
@@ -365,7 +366,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
         </div>
       </div>
 
-      <div className="grid lg:h-[750px] lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid lg:min-h-[860px] lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* Left Column: PDF Document Workspace */}
         <div className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5">
           {items.length === 0 ? (
@@ -400,7 +401,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               {/* PDF Document Desk Viewport */}
               <div
                 ref={deskRef}
-                className="flex min-h-[360px] flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-[#f0ede6] shadow-2xs select-none"
+                className="flex min-h-[480px] flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-[#f0ede6] shadow-2xs select-none"
               >
                 {/* Pinned Top Stage Toolbar — Never covered by cards or scrolled away */}
                 <div className="flex shrink-0 items-center justify-between border-b border-line bg-white/95 px-3.5 py-2.5 backdrop-blur-sm z-20">
@@ -626,7 +627,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                   {/* VIEW MODE B: All Pages Booklet Grid Overview */}
                   {stageView === "grid" && (
                     <div className="absolute inset-0 overflow-y-auto p-5 sm:p-6">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 place-items-center">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 justify-items-center">
                         {items.map((item, index) => {
                           const pageRot = pageRotations[item.id] || 0;
                           const isFocused = item.id === activeItem?.id;
@@ -639,9 +640,16 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           const effH = isRotatedQuarter ? rawW : rawH;
                           const cardAspect = settings.pageSize === "fit" ? effW / effH : aspect;
 
-                          // Grid card dimensions: 165px tall, width following page aspect ratio
-                          const gridSheetH = 165;
-                          const gridSheetW = Math.max(100, Math.min(235, Math.round(gridSheetH * cardAspect)));
+                          // Bounded sheet dimensions inside grid card:
+                          // Ensures sheet stays bounded within 185px wide by 140px high, never overflowing
+                          const maxBoxW = 185;
+                          const maxBoxH = 140;
+                          let gridSheetW = Math.round(maxBoxH * cardAspect);
+                          let gridSheetH = maxBoxH;
+                          if (gridSheetW > maxBoxW) {
+                            gridSheetW = maxBoxW;
+                            gridSheetH = Math.round(maxBoxW / cardAspect);
+                          }
 
                           return (
                             <div
@@ -651,77 +659,79 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                               onDragOver={(e) => handleItemDragOver(e, item.id)}
                               onDrop={handleItemDrop}
                               onDragEnd={handleItemDragEnd}
-                              className={`group relative flex flex-col items-center rounded-[12px] p-3 transition-all cursor-grab active:cursor-grabbing ${
+                              className={`group relative flex w-full max-w-[220px] min-h-[195px] flex-col items-center justify-between rounded-[14px] border p-3 transition-all cursor-grab active:cursor-grabbing ${
                                 isFocused
-                                  ? "bg-white/95 ring-2 ring-ink shadow-sm"
-                                  : "bg-white/50 hover:bg-white/80 shadow-2xs"
+                                  ? "border-ink ring-2 ring-ink shadow-md bg-white"
+                                  : "border-line bg-white/70 hover:border-[#b8a992] hover:bg-white hover:shadow-xs"
                               } ${isDragging ? "opacity-30 scale-95" : ""} ${isDragOver && !isDragging ? "scale-105 ring-2 ring-ink/60" : ""}`}
                             >
-                              {/* Miniature Document Sheet */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveId(item.id);
-                                  setStageView("single");
-                                }}
-                                className="relative overflow-hidden rounded-[3px] border border-black/10 shadow-[0_4px_12px_rgba(0,0,0,0.08)] transition-transform group-hover:scale-[1.02]"
-                                style={{
-                                  width: `${gridSheetW}px`,
-                                  height: `${gridSheetH}px`,
-                                  background,
-                                }}
-                                title={`Click to inspect page ${index + 1} · Drag to reorder`}
-                              >
-                                <div
-                                  className="flex h-full w-full items-center justify-center overflow-hidden"
-                                  style={{ padding: `${effectiveMarginPercent}%` }}
+                              {/* Miniature Document Sheet Container */}
+                              <div className="flex h-[142px] w-full items-center justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveId(item.id);
+                                    setStageView("single");
+                                  }}
+                                  className="relative flex items-center justify-center overflow-hidden rounded-[3px] border border-black/10 shadow-[0_4px_12px_rgba(0,0,0,0.08)] transition-transform group-hover:scale-[1.02]"
+                                  style={{
+                                    width: `${gridSheetW}px`,
+                                    height: `${gridSheetH}px`,
+                                    background,
+                                  }}
+                                  title={`Click to inspect page ${index + 1} · Drag to reorder`}
                                 >
-                                  <img
-                                    src={item.preview}
-                                    alt={`Page ${index + 1}`}
-                                    className={`h-full w-full select-none pointer-events-none ${
-                                      settings.fit === "cover"
-                                        ? "object-cover"
-                                        : settings.fit === "stretch"
-                                          ? "object-fill"
-                                          : "object-contain"
-                                    }`}
-                                    style={{
-                                      transform: pageRot !== 0 ? `rotate(${pageRot}deg)` : undefined,
-                                      filter: settings.grayscale ? "grayscale(100%) contrast(108%)" : undefined,
-                                    }}
-                                  />
-                                </div>
+                                  <div
+                                    className="flex h-full w-full items-center justify-center overflow-hidden"
+                                    style={{ padding: `${effectiveMarginPercent}%` }}
+                                  >
+                                    <img
+                                      src={item.preview}
+                                      alt={`Page ${index + 1}`}
+                                      className={`h-full w-full select-none pointer-events-none ${
+                                        settings.fit === "cover"
+                                          ? "object-cover"
+                                          : settings.fit === "stretch"
+                                            ? "object-fill"
+                                            : "object-contain"
+                                      }`}
+                                      style={{
+                                        transform: pageRot !== 0 ? `rotate(${pageRot}deg)` : undefined,
+                                        filter: settings.grayscale ? "grayscale(100%) contrast(108%)" : undefined,
+                                      }}
+                                    />
+                                  </div>
 
-                                {/* Page Stamp Number inside Sheet */}
-                                {settings.pageNumbers && (
-                                  <span className="absolute bottom-1 right-1.5 text-[8.5px] font-semibold text-black/40 tabular-nums">
-                                    {index + 1}
-                                  </span>
-                                )}
-                              </button>
+                                  {/* Page Stamp Number inside Sheet */}
+                                  {settings.pageNumbers && (
+                                    <span className="absolute bottom-1 right-1.5 text-[8.5px] font-semibold text-black/40 tabular-nums">
+                                      {index + 1}
+                                    </span>
+                                  )}
+                                </button>
+                              </div>
 
-                              {/* Hover action: Rotate 90° on top-left */}
+                              {/* Hover action: Rotate 90° on top-left of card */}
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   rotatePage(item.id);
                                 }}
-                                className="absolute left-1.5 top-1.5 z-20 grid h-6 w-6 place-items-center rounded-full border border-line bg-white/95 text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:text-ink hover:bg-white"
+                                className="absolute left-2 top-2 z-20 grid h-6 w-6 place-items-center rounded-full border border-line bg-white text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:text-ink hover:bg-white"
                                 title="Rotate 90° clockwise"
                               >
                                 <RotateCw size={11} />
                               </button>
 
-                              {/* Hover action: Delete on top-right */}
+                              {/* Hover action: Delete on top-right of card */}
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleRemovePage(item.id);
                                 }}
-                                className="absolute right-1.5 top-1.5 z-20 grid h-6 w-6 place-items-center rounded-full border border-line bg-white text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:border-[#a13d30]/50 hover:bg-[#fff5f5] hover:text-[#a13d30]"
+                                className="absolute right-2 top-2 z-20 grid h-6 w-6 place-items-center rounded-full border border-line bg-white text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:border-[#a13d30]/50 hover:bg-[#fff5f5] hover:text-[#a13d30]"
                                 title="Remove page"
                               >
                                 <X size={12} />
@@ -741,7 +751,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                         <button
                           type="button"
                           onClick={() => openPicker()}
-                          className="flex flex-col items-center justify-center rounded-[12px] border-2 border-dashed border-[#cbc4b7] p-4 text-center hover:border-ink hover:bg-white/70 transition-all cursor-pointer min-h-[195px] w-[140px] sm:w-[170px]"
+                          className="flex w-full max-w-[220px] min-h-[195px] flex-col items-center justify-center rounded-[14px] border-2 border-dashed border-[#cbc4b7] p-4 text-center hover:border-ink hover:bg-white/70 transition-all cursor-pointer"
                           title="Add more images as pages"
                         >
                           <Plus size={24} className="text-muted mb-1.5" />

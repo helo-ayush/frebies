@@ -178,12 +178,6 @@ export function PdfControls({
                     );
                   })}
                 </div>
-
-                {settings.margin === "none" && (
-                  <p className="rounded-[8px] bg-[#f4f8f2] border border-[#d9e3d5] px-2.5 py-1.5 text-[11px] font-medium text-[#305e2b]">
-                    ✓ Zero margins — image fits longest width/height edge-to-edge
-                  </p>
-                )}
               </div>
             )}
           </div>

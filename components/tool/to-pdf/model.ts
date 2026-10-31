@@ -29,7 +29,7 @@ export const DEFAULT_PDF_SETTINGS: PdfSettings = {
   background: "white",
   quality: 85,
   optimize: true,
-  pageNumbers: true,
+  pageNumbers: false,
   pageNumberPosition: "bottom-center",
   grayscale: false,
   keepMetadata: true,
