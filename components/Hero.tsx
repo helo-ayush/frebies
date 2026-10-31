@@ -108,7 +108,7 @@ export default function Hero() {
   }, [count, tab, active]);
 
   return (
-    <section className="relative mx-auto max-w-[1280px] px-5 pt-12 md:pt-20">
+    <section className="relative mx-auto max-w-[1280px] px-5 pt-12 md:pt-16 lg:pt-[clamp(3rem,7.5vh,5rem)]">
       <DottedGlowBackground
         className="inset-x-0 top-0 h-[620px] w-full [mask-image:radial-gradient(ellipse_at_top,black_10%,transparent_72%)]"
         gap={24}
@@ -134,7 +134,7 @@ export default function Hero() {
                 mostly <Highlight className="px-2 pb-1.5">free.</Highlight>
               </>,
             ]}
-            className="text-[clamp(2.8rem,7vw,5.4rem)] leading-[1.02] tracking-[-0.04em]"
+            className="text-[clamp(2.8rem,min(7vw,8.6vh),5.4rem)] leading-[1.02] tracking-[-0.04em]"
           />
 
           <BlurFade delay={0.35} duration={0.7} offset={10}>
@@ -145,7 +145,7 @@ export default function Hero() {
             </p>
           </BlurFade>
 
-          <BlurFade delay={0.45} duration={0.7} offset={8} className="mt-8 flex flex-wrap items-center gap-3">
+          <BlurFade delay={0.45} duration={0.7} offset={8} className="mt-8 flex flex-wrap items-center gap-3 lg:mt-[clamp(1.5rem,3.5vh,2rem)]">
             <HoverBorderGradient
               as={Link}
               href="/dashboard"
@@ -157,7 +157,7 @@ export default function Hero() {
             <Btn dark={false} href="#tools">Browse tools</Btn>
           </BlurFade>
 
-          <BlurFade delay={0.55} duration={0.7} offset={6} className="mt-7 flex flex-wrap items-baseline gap-x-7 gap-y-2 border-t border-line pt-5 text-[13px] text-muted">
+          <BlurFade delay={0.55} duration={0.7} offset={6} className="mt-7 flex flex-wrap items-baseline gap-x-7 gap-y-2 border-t border-line pt-5 text-[13px] text-muted lg:mt-[clamp(1.25rem,3vh,1.75rem)] lg:pt-[clamp(1rem,2.5vh,1.25rem)]">
             <span className="inline-flex items-baseline gap-1.5">
               <NumberTicker value={tools.length} className="font-display text-[20px] font-semibold text-ink" />
               tools in the box
@@ -208,7 +208,7 @@ export default function Hero() {
               ))}
             </div>
 
-            <div className="relative mt-3 h-[420px] overflow-hidden">
+            <div className="relative mt-3 h-[340px] overflow-hidden sm:h-[clamp(364px,42vh,420px)]">
               <SparklesCore
                 id="hero-tool-sparkles"
                 background="transparent"
