@@ -776,28 +776,44 @@ const draw = (index: number) => ({
 const ART = [
   () => (
     <>
-      {[22, 40, 58, 76].map((radius, index) => (
-        <motion.circle key={radius} cx={160 - radius} cy="100" r={radius} {...draw(index)} />
-      ))}
+      <motion.rect x="40" y="44" width="120" height="108" rx="10" {...draw(0)} />
+      <motion.path d="M40 66H160" {...draw(1)} />
+      <motion.circle cx="52" cy="55" r="2.2" {...draw(2)} />
+      <motion.circle cx="61" cy="55" r="2.2" {...draw(2)} />
+      <motion.circle cx="70" cy="55" r="2.2" {...draw(2)} />
+      <motion.rect x="58" y="82" width="42" height="52" rx="4" {...draw(3)} />
+      <motion.path d="M66 94H90M66 102H90M66 110H82" {...draw(4)} />
+      <motion.rect x="108" y="97" width="30" height="23" rx="5" {...draw(5)} />
+      <motion.path d="M114 97v-6a9 9 0 0 1 18 0v6" {...draw(6)} />
+      <motion.circle cx="123" cy="106" r="2.4" {...draw(7)} />
+      <motion.path d="M123 108v4" {...draw(7)} />
     </>
   ),
   () => (
     <>
-      <motion.rect x="50" y="80" width="80" height="80" {...draw(0)} />
-      <motion.rect x="80" y="50" width="80" height="80" {...draw(1)} />
-      <motion.path d="M50 80L80 50M130 80L160 50M50 160L80 130M130 160L160 130" {...draw(2)} />
+      <motion.circle cx="100" cy="64" r="30" {...draw(0)} />
+      <motion.path d="M100 44v20l13 8" {...draw(1)} />
+      <motion.path d="M100 38v4M126 64h4" {...draw(2)} />
+      <motion.path d="M100 96v12M96 104l4 6 4-6" {...draw(3)} />
+      <motion.path d="M64 122H136" {...draw(4)} />
+      <motion.path d="M86 122v-6h28v6" {...draw(5)} />
+      <motion.path d="M69 122l5 40h52l5-40" {...draw(6)} />
+      <motion.path d="M87 132v20M100 132v20M113 132v20" {...draw(7)} />
     </>
   ),
   () => (
     <>
-      {[30, 55, 80].map((radius, index) => (
+      <g transform="rotate(-4 96 84)">
         <motion.path
-          key={radius}
-          d={`M${100 - radius} 150A${radius} ${radius} 0 0 1 ${100 + radius} 150`}
-          {...draw(index)}
+          d="M48 52h54l44 32-44 32H48a8 8 0 0 1-8-8V60a8 8 0 0 1 8-8z"
+          {...draw(0)}
         />
-      ))}
-      <motion.path d="M100 150V60" {...draw(3)} />
+        <motion.circle cx="62" cy="84" r="5.5" {...draw(1)} />
+        <motion.path d="M80 84l10 10 21-23" {...draw(2)} />
+      </g>
+      <motion.ellipse cx="141" cy="138" rx="23" ry="7.5" {...draw(3)} />
+      <motion.path d="M118 138v22a23 7.5 0 0 0 46 0v-22" {...draw(4)} />
+      <motion.path d="M118 149a23 7.5 0 0 0 46 0" {...draw(5)} />
     </>
   ),
 ];
