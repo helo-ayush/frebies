@@ -60,7 +60,7 @@ export function FlipWords({
             initial={{ opacity: 0, y: 8, filter: "blur(6px)" }}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             transition={{ delay: index * 0.025, duration: 0.22 }}
-            className="inline-block"
+            className="inline-block whitespace-pre"
           >
             {letter}
           </motion.span>

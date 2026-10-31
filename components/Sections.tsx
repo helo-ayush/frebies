@@ -11,11 +11,13 @@ import {
   Image as ImageIcon,
   Layers,
   Minimize2,
+  Play,
   Repeat,
   ScanText,
   Sparkles,
   Type,
   UploadCloud,
+  AudioLines,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "./Navbar";
@@ -210,7 +212,7 @@ function UpscaleMock() {
   };
 
   return (
-    <div className="relative h-80 w-full max-w-sm overflow-hidden rounded-2xl bg-neutral-900 shadow-xl">
+    <div className="relative h-80 w-full max-w-sm overflow-hidden rounded-2xl bg-neutral-900 shadow-xl ring-1 ring-white/10">
       <LowResPane src={UPSCALE_SRC} />
       <motion.img
         src={UPSCALE_SRC}
@@ -310,7 +312,7 @@ function PdfMock() {
           : "Describe the change";
 
   return (
-    <div ref={ref} className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-sm">
+    <div ref={ref} className="w-full max-w-sm rounded-2xl bg-white p-5 text-ink shadow-sm">
       <div className="flex items-center justify-between text-[11px] text-faint">
         <span className="flex items-center gap-1.5">
           <FileText size={12} strokeWidth={1.6} /> brief.pdf
@@ -387,6 +389,96 @@ function PdfMock() {
   );
 }
 
+const VOICE_SCRIPTS = [
+  "“Welcome to frebies.”",
+  "“Your file is ready.”",
+  "“Let’s get started.”",
+];
+
+const WAVE = Array.from({ length: 28 }, (_, index) => 8 + ((index * 7) % 13) * 2);
+
+function VoiceMock() {
+  return (
+    <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-[0_24px_60px_rgba(0,0,0,0.35)] backdrop-blur">
+      <div className="flex items-center justify-between text-[11px] text-white/55">
+        <span className="flex items-center gap-1.5">
+          <AudioLines size={12} strokeWidth={1.6} /> voiceover.mp3
+        </span>
+        <AnimatedGradientText
+          speed={1.4}
+          colorFrom="#fda82b"
+          colorTo="#e55e40"
+          className="text-[11px] font-medium"
+        >
+          AI voice
+        </AnimatedGradientText>
+      </div>
+
+      <div className="mt-3 rounded-xl bg-black/30 p-3">
+        <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-white/35">
+          Script
+        </p>
+        <div className="relative mt-1.5 h-5 overflow-hidden text-sm text-white/90">
+          <FlipWords words={VOICE_SCRIPTS} duration={2400} />
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          type="button"
+          aria-label="Preview voiceover"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-ink transition hover:bg-neutral-200"
+        >
+          <Play size={13} fill="currentColor" />
+        </button>
+        <div className="flex h-10 flex-1 items-center gap-[2px]" aria-hidden>
+          {WAVE.map((height, index) => (
+            <motion.span
+              key={index}
+              className={`w-[3px] shrink-0 rounded-full ${index < 11 ? "bg-[#fda82b]" : "bg-white/30"}`}
+              style={{ height }}
+              animate={{ scaleY: [0.45, 1, 0.45] }}
+              transition={{
+                duration: 1.4 + (index % 5) * 0.12,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: index * 0.03,
+              }}
+            />
+          ))}
+        </div>
+        <span className="text-[11px] tabular-nums text-white/50">0:24</span>
+      </div>
+
+      <div className="mt-3 flex items-center gap-1.5">
+        {["Aria", "Kai", "Mira"].map((voice, index) => (
+          <span
+            key={voice}
+            className={`rounded-full px-2.5 py-1 text-[11px] ${
+              index === 0 ? "bg-white font-medium text-ink" : "bg-white/10 text-white/55"
+            }`}
+          >
+            {voice}
+          </span>
+        ))}
+        <span className="ml-auto text-[10px] text-white/35">US · calm</span>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between rounded-full bg-white/10 px-3 py-2 text-[11px]">
+        <span className="flex items-center gap-1.5 text-white/75">
+          <motion.span
+            className="h-1.5 w-1.5 rounded-full bg-[#fda82b]"
+            animate={{ opacity: [0.35, 1, 0.35] }}
+            transition={{ duration: 1.6, repeat: Infinity }}
+          />
+          Generating voiceover
+        </span>
+        <Sparkles size={12} className="text-[#fda82b]" />
+      </div>
+    </div>
+  );
+}
+
 export function Showcase() {
   return (
     <section className="mx-auto mt-28 max-w-[1280px] space-y-28 px-5">
@@ -431,14 +523,13 @@ export function Showcase() {
         <Head
           label="Frebies AI"
           title="Let AI do the fiddly parts."
-          copy="Sharpen low-resolution images, remove backgrounds and rewrite text inside PDFs by describing the change you want."
+          copy="Sharpen low-resolution photos, rewrite text inside PDFs, and turn a script into a natural voiceover."
           cta="See AI tools"
           ctaHref="/image/upscaler"
         />
         <BentoGrid className="mt-12">
           <BentoGridItem
-            className="grain text-white md:col-span-2 md:row-span-2 md:p-7"
-            style={{ background: grads.iris }}
+            className="grain bg-ink text-white hover:bg-ink md:col-span-2 md:row-span-2 md:p-7"
             header={
               <div className="flex flex-1 items-center justify-center py-6">
                 <UpscaleMock />
@@ -452,33 +543,30 @@ export function Showcase() {
             }
           />
           <BentoGridItem
-            className="md:col-span-2 md:row-span-2 md:p-7"
+            className="grain bg-ink text-white hover:bg-ink md:col-span-2 md:row-span-2 md:p-7"
             header={
               <div className="flex flex-1 items-center justify-center py-6">
                 <PdfMock />
               </div>
             }
-            title="AI PDF editor"
-            description="Edit a PDF by typing what you want changed."
+            title={<span className="text-xl text-white">AI PDF editor</span>}
+            description={
+              <span className="block text-[14px] leading-snug text-white/70">
+                Edit a PDF by typing what you want changed.
+              </span>
+            }
           />
           <BentoGridItem
             className="grain bg-ink text-white hover:bg-ink md:col-span-2 md:row-span-2 md:p-7"
             header={
-              <div className="relative flex flex-1 items-center justify-center">
-                <div className="absolute h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(253,168,43,0.45),transparent_70%)] blur-xl" />
-                <div className="relative text-center">
-                  <NumberTicker
-                    value={25}
-                    className="text-[64px] leading-none tracking-[-0.05em] text-white"
-                  />
-                  <p className="mt-2 text-sm text-white/60">free credits for AI tools</p>
-                </div>
+              <div className="flex flex-1 items-center justify-center py-4">
+                <VoiceMock />
               </div>
             }
-            title={<span className="text-xl text-white">25 credits on the house</span>}
+            title={<span className="text-xl text-white">Text to speech</span>}
             description={
               <span className="block text-[14px] leading-snug text-white/70">
-                Metered runs, refunded when they fail, with no surprise subscription.
+                Give a script a natural voice, tune the pace and export MP3 or WAV.
               </span>
             }
           />
