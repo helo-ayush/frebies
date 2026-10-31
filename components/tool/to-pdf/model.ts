@@ -1,7 +1,7 @@
 export type PageSizeId = "a4" | "letter" | "a5" | "legal" | "fit";
 export type PageOrientation = "auto" | "portrait" | "landscape";
 export type MarginId = "none" | "small" | "medium" | "large";
-export type PdfFit = "contain" | "cover" | "stretch";
+export type PdfFit = "contain" | "cover";
 export type PdfBackground = "white" | "cream" | "black";
 
 export type PageNumberPosition = "bottom-center" | "bottom-right" | "bottom-left";
@@ -63,9 +63,8 @@ export const MARGINS: { id: MarginId; label: string; percent: number }[] = [
 ];
 
 export const PDF_FITS: { id: PdfFit; label: string; hint: string }[] = [
-  { id: "contain", label: "Contain", hint: "Full image, possible margins." },
-  { id: "cover", label: "Cover", hint: "Fill the page, crop the edges." },
-  { id: "stretch", label: "Stretch", hint: "Fill exactly, may distort." },
+  { id: "contain", label: "Contain", hint: "Whole image, white space" },
+  { id: "cover", label: "Cover", hint: "Fills page, crops edges" },
 ];
 
 export const PDF_BACKGROUNDS: { id: PdfBackground; label: string; value: string }[] = [

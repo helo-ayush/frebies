@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -32,7 +32,6 @@ import {
   estimatePdfBytes,
   marginMeta,
   pageAspect,
-  pageLabel,
   pdfFilename,
   type PdfSettings,
 } from "./model";
@@ -93,25 +92,26 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
-  // Desk stage measurement
-  const deskRef = useRef<HTMLDivElement>(null);
-  const [deskSize, setDeskSize] = useState({ width: 720, height: 500 });
+  // Stage measurement. The stage only exists once pages are added, so it is
+  // tracked through a callback ref rather than a mount-only effect.
+  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
+  const [stageSize, setStageSize] = useState({ width: 720, height: 500 });
 
   useLayoutEffect(() => {
-    if (!deskRef.current) return;
+    if (!stageEl) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
-          setDeskSize({
+          setStageSize({
             width: entry.contentRect.width,
             height: entry.contentRect.height,
           });
         }
       }
     });
-    observer.observe(deskRef.current);
+    observer.observe(stageEl);
     return () => observer.disconnect();
-  }, []);
+  }, [stageEl]);
 
   // Keyboard navigation for page flip in single-page reader mode
   useEffect(() => {
@@ -152,15 +152,17 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     imageHeight: effectiveImageH,
   });
 
-  const label = pageLabel(settings, aspect);
   const margin = marginMeta(settings.margin);
   const effectiveMarginPercent = settings.pageSize === "fit" ? 0 : margin.percent;
   const background = backgroundValue(settings.background);
 
-  // Compute responsive PDF paper sheet dimensions for the desk stage
-  // Ample margins for breathing room so sheet NEVER clips or touches edges
-  const availableW = Math.max(160, deskSize.width - 120);
-  const availableH = Math.max(160, deskSize.height - 150);
+  // Compute responsive PDF paper sheet dimensions for the stage canvas.
+  // The reserve keeps the sheet clear of the page-turn buttons and the
+  // floating page navigator, without leaving a wide empty band around it.
+  // Narrow stages hide the side buttons, so they only need edge breathing room.
+  const sideClearance = stageSize.width < 520 ? 56 : 104;
+  const availableW = Math.max(160, stageSize.width - sideClearance);
+  const availableH = Math.max(160, stageSize.height - 96);
 
   let sheetW: number;
   let sheetH: number;
@@ -366,9 +368,9 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
         </div>
       </div>
 
-      <div className="grid lg:min-h-[860px] lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 lg:h-[720px] lg:grid-cols-[minmax(0,1fr)_370px] xl:h-[780px] xl:grid-cols-[minmax(0,1fr)_430px]">
         {/* Left Column: PDF Document Workspace */}
-        <div className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5">
+        <div className="flex min-h-0 min-w-0 flex-col p-3 sm:p-5">
           {items.length === 0 ? (
             <StudioDropzone
               title="Drop images to build a PDF document"
@@ -399,55 +401,41 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               }`}
             >
               {/* PDF Document Desk Viewport */}
-              <div
-                ref={deskRef}
-                className="flex min-h-[480px] flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-[#f0ede6] shadow-2xs select-none"
-              >
+              <div className="flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-[#f0ede6] shadow-2xs select-none lg:min-h-[320px]">
                 {/* Pinned Top Stage Toolbar — Never covered by cards or scrolled away */}
-                <div className="flex shrink-0 items-center justify-between border-b border-line bg-white/95 px-3.5 py-2.5 backdrop-blur-sm z-20">
+                <div className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-white/95 px-3.5 py-2.5 backdrop-blur-sm">
                   <div className="flex items-center gap-2">
                     {/* View Mode Switcher */}
-                    <div className="flex rounded-[9px] border border-line bg-[#f8f6f2] p-0.5">
+                    <div className="flex rounded-[10px] border border-line bg-[#f8f6f2] p-1">
                       <button
                         type="button"
                         onClick={() => setStageView("single")}
-                        className={`flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[12px] font-semibold transition-all ${
+                        aria-pressed={stageView === "single"}
+                        className={`flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3.5 text-[12.5px] font-medium transition-colors ${
                           stageView === "single"
-                            ? "bg-white text-ink shadow-2xs font-bold"
+                            ? "bg-white text-ink shadow-2xs"
                             : "text-muted hover:text-ink"
                         }`}
-                        title="Inspect active page"
+                        title="Inspect the active page"
                       >
-                        <FileText size={13} aria-hidden />
-                        <span>Single Page</span>
+                        <FileText size={14} aria-hidden />
+                        <span>Single</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setStageView("grid")}
-                        className={`flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[12px] font-semibold transition-all ${
+                        aria-pressed={stageView === "grid"}
+                        className={`flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3.5 text-[12.5px] font-medium transition-colors ${
                           stageView === "grid"
-                            ? "bg-white text-ink shadow-2xs font-bold"
+                            ? "bg-white text-ink shadow-2xs"
                             : "text-muted hover:text-ink"
                         }`}
-                        title="View all pages in document grid"
+                        title="View all pages in the document grid"
                       >
-                        <Grid size={13} aria-hidden />
-                        <span>All Pages ({items.length})</span>
+                        <Grid size={14} aria-hidden />
+                        <span>All pages ({items.length})</span>
                       </button>
                     </div>
-
-                    {/* Document Specs Pill */}
-                    <span className="hidden sm:flex items-center gap-1.5 rounded-[8px] border border-line bg-white px-2.5 py-1 text-[11px] font-semibold text-ink shadow-2xs">
-                      {stageView === "single" ? (
-                        <>
-                          <span>Page {activeIndex + 1} of {items.length}</span>
-                          <span className="text-faint">·</span>
-                          <span className="text-muted">{label}</span>
-                        </>
-                      ) : (
-                        <span>All {items.length} Pages · {label}</span>
-                      )}
-                    </span>
                   </div>
 
                   {/* Top Right Stage Controls: Rotate, Zoom & Delete */}
@@ -458,37 +446,39 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                         <button
                           type="button"
                           onClick={() => rotatePage(activeItem.id)}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-line bg-white px-2.5 text-[11.5px] font-semibold text-ink shadow-2xs hover:bg-[#faf9f6]"
-                          title="Rotate active page 90° clockwise"
+                          className="inline-flex h-9 items-center gap-1.5 rounded-[9px] border border-line bg-white px-3 text-[12.5px] font-medium text-ink shadow-2xs transition-colors hover:bg-[#faf9f6]"
+                          title="Rotate the active page 90° clockwise"
                         >
-                          <RotateCw size={12} aria-hidden />
+                          <RotateCw size={13} aria-hidden />
                           <span>Rotate</span>
                           {activeRotation !== 0 && (
-                            <span className="ml-0.5 rounded bg-ink/10 px-1 py-0.2 text-[9px] font-bold">
+                            <span className="ml-0.5 rounded bg-ink/10 px-1 py-0.5 text-[9.5px] font-semibold tabular-nums">
                               {activeRotation}°
                             </span>
                           )}
                         </button>
 
                         {/* Zoom mode */}
-                        <div className="flex rounded-[8px] border border-line bg-[#f8f6f2] p-0.5">
+                        <div className="flex h-9 items-center rounded-[9px] border border-line bg-[#f8f6f2] p-1">
                           <button
                             type="button"
                             onClick={() => setZoomMode("fit")}
-                            className={`rounded-[6px] px-2.5 py-0.5 text-[11px] font-semibold transition-all ${
+                            aria-pressed={zoomMode === "fit"}
+                            className={`flex h-full items-center rounded-[6px] px-3 text-[12px] font-medium transition-colors ${
                               zoomMode === "fit" ? "bg-white text-ink shadow-2xs" : "text-muted hover:text-ink"
                             }`}
-                            title="Fit page to stage"
+                            title="Fit the page to the desk"
                           >
                             Fit
                           </button>
                           <button
                             type="button"
                             onClick={() => setZoomMode("100%")}
-                            className={`rounded-[6px] px-2.5 py-0.5 text-[11px] font-semibold transition-all ${
+                            aria-pressed={zoomMode === "100%"}
+                            className={`flex h-full items-center rounded-[6px] px-3 text-[12px] font-medium transition-colors ${
                               zoomMode === "100%" ? "bg-white text-ink shadow-2xs" : "text-muted hover:text-ink"
                             }`}
-                            title="View 100% size"
+                            title="View the page at full size"
                           >
                             100%
                           </button>
@@ -498,10 +488,10 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                         <button
                           type="button"
                           onClick={() => handleRemovePage(activeItem.id)}
-                          className="grid h-8 w-8 place-items-center rounded-[8px] border border-line bg-white text-muted shadow-2xs hover:border-[#a13d30]/40 hover:bg-[#fff5f5] hover:text-[#a13d30]"
+                          className="grid h-9 w-9 place-items-center rounded-[9px] border border-line bg-white text-muted shadow-2xs transition-colors hover:border-[#a13d30]/40 hover:bg-[#fff5f5] hover:text-[#a13d30]"
                           title={`Remove page ${activeIndex + 1}`}
                         >
-                          <Trash2 size={13} aria-hidden />
+                          <Trash2 size={14} aria-hidden />
                         </button>
                       </>
                     )}
@@ -509,7 +499,10 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 </div>
 
                 {/* Desk Workspace Canvas */}
-                <div className="relative flex-1 overflow-hidden bg-[#ece8df] bg-[radial-gradient(#0000000a_1px,transparent_1px)] [background-size:16px_16px]">
+                <div
+                  ref={setStageEl}
+                  className="relative flex-1 overflow-hidden bg-[#ece8df] bg-[radial-gradient(#0000000a_1px,transparent_1px)] [background-size:16px_16px]"
+                >
                   {/* VIEW MODE A: Single Page Document Reader View */}
                   {stageView === "single" && activeItem && (
                     <div className="absolute inset-0 flex items-center justify-center overflow-auto px-4 py-8">
@@ -520,7 +513,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           onClick={() => activeIndex > 0 && setActiveId(items[activeIndex - 1].id)}
                           disabled={activeIndex === 0}
                           aria-label="Previous document page"
-                          className="absolute left-3.5 top-1/2 -translate-y-1/2 z-20 grid h-9 w-9 place-items-center rounded-full border border-line bg-white/95 text-ink shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:scale-105 disabled:pointer-events-none disabled:opacity-20"
+                          className="absolute left-3.5 top-1/2 -translate-y-1/2 z-20 hidden h-9 w-9 sm:grid place-items-center rounded-full border border-line bg-white/95 text-ink shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:scale-105 disabled:pointer-events-none disabled:opacity-20"
                         >
                           <ChevronLeft size={18} aria-hidden />
                         </button>
@@ -533,7 +526,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           onClick={() => activeIndex < items.length - 1 && setActiveId(items[activeIndex + 1].id)}
                           disabled={activeIndex === items.length - 1}
                           aria-label="Next document page"
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 z-20 grid h-9 w-9 place-items-center rounded-full border border-line bg-white/95 text-ink shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:scale-105 disabled:pointer-events-none disabled:opacity-20"
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 z-20 hidden h-9 w-9 sm:grid place-items-center rounded-full border border-line bg-white/95 text-ink shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:scale-105 disabled:pointer-events-none disabled:opacity-20"
                         >
                           <ChevronRight size={18} aria-hidden />
                         </button>
@@ -566,9 +559,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                               className={`select-none pointer-events-none transition-transform duration-150 ${
                                 settings.fit === "cover"
                                   ? "h-full w-full object-cover"
-                                  : settings.fit === "stretch"
-                                    ? "h-full w-full object-fill"
-                                    : "h-full w-full object-contain"
+                                  : "h-full w-full object-contain"
                               }`}
                               style={{
                                 transform: activeRotation !== 0 ? `rotate(${activeRotation}deg)` : undefined,
@@ -600,14 +591,15 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       </div>
 
                       {/* Bottom Floating Quick Page Navigator Pill */}
-                      <div className="absolute bottom-3 z-20 flex items-center gap-1.5 rounded-full border border-line bg-white/95 px-3 py-1.5 text-[11.5px] font-semibold text-ink shadow-sm backdrop-blur-sm">
+                      <div className="absolute bottom-3 z-20 flex items-center gap-1 rounded-full border border-line bg-white/95 py-1 pl-1 pr-1.5 text-[12px] font-medium text-ink shadow-sm backdrop-blur-sm">
                         <button
                           type="button"
                           onClick={() => activeIndex > 0 && setActiveId(items[activeIndex - 1].id)}
                           disabled={activeIndex === 0}
-                          className="text-muted hover:text-ink disabled:opacity-30"
+                          aria-label="Previous page"
+                          className="grid h-7 w-7 place-items-center rounded-full text-muted transition-colors hover:bg-[#f6f4f0] hover:text-ink disabled:opacity-30"
                         >
-                          <ChevronLeft size={14} />
+                          <ChevronLeft size={15} />
                         </button>
                         <span className="tabular-nums px-1.5">
                           Page {activeIndex + 1} of {items.length}
@@ -616,9 +608,10 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           type="button"
                           onClick={() => activeIndex < items.length - 1 && setActiveId(items[activeIndex + 1].id)}
                           disabled={activeIndex === items.length - 1}
-                          className="text-muted hover:text-ink disabled:opacity-30"
+                          aria-label="Next page"
+                          className="grid h-7 w-7 place-items-center rounded-full text-muted transition-colors hover:bg-[#f6f4f0] hover:text-ink disabled:opacity-30"
                         >
-                          <ChevronRight size={14} />
+                          <ChevronRight size={15} />
                         </button>
                       </div>
                     </div>
@@ -689,11 +682,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                                       src={item.preview}
                                       alt={`Page ${index + 1}`}
                                       className={`h-full w-full select-none pointer-events-none ${
-                                        settings.fit === "cover"
-                                          ? "object-cover"
-                                          : settings.fit === "stretch"
-                                            ? "object-fill"
-                                            : "object-contain"
+                                        settings.fit === "cover" ? "object-cover" : "object-contain"
                                       }`}
                                       style={{
                                         transform: pageRot !== 0 ? `rotate(${pageRot}deg)` : undefined,
@@ -766,11 +755,11 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               {/* Document Pages Filmstrip Tray */}
               {items.length > 0 && (
                 <div className="mt-2.5 shrink-0 rounded-[14px] border border-line bg-white p-3 shadow-2xs">
-                  <div className="flex items-center justify-between gap-3 mb-2 px-1">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink flex items-center gap-1.5">
+                      <span className="flex items-center gap-1.5 whitespace-nowrap text-[12px] font-semibold text-ink">
                         <Layers3 size={13} className="text-muted" />
-                        Document Pages ({items.length})
+                        Document pages ({items.length})
                       </span>
                       <span className="text-micro text-faint hidden sm:inline">· Drag to reorder</span>
                     </div>
@@ -778,9 +767,9 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       <button
                         type="button"
                         onClick={() => openPicker()}
-                        className="inline-flex items-center gap-1 text-[11.5px] font-bold text-ink transition-colors hover:text-muted"
+                        className="inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-[7px] px-1.5 text-[12px] font-medium text-ink transition-colors hover:bg-[#f6f4f0]"
                       >
-                        <Plus size={12} />
+                        <Plus size={13} />
                         Add pages
                       </button>
                       <span className="text-line">·</span>
@@ -791,7 +780,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           setNotice(null);
                         }}
                         disabled={items.length < 2}
-                        className="text-[11px] font-medium text-faint transition-colors hover:text-ink disabled:opacity-40"
+                        className="h-7 whitespace-nowrap rounded-[7px] px-1.5 text-[11.5px] font-medium text-faint transition-colors hover:bg-[#f6f4f0] hover:text-ink disabled:opacity-40"
                       >
                         Reverse
                       </button>
@@ -802,7 +791,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           clearAll();
                           setNotice(null);
                         }}
-                        className="text-[11px] font-medium text-faint transition-colors hover:text-[#a13d30]"
+                        className="h-7 whitespace-nowrap rounded-[7px] px-1.5 text-[11.5px] font-medium text-faint transition-colors hover:bg-[#f6f4f0] hover:text-[#a13d30]"
                       >
                         Clear
                       </button>
@@ -839,26 +828,20 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                             aria-pressed={isActive}
                             aria-label={`Page ${index + 1}: ${item.file.name}`}
                             title={`Page ${index + 1}: ${item.file.name} · Click to view`}
-                            className={`relative shrink-0 overflow-hidden rounded-[6px] border transition-all ${
+                            className={`relative shrink-0 overflow-hidden rounded-[7px] border transition-colors ${
                               isActive
-                                ? "border-ink ring-2 ring-ink shadow-sm scale-[1.02]"
-                                : "border-line bg-white hover:border-[#b8a992] shadow-2xs"
+                                ? "border-ink shadow-sm"
+                                : "border-line bg-white shadow-2xs hover:border-[#b8a992]"
                             }`}
                             style={{ width: `${tw}px`, height: `${FILMSTRIP_H}px`, background }}
                           >
-                            <div
-                              className="flex h-full w-full items-center justify-center overflow-hidden"
-                              style={{ padding: `${effectiveMarginPercent}%` }}
-                            >
+                            {/* Filmstrip thumbs hug the image: page margins are previewed on the stage, not here */}
+                            <div className="flex h-full w-full items-center justify-center overflow-hidden">
                               <img
                                 src={item.preview}
                                 alt=""
                                 className={`h-full w-full select-none pointer-events-none ${
-                                  settings.fit === "cover"
-                                    ? "object-cover"
-                                    : settings.fit === "stretch"
-                                      ? "object-fill"
-                                      : "object-contain"
+                                  settings.fit === "cover" ? "object-cover" : "object-contain"
                                 }`}
                                 style={{
                                   transform: pageRot !== 0 ? `rotate(${pageRot}deg)` : undefined,
@@ -867,30 +850,43 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                               />
                             </div>
 
-                            {/* Clean bottom-left page pill badge that doesn't cover top image content */}
-                            <span className="absolute bottom-1 left-1 rounded-[3px] bg-black/75 px-1.5 py-0.2 text-[8px] font-bold text-white tabular-nums shadow-xs">
+                            {/* Selected frame drawn inside the thumb so the scroll tray can't clip it */}
+                            {isActive && (
+                              <span
+                                aria-hidden
+                                className="pointer-events-none absolute inset-0 rounded-[6px] ring-2 ring-inset ring-ink"
+                              />
+                            )}
+
+                            {/* Page number badge, clear of the remove control */}
+                            <span className="absolute bottom-1 left-1 rounded-[3px] bg-black/75 px-1.5 py-0.5 text-[8px] font-bold leading-none text-white tabular-nums shadow-xs">
                               {index + 1}
                             </span>
 
-                            {/* Rotation Indicator */}
+                            {/* Rotation indicator */}
                             {pageRot !== 0 && (
-                              <span className="absolute right-1 top-1 rounded bg-black/70 px-1 text-[7px] font-bold text-white">
+                              <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 py-0.5 text-[7px] font-bold leading-none text-white">
                                 {pageRot}°
                               </span>
                             )}
                           </button>
 
-                          {/* × remove button on hover */}
+                          {/* Remove page — inside the frame, visible on hover or focus */}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleRemovePage(item.id);
                             }}
-                            className="absolute -right-1.5 -top-1.5 z-10 grid h-5 w-5 place-items-center rounded-full border border-line bg-white text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:border-[#a13d30]/50 hover:bg-[#fff5f5] hover:text-[#a13d30]"
+                            aria-label={`Remove page ${index + 1}`}
                             title="Remove page"
+                            className={`absolute right-1 top-1 z-10 grid h-[22px] w-[22px] place-items-center rounded-full border border-white/60 bg-black/55 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-[#a13d30] focus-visible:opacity-100 ${
+                              isActive
+                                ? "opacity-100"
+                                : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                            }`}
                           >
-                            <X size={11} />
+                            <X size={12} />
                           </button>
                         </div>
                       );
@@ -931,61 +927,70 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               {error}
             </p>
           )}
+        </div>
 
-          {/* Bottom Export & CTA Bar */}
-          <div className="mt-3 flex shrink-0 flex-col gap-3 border-t border-line-soft pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <p className="flex items-center gap-1.5 text-[11px] font-medium text-faint">
-              <ShieldCheck size={13} aria-hidden className="text-[#305e2b]" />
-              100% On-Device · No uploads · No watermark · Private PDF export
-            </p>
-
-            <div className="flex items-center gap-3">
-              {result && (
-                <button
-                  type="button"
-                  onClick={() => downloadBlob(result.blob, result.name)}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#305e2b] transition-colors hover:underline"
-                >
-                  <Download size={12} aria-hidden />
-                  Download again ({formatBytes(result.bytes)})
-                </button>
-              )}
+        {/* Right Column: PDF Settings Rail */}
+        <StudioRail
+          label="PDF Inspector"
+          footer={
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-3 text-[11.5px]">
+                <span className="flex items-center gap-1.5 font-medium text-muted">
+                  <ShieldCheck size={13} className="shrink-0 text-[#305e2b]" aria-hidden />
+                  On-device · no upload
+                </span>
+                <span className="font-semibold tabular-nums text-ink">
+                  {items.length ? `≈ ${formatBytes(estimate)}` : "No pages yet"}
+                </span>
+              </div>
 
               <button
                 type="button"
                 onClick={handleCreate}
                 disabled={items.length === 0 || busy}
-                className={buttonClasses("primary", "md", "w-full min-w-0 sm:w-auto sm:min-w-[190px]")}
+                className={buttonClasses("primary", "md", "w-full")}
               >
                 {busy && progress ? (
                   <>
-                    <Loader2 size={13} className="animate-spin" aria-hidden />
-                    <span>Building page {progress.done} of {progress.total}…</span>
+                    <Loader2 size={14} className="animate-spin" aria-hidden />
+                    <span>
+                      Building page {progress.done} of {progress.total}…
+                    </span>
                   </>
                 ) : items.length > 0 ? (
                   <>
-                    <span>Export PDF · {items.length} {items.length === 1 ? "page" : "pages"}</span>
+                    <span>
+                      Export PDF · {items.length} {items.length === 1 ? "page" : "pages"}
+                    </span>
                     <ArrowRightGlyph size={13} />
                   </>
                 ) : (
                   <span>Export PDF</span>
                 )}
               </button>
+
+              {result && (
+                <button
+                  type="button"
+                  onClick={() => downloadBlob(result.blob, result.name)}
+                  className="flex h-9 w-full items-center justify-center gap-1.5 rounded-[10px] border border-line bg-white text-[11.5px] font-medium text-ink transition-colors hover:bg-[#faf9f6]"
+                >
+                  <Download size={13} aria-hidden />
+                  Download again ({formatBytes(result.bytes)})
+                </button>
+              )}
+
+              {notice && (
+                <p
+                  role="status"
+                  className="rounded-[9px] border border-[#d9e3d5] bg-[#f4f8f2] px-2.5 py-2 text-[11px] font-medium leading-relaxed text-[#305e2b]"
+                >
+                  {notice}
+                </p>
+              )}
             </div>
-          </div>
-
-          {notice && (
-            <p
-              role="status"
-              className="mt-2.5 shrink-0 rounded-[10px] border border-[#d9e3d5] bg-[#f4f8f2] px-3 py-2 text-[11.5px] font-medium leading-relaxed text-[#305e2b]"
-            >
-              {notice}
-            </p>
-          )}
-        </div>
-
-        {/* Right Column: PDF Settings Rail */}
-        <StudioRail label="PDF Inspector">
+          }
+        >
           <PdfControls
             settings={settings}
             onPatch={patch}
