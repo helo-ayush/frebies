@@ -39,6 +39,7 @@ import { renderResize } from "./render";
 import {
   CROP_RATIOS,
   DEFAULT_RESIZE_SETTINGS,
+  backgroundValue,
   computeResizeOutput,
   cropForRatio,
   cropPixels,
@@ -264,7 +265,17 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   function patch(next: Partial<ResizeSettings>) {
     setSettings((current) => {
       const merged = { ...current, ...next };
+      const currentRotated = (current.rotation === 90 || current.rotation === 270);
       const nextRotated = (merged.rotation === 90 || merged.rotation === 270);
+
+      // Swap width & height if rotation changed between horizontal and vertical
+      if (next.rotation !== undefined && nextRotated !== currentRotated) {
+        if (current.width && current.height) {
+          merged.width = current.height;
+          merged.height = current.width;
+        }
+      }
+
       const curSourceW = nextRotated ? originalHeight : originalWidth;
       const curSourceH = nextRotated ? originalWidth : originalHeight;
       const aspect = curSourceW && curSourceH ? curSourceW / curSourceH : 0;
@@ -415,12 +426,13 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const displayW = (settings.mode === "crop" ? sourceWidth : outputWidth) || sourceWidth || 800;
   const displayH = (settings.mode === "crop" ? sourceHeight : outputHeight) || sourceHeight || 600;
 
-  const scaleRatioW = availableW / displayW;
-  const scaleRatioH = availableH / displayH;
-  const fitMultiplier = Math.min(1, scaleRatioW, scaleRatioH);
+  const scaleRatioW = availableW / Math.max(1, displayW);
+  const scaleRatioH = availableH / Math.max(1, displayH);
+  // Fit multiplier: scale image so it comfortably fits available stage width & height without shrinking
+  const fitMultiplier = Math.max(0.01, Math.min(scaleRatioW, scaleRatioH));
 
-  const fitW = Math.round(displayW * fitMultiplier);
-  const fitH = Math.round(displayH * fitMultiplier);
+  const fitW = Math.max(1, Math.round(displayW * fitMultiplier));
+  const fitH = Math.max(1, Math.round(displayH * fitMultiplier));
   const renderedW = scaleToFit ? fitW : displayW;
   const renderedH = scaleToFit ? fitH : displayH;
 
@@ -719,6 +731,8 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           naturalHeight={sourceHeight}
                           crop={activeCrop}
                           ratioId={settings.cropRatio}
+                          stageWidth={availableW}
+                          stageHeight={availableH - 40}
                           onChange={handleCropChange}
                           onRatioChange={(r) => patch({ cropRatio: r })}
                           onReset={resetCrop}
@@ -729,12 +743,22 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                         <img
                           src={currentPreview}
                           alt={`Preview of ${activeItem.file.name}`}
-                          className="rounded-[8px] object-contain shadow-md border border-black/10 select-none shrink-0"
+                          className={`rounded-[8px] shadow-md border border-black/10 select-none shrink-0 ${
+                            settings.fit === "fill"
+                              ? "object-cover"
+                              : settings.fit === "stretch"
+                                ? "object-fill"
+                                : "object-contain"
+                          }`}
                           style={{
                             width: `${renderedW}px`,
                             height: `${renderedH}px`,
                             maxWidth: scaleToFit ? "100%" : "none",
                             maxHeight: scaleToFit ? "100%" : "none",
+                            backgroundColor:
+                              settings.mode === "dimensions" && settings.fit === "fit"
+                                ? backgroundValue(settings) || "transparent"
+                                : undefined,
                           }}
                         />
                       </div>

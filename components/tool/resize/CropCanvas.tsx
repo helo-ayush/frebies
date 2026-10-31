@@ -103,6 +103,8 @@ export function CropCanvas({
   naturalHeight,
   crop,
   ratioId,
+  stageWidth,
+  stageHeight,
   onChange,
   onRatioChange,
   onReset,
@@ -113,6 +115,8 @@ export function CropCanvas({
   naturalHeight: number;
   crop: CropRect;
   ratioId: CropRatioId;
+  stageWidth?: number;
+  stageHeight?: number;
   onChange: (crop: CropRect) => void;
   onRatioChange?: (ratio: CropRatioId) => void;
   onReset?: () => void;
@@ -125,6 +129,14 @@ export function CropCanvas({
   const ratio = cropRatioValue(ratioId);
   const normRatio = ratio ? ratio / imageAspect : null;
   const pixels = cropPixels(crop, naturalWidth || 1, naturalHeight || 1);
+
+  // Exact pixel size fit within stage viewport so vertical and horizontal images scale cleanly
+  const cropScale =
+    stageWidth && stageHeight && naturalWidth && naturalHeight
+      ? Math.min(stageWidth / naturalWidth, stageHeight / naturalHeight)
+      : null;
+  const containerW = cropScale ? Math.round(naturalWidth * cropScale) : undefined;
+  const containerH = cropScale ? Math.round(naturalHeight * cropScale) : undefined;
 
   // Drag start handler for borders, corners and the move area
   function startDrag(event: ReactPointerEvent<HTMLElement>, mode: DragMode) {
@@ -228,8 +240,14 @@ export function CropCanvas({
       {/* Main Image Stage Box: Relative container wrapping the image exactly */}
       <div
         ref={containerRef}
-        style={naturalWidth && naturalHeight ? { aspectRatio: `${naturalWidth} / ${naturalHeight}` } : undefined}
-        className="relative touch-none select-none overflow-hidden rounded-[4px] shadow-md border border-black/15 max-h-[min(540px,calc(100%-44px))] max-w-full"
+        style={{
+          width: containerW ? `${containerW}px` : undefined,
+          height: containerH ? `${containerH}px` : undefined,
+          aspectRatio: !containerW && naturalWidth && naturalHeight ? `${naturalWidth} / ${naturalHeight}` : undefined,
+          maxWidth: "100%",
+          maxHeight: "calc(100% - 44px)",
+        }}
+        className="relative touch-none select-none overflow-hidden rounded-[4px] shadow-md border border-black/15 shrink-0"
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
