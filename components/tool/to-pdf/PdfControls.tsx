@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import type { CSSProperties } from "react";
 import {
-  ChevronDown,
   Check,
   FileText,
   FileCog,
@@ -10,8 +9,8 @@ import {
   Palette,
   ScanLine,
   Sparkles,
-  type LucideIcon,
 } from "lucide-react";
+import { RailSection } from "@/components/tool/studio/RailSection";
 import {
   MARGINS,
   ORIENTATIONS,
@@ -525,55 +524,6 @@ function FitDiagram({ id }: { id: PdfFit }) {
       {id === "contain" && <span className="h-[11px] w-[17px] rounded-[1px] bg-ink/25" />}
       {id === "cover" && <span className="h-[22px] w-[26px] rounded-[1px] bg-ink/25" />}
     </span>
-  );
-}
-
-function RailSection({
-  icon: Icon,
-  title,
-  hint,
-  defaultOpen = true,
-  aside,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  hint: string;
-  defaultOpen?: boolean;
-  aside: ReactNode;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div className="overflow-hidden rounded-[16px] border border-line bg-white shadow-2xs">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3 p-3.5 text-left transition-colors hover:bg-[#fbfaf8]"
-      >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-line bg-[#faf9f6] text-ink">
-          <Icon size={14} aria-hidden />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-ink">{title}</span>
-          <span className="mt-0.5 block truncate text-[11px] text-faint">{hint}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
-          <span className="rounded-full border border-line bg-[#faf9f6] px-2 py-0.5 text-[10.5px] font-medium text-muted">
-            {aside}
-          </span>
-          <ChevronDown
-            size={14}
-            aria-hidden
-            className={`text-faint transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-          />
-        </span>
-      </button>
-
-      {open && <div className="border-t border-line-soft p-4 pt-3.5">{children}</div>}
-    </div>
   );
 }
 

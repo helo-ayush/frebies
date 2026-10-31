@@ -1,38 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { CSSProperties } from "react";
 import {
-  ArrowRight,
   Check,
-  ChevronDown,
   Crop,
   FlipHorizontal2,
   FlipVertical2,
   Frame,
-  Gauge,
-  Image as ImageIcon,
-  Info,
   Link2,
-  Lock,
-  Palette,
   Percent,
   RotateCcw,
   RotateCw,
   Scaling,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   TriangleAlert,
   Unlink2,
 } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
+import { RailSwitch } from "@/components/tool/studio/RailSwitch";
+import {
+  RailSection,
+  RAIL_CARD_ACTIVE,
+  RAIL_CARD_IDLE,
+  RAIL_FIELD_LABEL,
+  RAIL_FIELD_META,
+} from "@/components/tool/studio/RailSection";
 import {
   CROP_RATIOS,
-  DIMENSION_PRESETS,
   RESIZE_FORMATS,
-  RESIZE_MODES,
   formatBytes,
   formatLabel,
   isLossyFormat,
@@ -41,7 +38,6 @@ import {
   type CropRatioId,
   type FitMode,
   type ResizeFormat,
-  type ResizeMode,
   type ResizeSettings,
 } from "./model";
 
@@ -237,40 +233,35 @@ export function ImageResizeSettings({
 
   return (
     <StudioRail label="Resize & crop settings">
-      {/* Sticky Settings Header */}
-      <div className="-mx-4 -mt-4 flex items-center justify-between gap-3 bg-[#fdfdfc]/95 px-4 pb-4 pt-4 backdrop-blur-sm sm:-mx-5 sm:-mt-5 sm:px-5 sm:pt-5 lg:sticky lg:-top-5 lg:z-10">
-        <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">
-          <SlidersHorizontal size={13} aria-hidden />
+      <div className="mb-3.5 flex items-center justify-between gap-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
           Settings
         </span>
         <button
           type="button"
           onClick={onReset}
-          className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
+          className="inline-flex h-7 items-center gap-1.5 rounded-full border border-line bg-white px-2.5 text-[11px] font-medium text-muted transition-colors hover:border-[#cfc9bd] hover:text-ink"
         >
           <RotateCcw size={11} aria-hidden />
           Reset
         </button>
       </div>
 
-      <div className="space-y-6">
-        {/* Section 1: Resize & Crop Mode */}
+      <div className="space-y-3.5">
+        {/* Mode */}
         <RailSection
           icon={Scaling}
           title="Mode"
-          hint="Exact pixels, scale percent, or interactive crop"
+          hint="Exact pixels, scale percent or crop"
           aside={
-            <span className="rounded-full border border-line bg-white px-2.5 py-1 text-[10.5px] font-semibold text-ink shadow-[0_1px_2px_rgba(15,15,16,0.04)]">
-              {settings.mode === "dimensions"
-                ? `${outputWidth || settings.width} × ${outputHeight || settings.height} px`
-                : settings.mode === "percent"
-                  ? `${settings.percent}% scale`
-                  : "Crop box"}
-            </span>
+            settings.mode === "dimensions"
+              ? `${outputWidth || settings.width} × ${outputHeight || settings.height}`
+              : settings.mode === "percent"
+                ? `${settings.percent}% scale`
+                : "Crop box"
           }
         >
-          {/* Mode Switcher Tabs */}
-          <div className="grid grid-cols-3 gap-1 rounded-[11px] border border-line bg-[#f3f0e9] p-1">
+          <div className="grid grid-cols-3 gap-1 rounded-[10px] border border-line bg-[#f8f6f2] p-1">
             {[
               { id: "crop" as const, label: "Crop", icon: Crop },
               { id: "dimensions" as const, label: "Dimensions", icon: Frame },
@@ -284,26 +275,23 @@ export function ImageResizeSettings({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => onPatch({ mode: tab.id })}
-                  className={`flex h-8 items-center justify-center gap-1.5 rounded-[8px] text-[11.5px] font-medium transition-colors ${
-                    selected
-                      ? "bg-white text-ink shadow-[0_1px_3px_rgba(15,15,16,0.08)]"
-                      : "text-muted hover:text-ink"
+                  className={`flex h-9 items-center justify-center gap-1.5 rounded-[7px] text-[12.5px] font-medium transition-colors ${
+                    selected ? "bg-white text-ink shadow-2xs" : "text-muted hover:text-ink"
                   }`}
                 >
-                  <Icon size={12} strokeWidth={2} aria-hidden />
+                  <Icon size={13} strokeWidth={2} aria-hidden />
                   {tab.label}
                 </button>
               );
             })}
           </div>
 
-          {/* Sub-Panel: Crop Mode */}
           {settings.mode === "crop" && (
             <div className="mt-4 space-y-4">
               <div>
-                <div className="flex items-baseline justify-between mb-2">
-                  <span className="text-[11px] font-semibold text-ink">Crop aspect ratio</span>
-                  <span className="text-[10.5px] text-faint font-medium">
+                <div className="mb-2 flex items-baseline justify-between gap-3">
+                  <span className={RAIL_FIELD_LABEL}>Crop aspect ratio</span>
+                  <span className={RAIL_FIELD_META}>
                     {settings.cropRatio === "free" ? "Drag handles freely" : "Ratio locked"}
                   </span>
                 </div>
@@ -314,33 +302,31 @@ export function ImageResizeSettings({
                       <button
                         key={ratio.id}
                         type="button"
+                        aria-pressed={selected}
                         onClick={() => onPatch({ cropRatio: ratio.id })}
-                        className={`group relative flex flex-col items-center justify-center rounded-[11px] border p-2.5 text-center transition-all ${
-                          selected
-                            ? "border-ink bg-white shadow-xs ring-1 ring-ink/20 font-semibold"
-                            : "border-line bg-white/70 hover:border-[#c8c2b7] hover:bg-white text-muted hover:text-ink"
+                        className={`flex min-h-[80px] flex-col items-center justify-center gap-1.5 rounded-[11px] border px-1 py-2.5 text-center transition-colors ${
+                          selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
                         }`}
                       >
-                        <div className="mb-1.5 flex h-6 w-6 items-center justify-center">
-                          <AspectRatioMiniature id={ratio.id} active={selected} />
-                        </div>
-                        <span className="text-[12px] font-bold text-ink">{ratio.label}</span>
-                        <span className="mt-0.5 text-[9.5px] text-faint">{ratio.hint}</span>
+                        <AspectRatioMiniature id={ratio.id} active={selected} />
+                        <span className="text-[12.5px] font-medium text-ink">{ratio.label}</span>
+                        <span className="text-[10px] leading-none text-faint">{ratio.hint}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Crop Box Live Info & Reset */}
-              <div className="flex items-center justify-between rounded-[12px] border border-line bg-[#fbfaf7] p-3 shadow-2xs">
-                <div className="flex items-center gap-2.5">
-                  <span className="grid h-8 w-8 place-items-center rounded-[8px] border border-line bg-white text-ink shadow-2xs">
+              <div className="flex items-center justify-between gap-3 rounded-[12px] border border-line bg-[#fbfaf8] px-3.5 py-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-line bg-white text-ink">
                     <Crop size={14} aria-hidden />
                   </span>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">Active crop box</p>
-                    <p className="mt-0.5 text-[12.5px] font-bold tabular-nums text-ink">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-faint">
+                      Active crop box
+                    </p>
+                    <p className="mt-0.5 text-[13px] font-semibold tabular-nums text-ink">
                       {cropWidth && cropHeight ? `${cropWidth} × ${cropHeight} px` : "Select area on stage"}
                     </p>
                   </div>
@@ -348,93 +334,92 @@ export function ImageResizeSettings({
                 <button
                   type="button"
                   onClick={onResetCrop}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-[7px] border border-line bg-white px-2.5 text-[11px] font-medium text-muted transition-colors hover:border-[#c8c2b7] hover:text-ink hover:bg-hover"
-                  title="Reset crop box to full image"
+                  title="Reset crop box to the full image"
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] border border-line bg-white px-2.5 text-[11.5px] font-medium text-muted transition-colors hover:border-[#cfc9bd] hover:bg-white hover:text-ink"
                 >
                   <RotateCcw size={11} aria-hidden />
-                  <span>Reset</span>
+                  Reset
                 </button>
               </div>
             </div>
           )}
 
-          {/* Sub-Panel: Dimensions Mode */}
           {settings.mode === "dimensions" && (
             <div className="mt-4 space-y-4">
-              {/* Dual Width / Height Numeric Inputs */}
               <div>
                 <div className="flex items-end gap-2">
                   <label className="min-w-0 flex-1">
-                    <span className="block text-[11px] font-medium text-muted">Width</span>
-                    <span className="relative mt-1 block">
+                    <span className="block text-[12px] font-medium text-ink">Width</span>
+                    <span className="relative mt-1.5 block">
                       <input
                         type="text"
                         inputMode="numeric"
                         value={settings.width}
                         onChange={(event) => changeWidth(event.target.value)}
                         placeholder="1920"
-                        className="h-10 w-full rounded-[10px] border border-line bg-white pl-3 pr-8 text-[13px] font-semibold tabular-nums text-ink shadow-[0_1px_2px_rgba(15,15,16,0.04)] outline-none transition-colors focus:border-ink"
+                        className="h-11 w-full rounded-[10px] border border-line bg-white pl-3 pr-9 text-[13px] font-semibold tabular-nums text-ink outline-none transition-colors hover:border-[#d8d3ca] focus:border-[#b8b2a7]"
                       />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10.5px] font-medium text-faint">
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-faint">
                         px
                       </span>
                     </span>
                   </label>
 
-                  {/* Aspect Lock Toggle */}
                   <button
                     type="button"
                     onClick={() => onPatch({ linked: !settings.linked })}
                     aria-pressed={settings.linked}
                     title={settings.linked ? "Aspect ratio locked" : "Aspect ratio unlocked"}
-                    className={`mb-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border transition-colors ${
+                    className={`mb-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-[10px] border transition-colors ${
                       settings.linked
-                        ? "border-ink bg-ink text-white shadow-xs"
-                        : "border-line bg-white text-faint hover:border-[#c8c2b7] hover:text-ink"
+                        ? "border-ink bg-ink text-white"
+                        : "border-line bg-white text-faint hover:border-[#cfc9bd] hover:text-ink"
                     }`}
                   >
-                    {settings.linked ? <Link2 size={15} aria-hidden /> : <Unlink2 size={15} aria-hidden />}
+                    {settings.linked ? <Link2 size={16} aria-hidden /> : <Unlink2 size={16} aria-hidden />}
                   </button>
 
                   <label className="min-w-0 flex-1">
-                    <span className="block text-[11px] font-medium text-muted">Height</span>
-                    <span className="relative mt-1 block">
+                    <span className="block text-[12px] font-medium text-ink">Height</span>
+                    <span className="relative mt-1.5 block">
                       <input
                         type="text"
                         inputMode="numeric"
                         value={settings.height}
                         onChange={(event) => changeHeight(event.target.value)}
                         placeholder="1080"
-                        className="h-10 w-full rounded-[10px] border border-line bg-white pl-3 pr-8 text-[13px] font-semibold tabular-nums text-ink shadow-[0_1px_2px_rgba(15,15,16,0.04)] outline-none transition-colors focus:border-ink"
+                        className="h-11 w-full rounded-[10px] border border-line bg-white pl-3 pr-9 text-[13px] font-semibold tabular-nums text-ink outline-none transition-colors hover:border-[#d8d3ca] focus:border-[#b8b2a7]"
                       />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10.5px] font-medium text-faint">
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-faint">
                         px
                       </span>
                     </span>
                   </label>
                 </div>
 
-                <div className="mt-2 flex items-center justify-between text-[10.5px] text-faint">
+                <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-faint">
                   <span>
-                    Aspect: <strong className="font-medium text-ink">{ratioLabel(outputWidth, outputHeight)}</strong>
+                    Aspect{" "}
+                    <strong className="font-medium text-ink">
+                      {ratioLabel(outputWidth, outputHeight)}
+                    </strong>
                   </span>
-                  <span>{settings.linked ? "Locked to original aspect" : "Unlocked (custom)"}</span>
+                  <span>{settings.linked ? "Locked to the source" : "Unlocked"}</span>
                 </div>
               </div>
 
-              {/* Popular Dimensions Presets */}
               <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-muted">Presets</span>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span className={RAIL_FIELD_LABEL}>Presets</span>
                   <button
                     type="button"
                     onClick={() => setShowAllPresets(!showAllPresets)}
-                    className="text-[10.5px] font-medium text-accent hover:underline"
+                    className="inline-flex h-7 items-center rounded-[7px] px-2 text-[11.5px] font-medium text-muted transition-colors hover:bg-[#f6f4f0] hover:text-ink"
                   >
-                    {showAllPresets ? "Fewer" : "More"}
+                    {showAllPresets ? "Show fewer" : "Show all"}
                   </button>
                 </div>
-                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {(showAllPresets ? POPULAR_PRESETS : POPULAR_PRESETS.slice(0, 4)).map((preset) => {
                     const isCurrent =
                       settings.width === String(preset.width) && settings.height === String(preset.height);
@@ -443,15 +428,13 @@ export function ImageResizeSettings({
                         key={preset.label}
                         type="button"
                         onClick={() => applyPreset(preset.width, preset.height)}
-                        className={`flex flex-col items-start rounded-[9px] border p-2 text-left transition-all ${
-                          isCurrent
-                            ? "border-ink bg-white shadow-xs"
-                            : "border-line bg-white/70 hover:border-[#c8c2b7] hover:bg-white"
+                        className={`flex min-h-[54px] flex-col items-start justify-center rounded-[10px] border px-2.5 py-2 text-left transition-colors ${
+                          isCurrent ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
                         }`}
                       >
-                        <span className="text-[11px] font-medium text-ink">{preset.label}</span>
-                        <span className="mt-0.5 text-[9.5px] tabular-nums text-faint">
-                          {preset.detail} ({preset.ratio})
+                        <span className="text-[12px] font-medium text-ink">{preset.label}</span>
+                        <span className="mt-0.5 text-[10.5px] tabular-nums text-faint">
+                          {preset.detail}
                         </span>
                       </button>
                     );
@@ -459,65 +442,60 @@ export function ImageResizeSettings({
                 </div>
               </div>
 
-              {/* Fit Mode */}
               <div>
-                <span className="block text-[11px] font-medium text-muted">Fit behavior</span>
-                <p className="mt-0.5 text-[10px] text-faint">
-                  Determines how the image fits if the new ratio differs from the source.
-                </p>
-                <div className="mt-2 space-y-1.5">
+                <span className={RAIL_FIELD_LABEL}>Fit behavior</span>
+                <div className="mt-2 space-y-2">
                   {FIT_OPTIONS.map((opt) => {
                     const selected = settings.fit === opt.value;
                     return (
                       <button
                         key={opt.value}
                         type="button"
+                        aria-pressed={selected}
                         onClick={() => onPatch({ fit: opt.value })}
-                        className={`flex w-full items-start gap-2.5 rounded-[10px] border p-2.5 text-left transition-all ${
-                          selected
-                            ? "border-ink bg-white shadow-xs"
-                            : "border-line bg-white/60 hover:border-[#c8c2b7] hover:bg-white"
+                        className={`flex w-full items-start gap-3 rounded-[11px] border p-3 text-left transition-colors ${
+                          selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
                         }`}
                       >
                         <span
-                          className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border transition-colors ${
+                          className={`mt-0.5 grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full border transition-colors ${
                             selected ? "border-ink bg-ink text-white" : "border-[#ccc6ba] bg-white"
                           }`}
                         >
-                          {selected && <Check size={9} strokeWidth={3} aria-hidden />}
+                          {selected && <Check size={10} strokeWidth={3} aria-hidden />}
                         </span>
-                        <div className="min-w-0">
-                          <p className="text-[11.5px] font-medium text-ink">{opt.label}</p>
-                          <p className="mt-0.5 text-[10px] leading-relaxed text-faint">{opt.hint}</p>
-                        </div>
+                        <span className="min-w-0">
+                          <span className="block text-[12.5px] font-medium text-ink">{opt.label}</span>
+                          <span className="mt-0.5 block text-[11px] leading-relaxed text-faint">
+                            {opt.hint}
+                          </span>
+                        </span>
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Background Color selector for Fit with Padding */}
               {settings.fit === "fit" && (
-                <div className="rounded-[12px] border border-line bg-[#faf8f4] p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-medium text-ink">Padding color</span>
-                    <span className="text-[10px] text-faint capitalize">{settings.background}</span>
+                <div className="rounded-[12px] border border-line bg-[#fbfaf8] p-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[12px] font-medium text-ink">Padding color</span>
+                    <span className="text-[11px] capitalize text-faint">{settings.background}</span>
                   </div>
-                  <div className="mt-2 grid grid-cols-4 gap-1.5">
+                  <div className="mt-2.5 grid grid-cols-4 gap-2">
                     {BG_PRESETS.map((bg) => {
                       const selected = settings.background === bg.id;
                       return (
                         <button
                           key={bg.id}
                           type="button"
+                          aria-pressed={selected}
                           onClick={() => onPatch({ background: bg.id })}
-                          className={`flex items-center gap-1.5 rounded-[8px] border p-1.5 text-[10.5px] font-medium transition-colors ${
-                            selected
-                              ? "border-ink bg-white text-ink shadow-xs"
-                              : "border-line bg-white/60 text-muted hover:border-[#c8c2b7] hover:text-ink"
+                          className={`flex min-h-[40px] items-center gap-2 rounded-[9px] border px-2 text-[11px] font-medium transition-colors ${
+                            selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
                           }`}
                         >
-                          <span className={`h-3 w-3 shrink-0 rounded-full ${bg.swatch}`} />
+                          <span className={`h-3.5 w-3.5 shrink-0 rounded-full ${bg.swatch}`} />
                           <span className="truncate">{bg.label}</span>
                         </button>
                       );
@@ -528,53 +506,45 @@ export function ImageResizeSettings({
                       <input
                         type="color"
                         value={settings.customBackground || "#ffffff"}
-                        onChange={(e) => onPatch({ customBackground: e.target.value })}
-                        className="h-8 w-9 cursor-pointer rounded-[6px] border border-line bg-white p-0.5"
+                        onChange={(event) => onPatch({ customBackground: event.target.value })}
+                        aria-label="Custom padding color"
+                        className="h-9 w-10 cursor-pointer rounded-[8px] border border-line bg-white p-0.5"
                       />
                       <input
                         type="text"
                         value={settings.customBackground || "#ffffff"}
-                        onChange={(e) => onPatch({ customBackground: e.target.value })}
+                        onChange={(event) => onPatch({ customBackground: event.target.value })}
                         placeholder="#ffffff"
-                        className="h-8 flex-1 rounded-[7px] border border-line bg-white px-2.5 text-[11px] font-mono uppercase text-ink outline-none focus:border-ink"
+                        className="h-9 flex-1 rounded-[8px] border border-line bg-white px-2.5 font-mono text-[11.5px] uppercase text-ink outline-none transition-colors focus:border-[#b8b2a7]"
                       />
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Never upscale toggle right in Dimensions section */}
-              <label className="flex cursor-pointer items-start justify-between gap-3 rounded-[10px] border border-line bg-white p-2.5 transition-colors hover:border-[#c8c2b7]">
-                <div>
-                  <p className="text-[11.5px] font-medium text-ink">Never upscale</p>
-                  <p className="mt-0.5 text-[10px] leading-relaxed text-faint">
-                    Caps output at original size to prevent pixelation when enlarging.
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={settings.neverUpscale}
-                  onChange={(event) => onPatch({ neverUpscale: event.target.checked })}
-                  className="mt-0.5 h-4 w-4 rounded border-line text-ink accent-ink"
-                />
-              </label>
+              <RailSwitch
+                label="Never upscale"
+                description="Caps the output at the original size to prevent pixelation."
+                checked={settings.neverUpscale}
+                onChange={(checked) => onPatch({ neverUpscale: checked })}
+              />
             </div>
           )}
 
-          {/* Sub-Panel: Scale % Mode */}
           {settings.mode === "percent" && (
             <div className="mt-4 space-y-4">
-              <div className="flex items-end justify-between">
+              <div className="flex items-end justify-between gap-3">
                 <div>
-                  <span className="text-[11px] font-medium text-muted">Scale factor</span>
-                  <p className="mt-0.5 text-[10px] text-faint">Proportionately scales width and height</p>
+                  <span className={RAIL_FIELD_LABEL}>Scale factor</span>
+                  <p className="mt-0.5 text-[11px] text-faint">
+                    Proportionally scales width and height
+                  </p>
                 </div>
-                <span className="font-display text-[22px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-ink">
+                <span className="font-display text-[24px] font-semibold leading-none tabular-nums tracking-[-0.03em] text-ink">
                   {settings.percent}%
                 </span>
               </div>
 
-              {/* Styled Range Slider */}
               <div>
                 <input
                   type="range"
@@ -583,31 +553,32 @@ export function ImageResizeSettings({
                   step={5}
                   value={settings.percent}
                   onChange={(event) => onPatch({ percent: Number(event.target.value) })}
+                  aria-label="Scale percent"
                   style={rangeFill(settings.percent, 10, 200)}
                   className="range w-full"
                 />
-                <div className="mt-1 flex justify-between text-[10px] tabular-nums text-faint">
+                <div className="mt-1.5 flex justify-between text-[10.5px] tabular-nums text-faint">
                   <span>10%</span>
                   <span>50%</span>
-                  <span>100% (Original)</span>
+                  <span>100%</span>
                   <span>150%</span>
                   <span>200%</span>
                 </div>
               </div>
 
-              {/* Quick Percent Chips */}
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-4 gap-1.5">
                 {PERCENT_CHIPS.map((pct) => {
                   const selected = settings.percent === pct;
                   return (
                     <button
                       key={pct}
                       type="button"
+                      aria-pressed={selected}
                       onClick={() => onPatch({ percent: pct })}
-                      className={`h-7 rounded-[7px] border text-[10.5px] font-medium tabular-nums transition-colors ${
+                      className={`h-9 rounded-[8px] border text-[11.5px] font-medium tabular-nums transition-colors ${
                         selected
-                          ? "border-ink bg-ink text-white shadow-xs"
-                          : "border-line bg-white text-muted hover:border-[#c8c2b7] hover:text-ink"
+                          ? "border-ink bg-ink text-white"
+                          : "border-line bg-white text-muted hover:border-[#cfc9bd] hover:text-ink"
                       }`}
                     >
                       {pct}%
@@ -616,26 +587,16 @@ export function ImageResizeSettings({
                 })}
               </div>
 
-              {/* Never upscale toggle in Scale % mode */}
-              <label className="flex cursor-pointer items-start justify-between gap-3 rounded-[10px] border border-line bg-white p-2.5 transition-colors hover:border-[#c8c2b7]">
-                <div>
-                  <p className="text-[11.5px] font-medium text-ink">Never upscale</p>
-                  <p className="mt-0.5 text-[10px] leading-relaxed text-faint">
-                    Caps output at 100% original size if scale exceeds 100%.
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={settings.neverUpscale}
-                  onChange={(event) => onPatch({ neverUpscale: event.target.checked })}
-                  className="mt-0.5 h-4 w-4 rounded border-line text-ink accent-ink"
-                />
-              </label>
+              <RailSwitch
+                label="Never upscale"
+                description="Caps the output at 100% if the scale exceeds the original size."
+                checked={settings.neverUpscale}
+                onChange={(checked) => onPatch({ neverUpscale: checked })}
+              />
 
-              {/* Live Scaled Size Preview */}
-              <div className="flex items-center justify-between rounded-[10px] border border-line bg-[#fbfaf7] px-3 py-2 text-[11px]">
+              <div className="flex items-center justify-between gap-3 rounded-[10px] border border-line bg-[#fbfaf8] px-3 py-2.5 text-[11.5px]">
                 <span className="text-muted">Resulting size</span>
-                <span className="font-medium tabular-nums text-ink">
+                <span className="font-semibold tabular-nums text-ink">
                   {outputWidth || "—"} × {outputHeight || "—"} px
                 </span>
               </div>
@@ -643,18 +604,15 @@ export function ImageResizeSettings({
           )}
         </RailSection>
 
-        {/* Section 2: Rotate & Flip */}
+        {/* Rotate & flip */}
         <RailSection
           icon={RotateCw}
-          title="Rotate & Flip"
-          hint="Lossless 90° turns and horizontal/vertical mirroring"
-          defaultOpen={true}
+          title="Rotate & flip"
+          hint="90° turns and mirroring"
           aside={
-            hasTransforms ? (
-              <span className="rounded-full border border-ink/20 bg-ink/5 px-2.5 py-1 text-[10.5px] font-semibold text-ink">
-                {settings.rotation}°{settings.flipX ? " · Flip H" : ""}{settings.flipY ? " · Flip V" : ""}
-              </span>
-            ) : undefined
+            hasTransforms
+              ? `${settings.rotation}°${settings.flipX ? " · H" : ""}${settings.flipY ? " · V" : ""}`
+              : undefined
           }
         >
           <div className="grid grid-cols-4 gap-2">
@@ -662,59 +620,61 @@ export function ImageResizeSettings({
               type="button"
               onClick={() => rotate(-90)}
               title="Rotate 90° counter-clockwise"
-              className="group flex h-12 flex-col items-center justify-center gap-1 rounded-[11px] border border-line bg-white text-muted shadow-2xs transition-all hover:border-[#c8c2b7] hover:bg-hover hover:text-ink active:scale-95"
+              className="group flex h-[58px] flex-col items-center justify-center gap-1.5 rounded-[11px] border border-line bg-white text-muted transition-colors hover:border-[#cfc9bd] hover:bg-[#fbfaf8] hover:text-ink active:bg-[#f4f1ea]"
             >
-              <RotateCcw size={15} className="transition-transform group-hover:-rotate-12" aria-hidden />
-              <span className="text-[10px] font-semibold">−90°</span>
+              <RotateCcw size={16} aria-hidden />
+              <span className="text-[11.5px] font-medium">−90°</span>
             </button>
             <button
               type="button"
               onClick={() => rotate(90)}
               title="Rotate 90° clockwise"
-              className="group flex h-12 flex-col items-center justify-center gap-1 rounded-[11px] border border-line bg-white text-muted shadow-2xs transition-all hover:border-[#c8c2b7] hover:bg-hover hover:text-ink active:scale-95"
+              className="group flex h-[58px] flex-col items-center justify-center gap-1.5 rounded-[11px] border border-line bg-white text-muted transition-colors hover:border-[#cfc9bd] hover:bg-[#fbfaf8] hover:text-ink active:bg-[#f4f1ea]"
             >
-              <RotateCw size={15} className="transition-transform group-hover:rotate-12" aria-hidden />
-              <span className="text-[10px] font-semibold">+90°</span>
+              <RotateCw size={16} aria-hidden />
+              <span className="text-[11.5px] font-medium">+90°</span>
             </button>
             <button
               type="button"
               onClick={() => onPatch({ flipX: !settings.flipX })}
+              aria-pressed={settings.flipX}
               title="Flip horizontally"
-              className={`flex h-12 flex-col items-center justify-center gap-1 rounded-[11px] border shadow-2xs transition-all active:scale-95 ${
+              className={`flex h-[58px] flex-col items-center justify-center gap-1.5 rounded-[11px] border transition-colors ${
                 settings.flipX
-                  ? "border-ink bg-ink text-white shadow-xs"
-                  : "border-line bg-white text-muted hover:border-[#c8c2b7] hover:bg-hover hover:text-ink"
+                  ? "border-ink bg-ink text-white"
+                  : "border-line bg-white text-muted hover:border-[#cfc9bd] hover:bg-[#fbfaf8] hover:text-ink"
               }`}
             >
-              <FlipHorizontal2 size={15} aria-hidden />
-              <span className="text-[10px] font-semibold">Flip H</span>
+              <FlipHorizontal2 size={16} aria-hidden />
+              <span className="text-[11.5px] font-medium">Flip H</span>
             </button>
             <button
               type="button"
               onClick={() => onPatch({ flipY: !settings.flipY })}
+              aria-pressed={settings.flipY}
               title="Flip vertically"
-              className={`flex h-12 flex-col items-center justify-center gap-1 rounded-[11px] border shadow-2xs transition-all active:scale-95 ${
+              className={`flex h-[58px] flex-col items-center justify-center gap-1.5 rounded-[11px] border transition-colors ${
                 settings.flipY
-                  ? "border-ink bg-ink text-white shadow-xs"
-                  : "border-line bg-white text-muted hover:border-[#c8c2b7] hover:bg-hover hover:text-ink"
+                  ? "border-ink bg-ink text-white"
+                  : "border-line bg-white text-muted hover:border-[#cfc9bd] hover:bg-[#fbfaf8] hover:text-ink"
               }`}
             >
-              <FlipVertical2 size={15} aria-hidden />
-              <span className="text-[10px] font-semibold">Flip V</span>
+              <FlipVertical2 size={16} aria-hidden />
+              <span className="text-[11.5px] font-medium">Flip V</span>
             </button>
           </div>
 
           {hasTransforms && (
-            <div className="mt-2.5 flex items-center justify-between rounded-[9px] border border-line/60 bg-[#fbfaf8] px-2.5 py-1.5 text-[11px]">
+            <div className="mt-2.5 flex items-center justify-between rounded-[10px] bg-[#fbfaf8] px-3 py-2 text-[11px]">
               <span className="text-faint">
-                Angle: <strong className="font-semibold text-ink">{settings.rotation}°</strong>
+                Angle <strong className="font-semibold text-ink">{settings.rotation}°</strong>
                 {settings.flipX && <span className="ml-1 text-ink">· Flip H</span>}
                 {settings.flipY && <span className="ml-1 text-ink">· Flip V</span>}
               </span>
               <button
                 type="button"
                 onClick={() => onPatch({ rotation: 0, flipX: false, flipY: false })}
-                className="font-medium text-muted hover:text-ink hover:underline"
+                className="font-medium text-muted transition-colors hover:text-ink"
               >
                 Reset transforms
               </button>
@@ -722,38 +682,32 @@ export function ImageResizeSettings({
           )}
         </RailSection>
 
-        {/* Section 3: Advanced Options Accordion (Hidden / Collapsed by default) */}
+        {/* Advanced */}
         <RailSection
           icon={SlidersHorizontal}
-          title="Advanced options"
-          hint="Output format, visual quality & output filters"
+          title="Advanced"
+          hint="Format, quality and output filters"
           defaultOpen={false}
-          aside={
-            <span className="rounded-full border border-line bg-white px-2.5 py-1 text-[10.5px] font-semibold text-ink shadow-[0_1px_2px_rgba(15,15,16,0.04)]">
-              {formatLabel(settings.format)}{lossy ? ` · ${settings.quality}%` : " · Lossless"}
-            </span>
-          }
+          aside={`${formatLabel(settings.format)}${lossy ? ` · ${settings.quality}%` : " · Lossless"}`}
         >
           <div className="space-y-4">
-            {/* Format Selection Cards */}
             <div>
-              <span className="block text-[11px] font-semibold text-ink mb-2">Output format</span>
-              <div className="grid grid-cols-5 gap-1.5">
+              <span className={RAIL_FIELD_LABEL}>Output format</span>
+              <div className="mt-2 grid grid-cols-3 gap-2">
                 {RESIZE_FORMATS.map((fmt) => {
                   const selected = settings.format === fmt.value;
                   return (
                     <button
                       key={fmt.value}
                       type="button"
+                      aria-pressed={selected}
                       onClick={() => onPatch({ format: fmt.value })}
-                      className={`flex flex-col items-center justify-center rounded-[10px] border py-2 px-1 text-center transition-all ${
-                        selected
-                          ? "border-ink bg-white text-ink shadow-xs ring-1 ring-ink/20 font-semibold"
-                          : "border-line bg-white/70 text-muted hover:border-[#c8c2b7] hover:bg-white hover:text-ink"
+                      className={`flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-[10px] border px-1.5 py-2 text-center transition-colors ${
+                        selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
                       }`}
                     >
-                      <span className="text-[12px] font-bold">{fmt.label}</span>
-                      <span className="mt-0.5 text-[9px] text-faint">
+                      <span className="text-[12.5px] font-medium text-ink">{fmt.label}</span>
+                      <span className="text-[10px] text-faint">
                         {fmt.value === "auto" ? "Smart" : fmt.lossy ? "Lossy" : "Lossless"}
                       </span>
                     </button>
@@ -762,15 +716,14 @@ export function ImageResizeSettings({
               </div>
             </div>
 
-            {/* Quality Slider (for lossy formats) */}
             {lossy && (
-              <div className="space-y-2.5 rounded-[12px] border border-line bg-[#fbfaf8] p-3 shadow-2xs">
-                <div className="flex items-end justify-between">
+              <div className="rounded-[12px] border border-line bg-[#fbfaf8] p-3.5">
+                <div className="flex items-end justify-between gap-3">
                   <div>
-                    <span className="text-[11px] font-semibold text-ink">Quality level</span>
-                    <p className="mt-0.5 text-[10px] text-faint">Higher preserves subtle gradient & sharpness</p>
+                    <span className="text-[12px] font-medium text-ink">Quality</span>
+                    <p className="mt-0.5 text-[11px] text-faint">Preserves gradients and fine detail</p>
                   </div>
-                  <span className="font-display text-[18px] font-bold leading-none tabular-nums text-ink">
+                  <span className="font-display text-[20px] font-semibold leading-none tabular-nums text-ink">
                     {settings.quality}%
                   </span>
                 </div>
@@ -781,21 +734,23 @@ export function ImageResizeSettings({
                   step={2}
                   value={settings.quality}
                   onChange={(event) => onPatch({ quality: Number(event.target.value) })}
+                  aria-label="Output quality"
                   style={rangeFill(settings.quality, 10, 100)}
-                  className="range w-full"
+                  className="range mt-2.5 w-full"
                 />
-                <div className="grid grid-cols-5 gap-1">
+                <div className="mt-2.5 grid grid-cols-5 gap-1.5">
                   {QUALITY_PRESETS.map((preset) => {
                     const selected = settings.quality === preset.value;
                     return (
                       <button
                         key={preset.label}
                         type="button"
+                        aria-pressed={selected}
                         onClick={() => onPatch({ quality: preset.value })}
-                        className={`h-6 rounded-[6px] border text-[10px] font-medium transition-colors ${
+                        className={`h-8 rounded-[8px] border text-[10.5px] font-medium transition-colors ${
                           selected
-                            ? "border-ink bg-ink text-white shadow-2xs font-semibold"
-                            : "border-line bg-white text-muted hover:border-[#c8c2b7] hover:text-ink"
+                            ? "border-ink bg-ink text-white"
+                            : "border-line bg-white text-muted hover:border-[#cfc9bd] hover:text-ink"
                         }`}
                       >
                         {preset.label}
@@ -806,90 +761,59 @@ export function ImageResizeSettings({
               </div>
             )}
 
-            {/* Integrated Filters & Metadata */}
-            <div className="space-y-2 border-t border-line-soft pt-3">
-              <span className="block text-[11px] font-semibold text-ink">Output filters & options</span>
-              <div className="space-y-1.5">
-                {/* Subtle Post-sharpening toggle */}
-                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[10px] border border-line bg-white px-3 py-2.5 transition-colors hover:border-[#c8c2b7]">
-                  <div>
-                    <p className="text-[11.5px] font-medium text-ink">Subtle post-sharpening</p>
-                    <p className="text-[9.5px] text-faint">Restores edge clarity and micro-contrast</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.sharpen}
-                    onChange={(event) => onPatch({ sharpen: event.target.checked })}
-                    className="h-4 w-4 rounded border-line text-ink accent-ink"
-                  />
-                </label>
-
-                {/* Grayscale Mode toggle */}
-                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[10px] border border-line bg-white px-3 py-2.5 transition-colors hover:border-[#c8c2b7]">
-                  <div>
-                    <p className="text-[11.5px] font-medium text-ink">Grayscale (B&amp;W)</p>
-                    <p className="text-[9.5px] text-faint">Removes chroma channels for clean monochrome</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(settings.grayscale)}
-                    onChange={(event) => onPatch({ grayscale: event.target.checked })}
-                    className="h-4 w-4 rounded border-line text-ink accent-ink"
-                  />
-                </label>
-
-                {/* Strip Metadata toggle */}
-                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[10px] border border-line bg-white px-3 py-2.5 transition-colors hover:border-[#c8c2b7]">
-                  <div>
-                    <p className="text-[11.5px] font-medium text-ink">Strip metadata (EXIF)</p>
-                    <p className="text-[9.5px] text-faint">Removes camera model, GPS coordinates and timestamps</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.removeMetadata}
-                    onChange={(event) => onPatch({ removeMetadata: event.target.checked })}
-                    className="h-4 w-4 rounded border-line text-ink accent-ink"
-                  />
-                </label>
-              </div>
+            <div className="space-y-2">
+              <span className={RAIL_FIELD_LABEL}>Output options</span>
+              <RailSwitch
+                label="Subtle post-sharpening"
+                description="Restores edge clarity and micro-contrast."
+                checked={settings.sharpen}
+                onChange={(checked) => onPatch({ sharpen: checked })}
+              />
+              <RailSwitch
+                label="Grayscale"
+                description="Drops color channels for clean monochrome."
+                checked={Boolean(settings.grayscale)}
+                onChange={(checked) => onPatch({ grayscale: checked })}
+              />
+              <RailSwitch
+                label="Strip metadata"
+                description="Removes camera model, GPS and timestamps."
+                checked={settings.removeMetadata}
+                onChange={(checked) => onPatch({ removeMetadata: checked })}
+              />
             </div>
 
-            {/* Live Output Specs Summary Card */}
-            <div className="rounded-[14px] border border-[#e5dfd3] bg-[#fbf9f5] p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between border-b border-line-soft pb-2.5 text-[11px]">
-                <span className="font-semibold text-ink">Live Output Specs</span>
-                <span className="rounded-full border border-line bg-white px-2 py-0.5 text-[10px] font-semibold text-muted">
+            <div className="rounded-[12px] border border-[#e6e0d4] bg-[#fbf9f5] p-3.5">
+              <div className="flex items-center justify-between gap-3 border-b border-line-soft pb-2.5">
+                <span className="text-[11.5px] font-semibold text-ink">Output summary</span>
+                <span className="rounded-full border border-line bg-white px-2 py-0.5 text-[10.5px] font-medium text-muted">
                   {formatLabel(settings.format)}
                 </span>
               </div>
-
-              <div className="mt-2.5 space-y-2 text-[11px]">
-                <div className="flex items-center justify-between">
+              <div className="mt-2.5 space-y-2 text-[11.5px]">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-faint">Dimensions</span>
                   <span className="font-semibold tabular-nums text-ink">
                     {outputWidth && outputHeight ? `${outputWidth} × ${outputHeight} px` : "—"}
                   </span>
                 </div>
-
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-faint">Aspect ratio</span>
                   <span className="font-medium text-ink">{ratioLabel(outputWidth, outputHeight)}</span>
                 </div>
-
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-faint">Scale</span>
                   <span className="font-medium tabular-nums text-ink">
-                    {scale ? `${Math.round(scale * 100)}%` : "100%"}
+                    {scale ? `${Math.round(scale)}%` : "100%"}
                   </span>
                 </div>
-
                 {estimatedBytes > 0 && (
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <span className="text-faint">Est. file size</span>
                     <span className="font-medium tabular-nums text-ink">
                       {formatBytes(estimatedBytes)}
                       {originalBytes > estimatedBytes && (
-                        <span className="ml-1 text-[10px] font-semibold text-[#3b7c3f]">
+                        <span className="ml-1 text-[10.5px] font-semibold text-[#3b7c3f]">
                           (−{Math.round(((originalBytes - estimatedBytes) / originalBytes) * 100)}%)
                         </span>
                       )}
@@ -899,69 +823,23 @@ export function ImageResizeSettings({
               </div>
 
               {upscaling && (
-                <div className="mt-3 flex items-start gap-1.5 rounded-[8px] border border-[#ecd9b8] bg-[#fdf8ee] p-2 text-[10.5px] leading-relaxed text-[#8a652d]">
+                <div className="mt-3 flex items-start gap-1.5 rounded-[9px] border border-[#ecd9b8] bg-[#fdf8ee] p-2.5 text-[11px] leading-relaxed text-[#8a652d]">
                   <TriangleAlert size={12} className="mt-0.5 shrink-0" aria-hidden />
-                  <span>Upscaling interpolates pixels. Turn on “Never upscale” to preserve native sharpness.</span>
+                  <span>
+                    Upscaling interpolates pixels. Turn on “Never upscale” to preserve native
+                    sharpness.
+                  </span>
                 </div>
               )}
 
-              <div className="mt-3 flex items-center gap-1.5 border-t border-line-soft pt-2.5 text-[10px] text-faint">
+              <div className="mt-3 flex items-center gap-1.5 border-t border-line-soft pt-2.5 text-[10.5px] text-faint">
                 <ShieldCheck size={12} className="text-[#5f8a56]" aria-hidden />
-                <span>100% client-side canvas engine · Zero uploads</span>
+                <span>100% client-side · zero uploads</span>
               </div>
             </div>
           </div>
         </RailSection>
       </div>
     </StudioRail>
-  );
-}
-
-function RailSection({
-  icon: Icon,
-  title,
-  hint,
-  aside,
-  children,
-  defaultOpen = true,
-}: {
-  icon: LucideIcon;
-  title: string;
-  hint: string;
-  aside?: ReactNode;
-  children: ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div className="rounded-[16px] border border-line bg-white/80 p-3.5 shadow-xs transition-colors hover:border-[#d9d3c7]">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-start justify-between gap-2 text-left"
-        aria-expanded={open}
-      >
-        <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-[7px] border border-line bg-[#fbfaf7] text-ink">
-            <Icon size={13} aria-hidden />
-          </span>
-          <div>
-            <h3 className="text-[12.5px] font-semibold tracking-[-0.01em] text-ink">{title}</h3>
-            <p className="mt-0.5 text-[10.5px] leading-snug text-faint">{hint}</p>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {aside}
-          <ChevronDown
-            size={14}
-            className={`text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-            aria-hidden
-          />
-        </div>
-      </button>
-
-      {open && <div className="mt-3.5 border-t border-line-soft pt-3.5">{children}</div>}
-    </div>
   );
 }
