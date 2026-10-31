@@ -108,7 +108,7 @@ export default function Hero() {
   }, [count, tab, active]);
 
   return (
-    <section className="relative mx-auto max-w-[1280px] px-5 pt-12 md:pt-16 lg:pt-[clamp(3rem,7.5vh,5rem)]">
+    <section className="relative mx-auto flex max-w-[1280px] flex-col justify-center px-5 pt-12 md:pt-16 lg:min-h-[100svh] lg:py-[clamp(2rem,5vh,4rem)]">
       <DottedGlowBackground
         className="inset-x-0 top-0 h-[620px] w-full [mask-image:radial-gradient(ellipse_at_top,black_10%,transparent_72%)]"
         gap={24}
