@@ -835,14 +835,13 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                             }`}
                             style={{ width: `${tw}px`, height: `${FILMSTRIP_H}px`, background }}
                           >
-                            {/* Filmstrip thumbs hug the image: page margins are previewed on the stage, not here */}
+                            {/* Filmstrip thumbs crop to fill: a contain letterbox leaves a hairline
+                                between the image and the selection frame */}
                             <div className="flex h-full w-full items-center justify-center overflow-hidden">
                               <img
                                 src={item.preview}
                                 alt=""
-                                className={`h-full w-full select-none pointer-events-none ${
-                                  settings.fit === "cover" ? "object-cover" : "object-contain"
-                                }`}
+                                className="h-full w-full select-none pointer-events-none object-cover"
                                 style={{
                                   transform: pageRot !== 0 ? `rotate(${pageRot}deg)` : undefined,
                                   filter: settings.grayscale ? "grayscale(100%)" : undefined,
