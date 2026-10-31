@@ -112,6 +112,7 @@ export function Sidebar({
               type="button"
               onClick={onClose}
               aria-label="Close navigation"
+              data-slot="sidebar-close"
               className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-active hover:text-ink lg:hidden"
             >
               <CloseGlyph size={17} />

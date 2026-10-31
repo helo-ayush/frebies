@@ -30,6 +30,10 @@ module.exports = {
         secondary: { DEFAULT: "var(--secondary)", foreground: "var(--secondary-foreground)" },
         destructive: { DEFAULT: "var(--destructive)", foreground: "var(--destructive-foreground)" },
         popover: { DEFAULT: "var(--popover)", foreground: "var(--popover-foreground)" },
+        shell: {
+          "fg-muted": "var(--shell-fg-muted)",
+          "fg-faint": "var(--shell-fg-faint)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],

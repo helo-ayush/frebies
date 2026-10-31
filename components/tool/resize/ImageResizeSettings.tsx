@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   Check,
   Crop,
@@ -162,6 +162,7 @@ export function ImageResizeSettings({
   onResetCrop,
   originalBytes = 0,
   estimatedBytes = 0,
+  action,
 }: {
   settings: ResizeSettings;
   onPatch: (patch: Partial<ResizeSettings>) => void;
@@ -180,6 +181,7 @@ export function ImageResizeSettings({
   onResetCrop: () => void;
   originalBytes?: number;
   estimatedBytes?: number;
+  action?: ReactNode;
 }) {
   const [showAllPresets, setShowAllPresets] = useState(false);
   const lossy = isLossyFormat(settings.format);
@@ -232,7 +234,7 @@ export function ImageResizeSettings({
   const hasTransforms = settings.rotation !== 0 || settings.flipX || settings.flipY;
 
   return (
-    <StudioRail label="Resize & crop settings">
+    <StudioRail label="Resize & crop settings" action={action}>
       <div className="mb-3.5 flex items-center justify-between gap-3">
         <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
           Settings

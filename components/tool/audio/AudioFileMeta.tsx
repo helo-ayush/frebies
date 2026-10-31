@@ -54,6 +54,7 @@ export function AudioFileMeta({
         type="button"
         onClick={onRemove}
         aria-label={`Remove ${item.name}`}
+        data-slot="audio-remove"
         className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
       >
         <X size={13} aria-hidden />

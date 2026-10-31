@@ -206,6 +206,8 @@ export function TextToSpeechStudio() {
             </div>
           </div>
 
+          <span aria-hidden className="hidden" data-error={previewError} />
+
           {previewError && (
             <p role="status" className="mt-2 flex items-start gap-1.5 text-[10px] leading-relaxed text-[#786344]">
               <TriangleAlert size={11} className="mt-px shrink-0" aria-hidden />
@@ -222,7 +224,7 @@ export function TextToSpeechStudio() {
 
         <PaidRail
           label="Voice settings"
-          footer={
+          action={
             <AudioRunCard
               cost={credits}
               verb="generate voice"

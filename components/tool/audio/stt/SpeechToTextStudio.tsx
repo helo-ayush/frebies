@@ -195,6 +195,8 @@ export function SpeechToTextStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
             onChange={onPick}
           />
 
+          <span aria-hidden className="hidden" data-error={error} />
+
           {error && (
             <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
               <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
@@ -215,7 +217,7 @@ export function SpeechToTextStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
 
         <PaidRail
           label="Transcript settings"
-          footer={
+          action={
             <AudioRunCard
               cost={credits}
               verb="transcribe"

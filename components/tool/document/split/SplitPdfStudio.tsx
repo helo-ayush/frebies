@@ -15,7 +15,7 @@ import {
   PreviewNote,
   RailSection,
   SelectRow,
-  StudioFooter,
+  StudioAction,
   StudioHeader,
   TextRow,
   ToggleRow,
@@ -257,6 +257,7 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       setNotice(null);
                     }}
                     aria-label={`Remove ${activeItem.name}`}
+                    data-slot="pdf-remove"
                     className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
                   >
                     <X size={13} aria-hidden />
@@ -307,35 +308,14 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             onChange={onPick}
           />
 
+          <span aria-hidden className="hidden" data-success={notice} data-error={error} />
+
           {error && (
             <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
               <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
               {error}
             </p>
           )}
-
-          <StudioFooter
-            label={
-              mode === "extract"
-                ? `Extract ${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"}`
-                : mode === "every"
-                  ? `Split into ${chunkCount} files`
-                  : "Split into 2 files"
-            }
-            hint={
-              <>
-                <ShieldCheck size={12} aria-hidden />
-                Free · no upload · no watermark
-              </>
-            }
-            disabled={!activeItem || outputCount === 0}
-            onAction={handleSplit}
-          >
-            <span className="hidden items-center gap-1 text-[10.5px] text-faint sm:flex">
-              <Sparkles size={10} aria-hidden />
-              {rangeLabel(selectedPages)}
-            </span>
-          </StudioFooter>
 
           {notice && (
             <p
@@ -347,7 +327,33 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           )}
         </div>
 
-        <StudioRail label="Split settings">
+        <StudioRail
+          label="Split settings"
+          action={
+            <StudioAction
+              label={
+                mode === "extract"
+                  ? `Extract ${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"}`
+                  : mode === "every"
+                    ? `Split into ${chunkCount} files`
+                    : "Split into 2 files"
+              }
+              hint={
+                <>
+                  <ShieldCheck size={12} aria-hidden />
+                  Free · no upload · no watermark
+                </>
+              }
+              disabled={!activeItem || outputCount === 0}
+              onAction={handleSplit}
+            >
+              <span className="flex items-center gap-1">
+                <Sparkles size={10} aria-hidden />
+                {rangeLabel(selectedPages)}
+              </span>
+            </StudioAction>
+          }
+        >
           <div className="space-y-5">
             <RailSection title="Split mode" hint="How pages leave">
               <div className="space-y-1.5">

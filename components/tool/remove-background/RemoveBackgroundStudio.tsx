@@ -175,6 +175,8 @@ export function RemoveBackgroundStudio({ maxSizeMB = 25 }: { maxSizeMB?: number 
             onChange={onPick}
           />
 
+          <span aria-hidden className="hidden" data-error={error} />
+
           {error && (
             <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
               <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
@@ -208,6 +210,7 @@ export function RemoveBackgroundStudio({ maxSizeMB = 25 }: { maxSizeMB?: number 
                 type="button"
                 onClick={() => removeItem(activeItem.id)}
                 aria-label={`Remove ${activeItem.file.name}`}
+                data-slot="image-remove"
                 className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
               >
                 <X size={13} aria-hidden />
@@ -229,7 +232,7 @@ export function RemoveBackgroundStudio({ maxSizeMB = 25 }: { maxSizeMB?: number 
 
         <PaidRail
           label="Cutout settings"
-          footer={
+          action={
             <PaidRunCard
               cost={REMOVER_COST}
               verb="cut out"

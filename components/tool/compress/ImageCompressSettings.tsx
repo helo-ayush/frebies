@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Check,
@@ -189,6 +189,7 @@ export function ImageCompressSettings({
   onCustomWidth,
   onCustomHeight,
   onReset,
+  action,
 }: {
   settings: CompressSettings;
   dimensions: { width: number; height: number } | null;
@@ -200,6 +201,7 @@ export function ImageCompressSettings({
   onCustomWidth?: (width: number) => void;
   onCustomHeight?: (height: number) => void;
   onReset: () => void;
+  action?: ReactNode;
 }) {
   const band = qualityBand(settings.quality);
 
@@ -234,7 +236,7 @@ export function ImageCompressSettings({
   }
 
   return (
-    <StudioRail label="Compression settings">
+    <StudioRail label="Compression settings" action={action}>
       <div className="mb-3.5 flex items-center justify-between gap-3">
         <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
           Settings

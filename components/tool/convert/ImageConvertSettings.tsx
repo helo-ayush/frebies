@@ -157,6 +157,7 @@ export function ImageConvertSettings({
   onCustomWidth,
   onCustomHeight,
   onReset,
+  action,
 }: {
   settings: ConvertSettings;
   available: EncodeFormat[];
@@ -171,6 +172,7 @@ export function ImageConvertSettings({
   onCustomWidth: (value: number) => void;
   onCustomHeight: (value: number) => void;
   onReset: () => void;
+  action?: ReactNode;
 }) {
   const formatInfo = FORMAT_INFO[settings.format];
   const isLossy = formatInfo.lossy && !settings.losslessMode;
@@ -198,7 +200,7 @@ export function ImageConvertSettings({
     : null;
 
   return (
-    <StudioRail label="Conversion settings">
+    <StudioRail label="Conversion settings" action={action}>
       <div className="-mx-4 -mt-4 flex items-center justify-between gap-3 bg-[#fdfdfc]/95 px-4 pb-4 pt-4 backdrop-blur-sm sm:-mx-5 sm:-mt-5 sm:px-5 sm:pt-5 lg:sticky lg:-top-5 lg:z-10">
         <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">
           <SlidersHorizontal size={13} aria-hidden />
@@ -411,6 +413,7 @@ export function ImageConvertSettings({
             type="button"
             onClick={() => setAdvancedOpen((open) => !open)}
             aria-expanded={advancedOpen}
+            data-slot="advanced-trigger"
             className="flex w-full items-center justify-between gap-3 rounded-[12px] border border-line bg-white p-3 text-left transition-all hover:border-[#cfc9bd] hover:bg-[#faf9f6]"
           >
             <span className="flex items-center gap-2.5 min-w-0">

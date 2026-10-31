@@ -14,7 +14,7 @@ import {
   PreviewNote,
   RailSection,
   SelectRow,
-  StudioFooter,
+  StudioAction,
   StudioHeader,
   TextRow,
   ToggleRow,
@@ -228,6 +228,7 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       setNotice(null);
                     }}
                     aria-label={`Remove ${activeItem.name}`}
+                    data-slot="pdf-remove"
                     className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
                   >
                     <X size={13} aria-hidden />
@@ -282,29 +283,14 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             onChange={onPick}
           />
 
+          <span aria-hidden className="hidden" data-success={notice} data-error={error} />
+
           {error && (
             <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
               <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
               {error}
             </p>
           )}
-
-          <StudioFooter
-            label={`Convert ${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"}`}
-            hint={
-              <>
-                <ShieldCheck size={12} aria-hidden />
-                Free · no upload · no watermark
-              </>
-            }
-            disabled={!activeItem || selectedPages.length === 0}
-            onAction={handleConvert}
-          >
-            <span className="hidden items-center gap-1 text-[10.5px] text-faint sm:flex">
-              <Check size={10} aria-hidden />
-              {format} · {resolution}
-            </span>
-          </StudioFooter>
 
           {notice && (
             <p
@@ -316,7 +302,27 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           )}
         </div>
 
-        <StudioRail label="Image settings">
+        <StudioRail
+          label="Image settings"
+          action={
+            <StudioAction
+              label={`Convert ${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"}`}
+              hint={
+                <>
+                  <ShieldCheck size={12} aria-hidden />
+                  Free · no upload · no watermark
+                </>
+              }
+              disabled={!activeItem || selectedPages.length === 0}
+              onAction={handleConvert}
+            >
+              <span className="flex items-center gap-1">
+                <Check size={10} aria-hidden />
+                {format} · {resolution}
+              </span>
+            </StudioAction>
+          }
+        >
           <div className="space-y-5">
             <RailSection title="Image format" hint="Per page">
               <div className="grid grid-cols-3 gap-1.5">

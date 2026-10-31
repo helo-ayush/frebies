@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { HoverBorderGradient } from "./aceternity/hover-border-gradient";
 import { Btn, grads } from "./ui";
+import { SoundToggle } from "./ui/sound";
 
 const links = [
   { label: "Tools", href: "#tools" },
@@ -76,6 +77,7 @@ export default function Navbar() {
             </AnimatePresence>
           </div>
           <div className="flex items-center gap-2">
+            <SoundToggle className="text-neutral-400 hover:text-neutral-700" />
             <Btn sm href="/dashboard">Get started</Btn>
           </div>
         </div>

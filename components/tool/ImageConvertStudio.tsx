@@ -131,6 +131,7 @@ function ImageConvertStudioInner({
   const [viewMode, setViewMode] = useState<"converted" | "original" | "split">("converted");
   const [splitPos, setSplitPos] = useState(50);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeTone, setNoticeTone] = useState<"success" | "error">("success");
   const [busy, setBusy] = useState(false);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number; name?: string } | null>(
@@ -442,12 +443,15 @@ function ImageConvertStudioInner({
 
       if (processedFiles.length === 1) {
         downloadBlob(processedFiles[0].blob, processedFiles[0].name);
+        setNoticeTone("success");
         setNotice(`Saved ${processedFiles[0].name} (${formatBytes(processedFiles[0].blob.size)}).`);
       } else if (processedFiles.length > 1) {
         await downloadAllAsZip(processedFiles, "frebies-converted.zip");
+        setNoticeTone("success");
         setNotice(`Downloaded all ${processedFiles.length} converted images in frebies-converted.zip.`);
       }
     } catch (thrown) {
+      setNoticeTone("error");
       setNotice(
         thrown instanceof Error ? thrown.message : "An error occurred during conversion.",
       );
@@ -465,6 +469,7 @@ function ImageConvertStudioInner({
 
     if (filesToZip.length === 0) return;
     await downloadAllAsZip(filesToZip, "frebies-converted.zip");
+    setNoticeTone("success");
     setNotice(`Downloaded ${filesToZip.length} converted images in frebies-converted.zip.`);
   }
 
@@ -722,6 +727,7 @@ function ImageConvertStudioInner({
                       <button
                         type="button"
                         onClick={() => setScaleToFit(true)}
+                        aria-pressed={scaleToFit}
                         className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
                           scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
                         }`}
@@ -737,6 +743,7 @@ function ImageConvertStudioInner({
                       <button
                         type="button"
                         onClick={() => setScaleToFit(false)}
+                        aria-pressed={!scaleToFit}
                         className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
                           !scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
                         }`}
@@ -751,6 +758,7 @@ function ImageConvertStudioInner({
                     <button
                       type="button"
                       onClick={() => setShowGrid(!showGrid)}
+                      aria-pressed={showGrid}
                       className={`grid h-8 w-8 place-items-center rounded-[9px] border transition-colors ${
                         showGrid
                           ? "border-ink bg-rail text-ink shadow-2xs"
@@ -875,6 +883,7 @@ function ImageConvertStudioInner({
                         <button
                           type="button"
                           onClick={() => setViewMode("converted")}
+                          aria-pressed={viewMode === "converted"}
                           className={`rounded-[7px] px-2.5 py-1 text-[11px] font-medium transition-colors ${
                             viewMode === "converted"
                               ? "bg-ink font-semibold text-white"
@@ -886,6 +895,7 @@ function ImageConvertStudioInner({
                         <button
                           type="button"
                           onClick={() => setViewMode("original")}
+                          aria-pressed={viewMode === "original"}
                           className={`rounded-[7px] px-2.5 py-1 text-[11px] font-medium transition-colors ${
                             viewMode === "original"
                               ? "bg-ink font-semibold text-white"
@@ -897,6 +907,7 @@ function ImageConvertStudioInner({
                         <button
                           type="button"
                           onClick={() => setViewMode("split")}
+                          aria-pressed={viewMode === "split"}
                           className={`rounded-[7px] px-2.5 py-1 text-[11px] font-medium transition-colors ${
                             viewMode === "split"
                               ? "bg-ink font-semibold text-white"
@@ -986,6 +997,7 @@ function ImageConvertStudioInner({
                     type="button"
                     onClick={() => removeItem(activeItem.id)}
                     aria-label={`Remove ${activeItem.file.name}`}
+                    data-slot="item-remove"
                     className="grid h-8 w-8 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
                   >
                     <X size={14} aria-hidden />
@@ -1006,6 +1018,13 @@ function ImageConvertStudioInner({
             onChange={onPick}
           />
 
+          <span
+            aria-hidden
+            className="hidden"
+            data-success={noticeTone === "success" ? notice : undefined}
+            data-error={error ?? (noticeTone === "error" ? notice : undefined)}
+          />
+
           {error && (
             <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
               <TriangleAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
@@ -1024,6 +1043,7 @@ function ImageConvertStudioInner({
                   <button
                     type="button"
                     onClick={clearAll}
+                    data-variant="destructive"
                     className="text-[11.5px] text-faint transition-colors hover:text-ink"
                   >
                     Clear queue
@@ -1041,6 +1061,7 @@ function ImageConvertStudioInner({
                       <button
                         type="button"
                         onClick={() => setActiveId(item.id)}
+                        data-slot="queue-item"
                         className={`group relative flex h-[126px] w-[140px] flex-col rounded-[11px] border p-2 text-left transition-all ${
                           isSelected
                             ? "border-ink bg-white shadow-xs ring-1 ring-ink/20"
@@ -1094,58 +1115,6 @@ function ImageConvertStudioInner({
             </div>
           )}
 
-          {/* Bottom Execution Bar */}
-          <div className="mt-4 flex shrink-0 flex-col gap-3 border-t border-line-soft pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <p className="flex items-center gap-1.5 text-[11.5px] text-faint">
-              <ShieldCheck size={14} aria-hidden className="text-[#557550]" />
-              Free · No upload · 11 output formats · Client-side engine
-            </p>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => openPicker()}
-                disabled={busy || items.length >= MAX_FILES}
-                className={buttonClasses("secondary", "md", "w-full sm:w-auto")}
-              >
-                <ImagePlus size={14} aria-hidden />
-                <span>Add more</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConvertAll}
-                disabled={!activeItem || busy}
-                className={buttonClasses("primary", "md", "w-full min-w-0 sm:w-auto sm:min-w-[170px]")}
-              >
-                {busy ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" aria-hidden />
-                    {progress ? `Converting ${progress.current}/${progress.total}…` : "Processing…"}
-                  </>
-                ) : (
-                  <>
-                    {items.length > 1 ? (
-                      `Convert all (${items.length})`
-                    ) : (
-                      activeResult ? (
-                        <>
-                          <Download size={13} />
-                          Download {FORMAT_LABEL[activeTargetFormat]}
-                        </>
-                      ) : (
-                        <>
-                          Convert image
-                          <ArrowRightGlyph size={13} />
-                        </>
-                      )
-                    )}
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
           {notice && (
             <p
               role="status"
@@ -1158,6 +1127,43 @@ function ImageConvertStudioInner({
 
         {/* Right side: settings rail */}
         <ImageConvertSettings
+          action={
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={handleConvertAll}
+                disabled={!activeItem || busy}
+                className={buttonClasses("primary", "md", "w-full")}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" aria-hidden />
+                    {progress ? `Converting ${progress.current}/${progress.total}…` : "Processing…"}
+                  </>
+                ) : (
+                  <>
+                    {items.length > 1 ? (
+                      `Convert all (${items.length})`
+                    ) : activeResult ? (
+                      <>
+                        <Download size={13} />
+                        Download {FORMAT_LABEL[activeTargetFormat]}
+                      </>
+                    ) : (
+                      <>
+                        Convert image
+                        <ArrowRightGlyph size={13} />
+                      </>
+                    )}
+                  </>
+                )}
+              </button>
+              <p className="flex items-center justify-center gap-1.5 text-[10.5px] text-faint">
+                <ShieldCheck size={12} aria-hidden className="text-[#557550]" />
+                No upload · client-side engine
+              </p>
+            </div>
+          }
           settings={settings}
           available={available}
           category={selectedCategory}

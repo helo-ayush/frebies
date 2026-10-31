@@ -40,8 +40,8 @@ export function StudioHeader({
   );
 }
 
-/** Footer with the local-processing promise and the primary action. */
-export function StudioFooter({
+/** Primary action pinned at the top of a settings rail. */
+export function StudioAction({
   label,
   hint,
   disabled = false,
@@ -57,20 +57,20 @@ export function StudioFooter({
   children?: ReactNode;
 }) {
   return (
-    <div className="mt-4 flex shrink-0 flex-col gap-3 border-t border-line-soft pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-      <p className="flex items-center gap-1.5 text-micro text-faint">{hint}</p>
-      <div className="flex items-center gap-2">
+    <div className="space-y-2.5">
+      <button
+        type="button"
+        onClick={onAction}
+        disabled={disabled || busy}
+        className={buttonClasses("primary", "md", "w-full")}
+      >
+        {busy ? "Working…" : label}
+        <ArrowRightGlyph size={13} />
+      </button>
+      <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[10.5px] text-faint">
+        <span className="flex items-center gap-1.5">{hint}</span>
         {children}
-        <button
-          type="button"
-          onClick={onAction}
-          disabled={disabled || busy}
-          className={buttonClasses("primary", "md", "w-full min-w-0 sm:w-auto sm:min-w-[150px]")}
-        >
-          {busy ? "Working…" : label}
-          <ArrowRightGlyph size={13} />
-        </button>
-      </div>
+      </p>
     </div>
   );
 }

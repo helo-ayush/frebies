@@ -8,6 +8,7 @@ import { AceternityTooltip } from "@/components/aceternity/animated-tooltip";
 import { HoverBorderGradient } from "@/components/aceternity/hover-border-gradient";
 import { buttonClasses } from "@/components/ui/Button";
 import { ChevronGlyph, MenuGlyph, PanelGlyph, SearchGlyph } from "@/components/icons/NavGlyph";
+import { SoundToggle } from "@/components/ui/sound";
 import { CommandMenu } from "./CommandMenu";
 
 type Crumb = { label: string; href?: string };
@@ -88,6 +89,7 @@ export function Topbar({
               aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
               aria-controls="workbench-sidebar"
               aria-expanded={!collapsed}
+              data-slot="sidebar-trigger"
               className={`${iconBtn} hidden lg:grid`}
             >
               <PanelGlyph collapsed={collapsed} size={20} />
@@ -138,6 +140,9 @@ export function Topbar({
             >
               <SearchGlyph size={19} />
             </button>
+          </AceternityTooltip>
+          <AceternityTooltip label="Toggle interface sounds" side="bottom">
+            <SoundToggle className={`${iconBtn} text-muted hover:text-ink`} />
           </AceternityTooltip>
           <HoverBorderGradient
             as={Link}

@@ -180,6 +180,7 @@ export function MergeSettings({
           type="button"
           aria-expanded={advancedOpen}
           aria-controls="merge-advanced-settings"
+          data-slot="advanced-trigger"
           onClick={() => setAdvancedOpen((open) => !open)}
           className="flex w-full items-center justify-between gap-3 rounded-[11px] border border-line bg-white px-3 py-2.5 text-left transition-colors hover:border-[#d5d1c8]"
         >

@@ -65,7 +65,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
         if (event.target === dialogRef.current) onClose();
       }}
       aria-label="Search tools"
-      className="m-auto w-[min(600px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-line bg-white p-0 text-ink shadow-[0_24px_80px_rgba(0,0,0,0.16)]"
+      className="command-overlay m-auto w-[min(600px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-line bg-white p-0 text-ink shadow-[0_24px_80px_rgba(0,0,0,0.16)]"
     >
       <div className="group flex items-center gap-2.5 border-b border-line-soft bg-[linear-gradient(180deg,#ffffff_0%,#fdfdfc_100%)] px-4 transition-colors focus-within:border-[#dcd7ce]">
         <SearchGlyph
@@ -105,7 +105,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
                   key={page.path}
                   type="button"
                   onClick={() => go(page.path)}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-hover"
+                  className="command-option flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-hover"
                 >
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-rail">
                     <PageIcon size={14} className="text-ink" aria-hidden />
@@ -126,7 +126,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
               key={tool.path}
               type="button"
               onClick={() => go(tool.path)}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-hover"
+              className="command-option flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-hover"
             >
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-rail text-[#686864]">
                 <ToolGlyph path={tool.path} size={17} />
@@ -141,7 +141,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
                 <span className="block truncate text-micro text-faint">{tool.tagline}</span>
               </span>
               {tool.status === "soon" ? (
-                <Badge tone="soon">Preview</Badge>
+                <Badge tone="soon" className="command-option-more">Preview</Badge>
               ) : (
                 <ArrowRightGlyph size={14} className="shrink-0 text-faint" />
               )}

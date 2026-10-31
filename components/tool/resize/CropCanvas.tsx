@@ -216,6 +216,7 @@ export function CropCanvas({
               <button
                 key={opt.id}
                 type="button"
+                aria-pressed={active}
                 onClick={() => onRatioChange(opt.id)}
                 className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
                   active ? "bg-ink font-semibold text-white shadow-2xs" : "text-muted hover:text-ink"

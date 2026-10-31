@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Inter_Tight } from "next/font/google";
+import { SoundEffects } from "@/components/ui/sound";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -22,7 +23,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body className={`${inter.variable} ${interTight.variable} font-sans`}>{children}</body>
+      <body className={`${inter.variable} ${interTight.variable} font-sans`}>
+        <SoundEffects>{children}</SoundEffects>
+      </body>
     </html>
   );
 }

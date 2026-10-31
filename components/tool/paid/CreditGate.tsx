@@ -59,6 +59,8 @@ export function CreditGate({
       className="fixed inset-0 m-auto h-fit max-h-[calc(100vh-32px)] w-[min(480px,calc(100vw-32px))] overflow-y-auto rounded-[16px] border border-line bg-white p-0 text-ink shadow-[0_30px_80px_rgba(15,15,16,0.28)]"
     >
       <div className="p-6">
+        <span aria-hidden className="hidden" data-success={message} />
+
         <div className="flex items-start justify-between gap-4">
           <span className="grid h-10 w-10 place-items-center rounded-[11px] border border-line bg-rail text-ink">
             <Lock size={17} strokeWidth={1.7} aria-hidden />
@@ -67,6 +69,7 @@ export function CreditGate({
             type="button"
             onClick={() => ref.current?.close()}
             aria-label="Close dialog"
+            data-slot="dialog-close"
             className="grid h-8 w-8 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/25"
           >
             <X size={15} aria-hidden />

@@ -77,6 +77,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   const [settings, setSettings] = useState<PdfSettings>(DEFAULT_PDF_SETTINGS);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeTone, setNoticeTone] = useState<"success" | "error">("success");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<{ blob: Blob; name: string; bytes: number } | null>(null);
@@ -315,12 +316,14 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
       const pdf = buildPdf(pages, { title: name, creator: "frebies" });
       downloadBlob(pdf, name);
       setResult({ blob: pdf, name, bytes: pdf.size });
+      setNoticeTone("success");
       setNotice(
         `Exported ${name} · ${pages.length} page${pages.length === 1 ? "" : "s"} · ${formatBytes(
           pdf.size,
         )}. Built 100% on your device, private and secure.`,
       );
     } catch (thrown) {
+      setNoticeTone("error");
       setNotice(
         thrown instanceof Error
           ? thrown.message
@@ -488,6 +491,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                         <button
                           type="button"
                           onClick={() => handleRemovePage(activeItem.id)}
+                          data-slot="page-remove"
                           className="grid h-9 w-9 place-items-center rounded-[9px] border border-line bg-white text-muted shadow-2xs transition-colors hover:border-[#a13d30]/40 hover:bg-[#fff5f5] hover:text-[#a13d30]"
                           title={`Remove page ${activeIndex + 1}`}
                         >
@@ -666,6 +670,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                                     setActiveId(item.id);
                                     setStageView("single");
                                   }}
+                                  data-slot="page-item"
                                   className="relative flex items-center justify-center overflow-hidden rounded-[3px] border border-black/10 shadow-[0_4px_12px_rgba(0,0,0,0.08)] transition-transform group-hover:scale-[1.02]"
                                   style={{
                                     width: `${gridSheetW}px`,
@@ -720,6 +725,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                                   e.stopPropagation();
                                   handleRemovePage(item.id);
                                 }}
+                                data-slot="page-remove"
                                 className="absolute right-2 top-2 z-20 grid h-6 w-6 place-items-center rounded-full border border-line bg-white text-muted shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:border-[#a13d30]/50 hover:bg-[#fff5f5] hover:text-[#a13d30]"
                                 title="Remove page"
                               >
@@ -791,6 +797,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                           clearAll();
                           setNotice(null);
                         }}
+                        data-variant="destructive"
                         className="h-7 whitespace-nowrap rounded-[7px] px-1.5 text-[11.5px] font-medium text-faint transition-colors hover:bg-[#f6f4f0] hover:text-[#a13d30]"
                       >
                         Clear
@@ -879,6 +886,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                             }}
                             aria-label={`Remove page ${index + 1}`}
                             title="Remove page"
+                            data-slot="page-remove"
                             className={`absolute right-1 top-1 z-10 grid h-[22px] w-[22px] place-items-center rounded-full border border-white/60 bg-black/55 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-[#a13d30] focus-visible:opacity-100 ${
                               isActive
                                 ? "opacity-100"
@@ -920,6 +928,13 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             onChange={onPick}
           />
 
+          <span
+            aria-hidden
+            className="hidden"
+            data-success={noticeTone === "success" ? notice : undefined}
+            data-error={error ?? (noticeTone === "error" ? notice : undefined)}
+          />
+
           {error && (
             <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
               <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
@@ -931,7 +946,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
         {/* Right Column: PDF Settings Rail */}
         <StudioRail
           label="PDF Inspector"
-          footer={
+          action={
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3 text-[11.5px]">
                 <span className="flex items-center gap-1.5 font-medium text-muted">
@@ -967,27 +982,32 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                   <span>Export PDF</span>
                 )}
               </button>
-
-              {result && (
-                <button
-                  type="button"
-                  onClick={() => downloadBlob(result.blob, result.name)}
-                  className="flex h-9 w-full items-center justify-center gap-1.5 rounded-[10px] border border-line bg-white text-[11.5px] font-medium text-ink transition-colors hover:bg-[#faf9f6]"
-                >
-                  <Download size={13} aria-hidden />
-                  Download again ({formatBytes(result.bytes)})
-                </button>
-              )}
-
-              {notice && (
-                <p
-                  role="status"
-                  className="rounded-[9px] border border-[#d9e3d5] bg-[#f4f8f2] px-2.5 py-2 text-[11px] font-medium leading-relaxed text-[#305e2b]"
-                >
-                  {notice}
-                </p>
-              )}
             </div>
+          }
+          footer={
+            result || notice ? (
+              <div className="space-y-2.5">
+                {result && (
+                  <button
+                    type="button"
+                    onClick={() => downloadBlob(result.blob, result.name)}
+                    className="flex h-9 w-full items-center justify-center gap-1.5 rounded-[10px] border border-line bg-white text-[11.5px] font-medium text-ink transition-colors hover:bg-[#faf9f6]"
+                  >
+                    <Download size={13} aria-hidden />
+                    Download again ({formatBytes(result.bytes)})
+                  </button>
+                )}
+
+                {notice && (
+                  <p
+                    role="status"
+                    className="rounded-[9px] border border-[#d9e3d5] bg-[#f4f8f2] px-2.5 py-2 text-[11px] font-medium leading-relaxed text-[#305e2b]"
+                  >
+                    {notice}
+                  </p>
+                )}
+              </div>
+            ) : undefined
           }
         >
           <PdfControls

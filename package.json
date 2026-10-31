@@ -14,6 +14,7 @@
     "@tsparticles/engine": "^3.9.1",
     "@tsparticles/react": "^3.0.0",
     "@tsparticles/slim": "^3.9.1",
+    "@web-kits/audio": "^0.2.0",
     "clsx": "^2.1.1",
     "framer-motion": "11.11.9",
     "heic2any": "^0.0.4",

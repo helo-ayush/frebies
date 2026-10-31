@@ -228,6 +228,17 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
       aria-label="Audio conversion studio"
       className="scroll-mt-20 rounded-[26px] border border-line bg-white"
     >
+      <span
+        aria-hidden
+        className="hidden"
+        data-success={result && !stale ? `converted-${runIdRef.current}` : undefined}
+        data-error={
+          runError ??
+          (decodeFailed
+            ? "decode-failed"
+            : error ?? undefined)
+        }
+      />
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-[#fdfdfc] px-4 py-3.5 sm:px-5">
         <div className="flex items-center gap-3">
           <span className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-white text-ink">
@@ -387,8 +398,21 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
             </p>
           )}
 
-          <div className="mt-auto flex shrink-0 flex-col gap-3 border-t border-line-soft pt-4">
-            {busy ? (
+          {runError && phase === "error" && (
+            <p
+              role="alert"
+              className="mt-3 shrink-0 rounded-[10px] border border-[#f0d8d1] bg-[#fdf4f1] px-3 py-2.5 text-micro leading-relaxed text-[#a13d30]"
+            >
+              {runError}
+            </p>
+          )}
+        </div>
+
+        <StudioRail
+          label="Audio conversion settings"
+          sticky
+          action={
+            busy ? (
               <div className="w-full">
                 <div className="flex items-center justify-between gap-3 text-micro">
                   <span className="flex min-w-0 items-center gap-2 truncate text-muted">
@@ -427,20 +451,12 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
                 </div>
               </div>
             ) : (
-              <>
-                <p className="flex items-center gap-1.5 text-micro text-faint">
-                  <ShieldCheck size={12} aria-hidden />
-                  Free · no upload · no watermark
-                </p>
+              <div className="space-y-2.5">
                 <button
                   type="button"
                   onClick={() => void runConversion()}
                   disabled={!canRun}
-                  className={buttonClasses(
-                    "primary",
-                    "md",
-                    "w-full min-w-0 sm:w-auto sm:min-w-[140px]",
-                  )}
+                  className={buttonClasses("primary", "md", "w-full")}
                 >
                   {item?.decoding ? (
                     <>
@@ -454,21 +470,14 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
                     </>
                   )}
                 </button>
-              </>
-            )}
-          </div>
-
-          {runError && phase === "error" && (
-            <p
-              role="alert"
-              className="mt-3 shrink-0 rounded-[10px] border border-[#f0d8d1] bg-[#fdf4f1] px-3 py-2.5 text-micro leading-relaxed text-[#a13d30]"
-            >
-              {runError}
-            </p>
-          )}
-        </div>
-
-        <StudioRail label="Audio conversion settings" sticky>
+                <p className="flex items-center justify-center gap-1.5 text-[10.5px] text-faint">
+                  <ShieldCheck size={12} aria-hidden />
+                  Free · no upload · no watermark
+                </p>
+              </div>
+            )
+          }
+        >
           <div className="space-y-5">
             <div className="flex items-baseline justify-between gap-3">
               <h3 className="text-ui font-semibold text-ink">Output format</h3>
@@ -617,6 +626,7 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
                 type="button"
                 aria-expanded={advancedOpen}
                 aria-controls="audio-advanced-settings"
+                data-slot="advanced-trigger"
                 onClick={() => setAdvancedOpen((open) => !open)}
                 className="flex w-full items-center justify-between gap-3 rounded-[11px] border border-line bg-white px-3 py-2.5 text-left transition-colors hover:border-[#d5d1c8]"
               >

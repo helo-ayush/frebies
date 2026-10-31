@@ -149,6 +149,7 @@ export function MergeDocRow({
             onClick={() => setExpanded((open) => !open)}
             disabled={reading || locked}
             aria-expanded={expanded}
+            data-slot="row-trigger"
             aria-label={expanded ? `Hide options for ${item.name}` : `Show options for ${item.name}`}
             className={iconButton}
           >
@@ -163,6 +164,7 @@ export function MergeDocRow({
             onClick={() => onRemove(item.id)}
             disabled={locked}
             aria-label={`Remove ${item.name}`}
+            data-slot="doc-remove"
             className={iconButton}
           >
             <X size={13} aria-hidden />

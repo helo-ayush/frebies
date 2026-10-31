@@ -7,20 +7,22 @@ import type { ReactNode } from "react";
  * viewport (e.g. after expanding an advanced-settings group). Scrollbars only
  * become visible on hover or focus so the surface stays calm.
  *
- * `footer` pins an action area below the scrolling settings — used by studios
- * whose primary action belongs next to the controls rather than in the canvas.
+ * `action` pins the primary action above the settings so it is visible before
+ * any scrolling. `footer` pins secondary output actions below the settings.
  */
 export function StudioRail({
   children,
   label = "Tool settings",
   className = "",
   sticky = false,
+  action,
   footer,
 }: {
   children: ReactNode;
   label?: string;
   className?: string;
   sticky?: boolean;
+  action?: ReactNode;
   footer?: ReactNode;
 }) {
   return (
@@ -30,6 +32,9 @@ export function StudioRail({
         sticky ? "lg:sticky lg:top-[76px] lg:z-10 lg:max-h-[calc(100vh-92px)]" : "lg:h-full"
       } ${className}`}
     >
+      {action ? (
+        <div className="shrink-0 border-b border-line bg-white px-4 py-3.5 sm:px-5">{action}</div>
+      ) : null}
       <div
         tabIndex={0}
         className="studio-rail min-h-0 flex-1 p-4 outline-none sm:p-5 lg:overflow-y-auto lg:focus-visible:ring-2 lg:focus-visible:ring-inset lg:focus-visible:ring-accent"

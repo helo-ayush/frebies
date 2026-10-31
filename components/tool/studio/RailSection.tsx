@@ -34,6 +34,7 @@ export function RailSection({
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
+        data-slot="section-trigger"
         className="flex w-full items-center gap-3 p-3.5 text-left transition-colors hover:bg-[#fbfaf8]"
       >
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-line bg-[#faf9f6] text-ink">

@@ -193,6 +193,13 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
       aria-label="Merge PDF studio"
       className="scroll-mt-20 rounded-[26px] border border-line bg-white"
     >
+      <span
+        aria-hidden
+        className="hidden"
+        data-success={result && !stale ? `merged-${runIdRef.current}` : undefined}
+        data-error={runError ?? (queue.errors.length ? queue.errors.join(" · ") : undefined)}
+      />
+
       <StudioHeader
         path="/document/merge-pdf"
         title="Merge studio"
@@ -292,6 +299,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                     type="button"
                     onClick={clearAll}
                     disabled={busy}
+                    data-variant="destructive"
                     className={toolButton}
                   >
                     <Trash2 size={11} aria-hidden />
@@ -484,26 +492,11 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       {outputName}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-micro tabular-nums text-faint">
-                      {queue.reading
-                        ? "Reading documents…"
-                        : `${readyCount} document${readyCount === 1 ? "" : "s"} → ${projectedPages} page${projectedPages === 1 ? "" : "s"}`}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void runMerge()}
-                      disabled={!canRun}
-                      className={buttonClasses("primary", "md", "w-full min-w-0 sm:w-auto sm:min-w-[150px]")}
-                    >
-                      {queue.reading
-                        ? "Reading PDFs…"
-                        : readyCount === 1
-                          ? "Export PDF"
-                          : `Merge ${readyCount} PDFs`}
-                      <ArrowRightGlyph size={13} />
-                    </button>
-                  </div>
+                  <p className="text-micro tabular-nums text-faint">
+                    {queue.reading
+                      ? "Reading documents…"
+                      : `${readyCount} document${readyCount === 1 ? "" : "s"} → ${projectedPages} page${projectedPages === 1 ? "" : "s"}`}
+                  </p>
                 </>
               )}
 
@@ -519,7 +512,43 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           )}
         </div>
 
-        <StudioRail label="Merge settings" sticky>
+        <StudioRail
+          label="Merge settings"
+          sticky
+          action={
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => void runMerge()}
+                disabled={!canRun || busy}
+                className={buttonClasses("primary", "md", "w-full")}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" aria-hidden />
+                    Merging…
+                  </>
+                ) : (
+                  <>
+                    {queue.reading
+                      ? "Reading PDFs…"
+                      : readyCount === 0
+                        ? "Merge PDFs"
+                        : readyCount === 1
+                          ? "Export PDF"
+                          : `Merge ${readyCount} PDFs`}
+                    <ArrowRightGlyph size={13} />
+                  </>
+                )}
+              </button>
+              <p className="flex items-center justify-center gap-1.5 text-[10.5px] text-faint">
+                <ShieldCheck size={12} aria-hidden />
+                {readyCount} of {queue.items.length} ready · {projectedPages} page
+                {projectedPages === 1 ? "" : "s"}
+              </p>
+            </div>
+          }
+        >
           <MergeSettings
             settings={settings}
             onChange={patchSettings}

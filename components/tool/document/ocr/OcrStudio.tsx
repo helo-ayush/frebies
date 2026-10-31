@@ -250,6 +250,7 @@ export function OcrStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       setNotice(null);
                     }}
                     aria-label={`Remove ${activeItem.name}`}
+                    data-slot="pdf-remove"
                     className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
                   >
                     <X size={13} aria-hidden />
@@ -298,6 +299,8 @@ export function OcrStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             onChange={onPick}
           />
 
+          <span aria-hidden className="hidden" data-success={notice} data-error={error} />
+
           {error && (
             <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
               <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
@@ -322,7 +325,7 @@ export function OcrStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
         <PaidRail
           label="OCR settings"
-          footer={
+          action={
             <PaidRunCard
               cost={1}
               verb="extract text"

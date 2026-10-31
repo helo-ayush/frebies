@@ -138,6 +138,8 @@ export function MergedPdfDialog({
       }}
       className="fixed inset-0 m-auto h-fit max-h-[calc(100vh-28px)] w-[min(760px,calc(100vw-24px))] overflow-y-auto overscroll-contain rounded-[16px] border border-line bg-white p-0 text-ink shadow-[0_30px_80px_rgba(15,15,16,0.3)]"
     >
+      <span aria-hidden className="hidden" data-error={error} />
+
       <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line bg-white/95 px-4 py-3 backdrop-blur sm:px-5">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-line bg-[#f6f4f0] text-[8.5px] font-semibold uppercase tracking-[0.06em] text-muted">
@@ -156,6 +158,7 @@ export function MergedPdfDialog({
           type="button"
           onClick={() => dialogRef.current?.close()}
           aria-label="Close preview"
+          data-slot="dialog-close"
           className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/25"
         >
           <X size={15} aria-hidden />
@@ -233,6 +236,7 @@ export function MergedPdfDialog({
           <button
             type="button"
             onClick={() => dialogRef.current?.close()}
+            data-slot="dialog-close"
             className={buttonClasses("secondary", "sm")}
           >
             Close
