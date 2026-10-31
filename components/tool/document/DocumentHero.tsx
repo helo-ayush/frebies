@@ -15,8 +15,8 @@ const COPY: Record<
   merge: {
     studio: "Merge studio",
     description:
-      "Combine quotes, invoices and reports into one clean document. Set the order, add bookmarks and keep every page exactly as it was.",
-    bullets: ["Reorder full documents", "Bookmarks and page numbers", "Nothing leaves this device"],
+      "Combine quotes, invoices and reports into one clean document. Drag files into order, keep only the pages you need and export a single PDF.",
+    bullets: ["Drag to reorder files", "Page ranges and rotation", "Nothing leaves this device"],
   },
   split: {
     studio: "Split studio",
@@ -95,7 +95,14 @@ export function DocumentHero({
               ) : (
                 <Badge tone="free">Free</Badge>
               )}
-              <Badge tone="neutral">Interface preview</Badge>
+              {tool.status === "live" ? (
+                <Badge tone="neutral">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#4f8a63]" />
+                  {tool.engine === "browser" ? "On-device engine" : "Cloud engine"}
+                </Badge>
+              ) : (
+                <Badge tone="neutral">Interface preview</Badge>
+              )}
             </div>
           </div>
 

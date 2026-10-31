@@ -615,17 +615,50 @@ export const tools: Tool[] = [
     icon: Layers,
     tier: "free",
     engine: "browser",
-    status: "soon",
+    status: "live",
     featured: true,
     limits: { maxSizeMB: 25, formats: ["PDF"] },
     resumeBehavior: "auto",
     seo: {
       title: "Merge PDF Files Online Free — Combine PDFs in Seconds",
       metaDescription:
-        "Merge multiple PDF files into one document in your browser. Free, private and no sign-up.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Merge multiple PDF files into one document in your browser. Reorder files, keep page ranges, add bookmarks and page numbers. Free, private and no sign-up.",
+      howItWorks: [
+        "Add two or more PDFs, or a single file you want to reorganise. Every file is read in your browser.",
+        "Drag documents into order, pick page ranges, rotate pages and set bookmarks, numbering or document details.",
+        "Merge, preview the finished file page by page, then download it with no watermark.",
+      ],
+      benefits: [
+        "Assembled on your device, so documents never leave your browser.",
+        "Keep exact page ranges, rotate pages and add a bookmark per document.",
+        "Preview the merged PDF page by page before you download it.",
+      ],
+      faq: [
+        {
+          q: "Is Merge PDF free?",
+          a: "Yes. Merging, page selection, rotation, page numbers and bookmarks are free and unlimited, with no account required.",
+        },
+        {
+          q: "Are my files uploaded?",
+          a: "No. Each PDF is read and assembled inside your browser. Nothing is sent to a server, and the merged file is created locally.",
+        },
+        {
+          q: "Can I merge only some pages?",
+          a: "Yes. Expand any document to keep a range like 1-3, 6, or use the odd and even shortcuts. Rotation is set per document as well.",
+        },
+        {
+          q: "Does it add a watermark?",
+          a: "No watermarks and no branding pages. The output contains only the pages you selected.",
+        },
+        {
+          q: "Does merging reduce quality?",
+          a: "No. Pages are copied rather than re-rendered, so text, images and links stay exactly as they were. Optimize only restructures the file to trim overhead.",
+        },
+        {
+          q: "Is there a size limit?",
+          a: "Up to 25 MB per file, 12 files and 1,200 pages in total. These limits keep an on-device merge fast and reliable.",
+        },
+      ],
       related: ["split-pdf", "pdf-to-jpg", "ocr"],
     },
   },
