@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Lock, Mail, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
+import { Lock, UserPlus, X } from "lucide-react";
+import { useAuthSession } from "@/components/auth/AuthContext";
 import { buttonClasses } from "@/components/ui/Button";
 
 export function CreditGate({
@@ -16,17 +19,28 @@ export function CreditGate({
   cost: number;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const pathname = usePathname();
+  const { isSignedIn } = useAuthSession();
+
+  const redirectQuery =
+    pathname && pathname !== "/dashboard"
+      ? `?redirect_url=${encodeURIComponent(pathname)}`
+      : "";
 
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
     if (open && !dialog.open) {
-      setMessage(null);
       dialog.showModal();
     }
     if (!open && dialog.open) dialog.close();
   }, [open]);
+
+  useEffect(() => {
+    if (isSignedIn && ref.current?.open) {
+      ref.current.close();
+    }
+  }, [isSignedIn]);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -45,12 +59,6 @@ export function CreditGate({
     };
   }, [onClose]);
 
-  function comingSoon(method: string) {
-    setMessage(
-      `${method} sign-in is connected in the next build step. Your file and settings stay preserved in this browser.`,
-    );
-  }
-
   return (
     <dialog
       ref={ref}
@@ -59,8 +67,6 @@ export function CreditGate({
       className="fixed inset-0 m-auto h-fit max-h-[calc(100vh-32px)] w-[min(480px,calc(100vw-32px))] overflow-y-auto rounded-[16px] border border-line bg-white p-0 text-ink shadow-[0_30px_80px_rgba(15,15,16,0.28)]"
     >
       <div className="p-6">
-        <span aria-hidden className="hidden" data-success={message} />
-
         <div className="flex items-start justify-between gap-4">
           <span className="grid h-10 w-10 place-items-center rounded-[11px] border border-line bg-rail text-ink">
             <Lock size={17} strokeWidth={1.7} aria-hidden />
@@ -96,34 +102,20 @@ export function CreditGate({
         </div>
 
         <div className="mt-4 space-y-2">
-          <button
-            type="button"
-            onClick={() => comingSoon("Google")}
+          <Link
+            href={`/sign-up${redirectQuery}`}
             className={buttonClasses("primary", "md", "w-full")}
           >
-            <span className="grid h-4 w-4 place-items-center rounded-full bg-white text-[9px] font-bold text-ink">
-              G
-            </span>
-            Continue with Google
-          </button>
-          <button
-            type="button"
-            onClick={() => comingSoon("Email")}
+            <UserPlus size={14} aria-hidden />
+            Create free account (25 credits)
+          </Link>
+          <Link
+            href={`/sign-in${redirectQuery}`}
             className={buttonClasses("secondary", "md", "w-full")}
           >
-            <Mail size={13} aria-hidden />
-            Email me a 6-digit code
-          </button>
+            Sign in with Google or email
+          </Link>
         </div>
-
-        {message && (
-          <p
-            role="status"
-            className="mt-3 rounded-[9px] border border-[#eadfce] bg-[#fdf9f2] px-3 py-2 text-[10.5px] leading-relaxed text-[#786344]"
-          >
-            {message}
-          </p>
-        )}
 
         <p className="mt-4 border-t border-line-soft pt-3 text-[10px] leading-relaxed text-faint">
           Cancel any time and the draft stays here for up to 60 minutes. No credits are

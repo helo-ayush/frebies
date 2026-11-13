@@ -4,7 +4,17 @@ import { PointerHighlight } from "@/components/aceternity/pointer-highlight";
 import { Badge } from "@/components/ui/Badge";
 import { Breadcrumb } from "@/components/arc/breadcrumb/breadcrumb";
 
-export function ToolHeader({ tool, category }: { tool: Tool; category: Category }) {
+export function ToolHeader({
+  tool,
+  category,
+  showTierBadge = true,
+  showEngineBadge = true,
+}: {
+  tool: Tool;
+  category: Category;
+  showTierBadge?: boolean;
+  showEngineBadge?: boolean;
+}) {
   const Icon = tool.icon;
   const EngineIcon = tool.engine === "browser" ? MonitorDown : Cloud;
 
@@ -28,7 +38,7 @@ export function ToolHeader({ tool, category }: { tool: Tool; category: Category 
             >
               <span className="px-0.5">{tool.h1}</span>
             </PointerHighlight>
-            {tool.tier === "credits" && (
+            {showTierBadge && tool.tier === "credits" && (
               <span title="Uses credits — sign in to run" className="mt-1">
                 <Lock size={14} strokeWidth={1.8} className="text-faint" aria-hidden />
               </span>
@@ -38,21 +48,26 @@ export function ToolHeader({ tool, category }: { tool: Tool; category: Category 
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-        {tool.status === "soon" && <Badge tone="soon">UI preview</Badge>}
-        {tool.tier === "free" ? (
-          <Badge tone="free">Free</Badge>
-        ) : (
-          <Badge tone="credits">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            {tool.creditCost} {tool.creditCost === 1 ? "credit" : "credits"}
-          </Badge>
-        )}
-        <Badge tone="neutral">
-          <EngineIcon size={11} aria-hidden />
-          {tool.engine === "browser" ? "On-device" : "Cloud"}
-        </Badge>
-      </div>
+      {(showTierBadge || showEngineBadge) && (
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          {tool.status === "soon" && <Badge tone="soon">UI preview</Badge>}
+          {showTierBadge &&
+            (tool.tier === "free" ? (
+              <Badge tone="free">Free</Badge>
+            ) : (
+              <Badge tone="credits">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                {tool.creditCost} {tool.creditCost === 1 ? "credit" : "credits"}
+              </Badge>
+            ))}
+          {showEngineBadge && (
+            <Badge tone="neutral">
+              <EngineIcon size={11} aria-hidden />
+              {tool.engine === "browser" ? "On-device" : "Cloud"}
+            </Badge>
+          )}
+        </div>
+      )}
     </header>
   );
 }

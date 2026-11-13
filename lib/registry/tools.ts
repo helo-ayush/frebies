@@ -902,7 +902,7 @@ export const tools: Tool[] = [
     tier: "credits",
     creditCost: 1,
     engine: "api",
-    status: "soon",
+    status: "live",
     featured: true,
     limits: { formats: ["TXT"], maxChars: 10000 },
     resumeBehavior: "auto",

@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useRef, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { LogOut } from "lucide-react";
 import { BrandMark, Wordmark } from "@/components/brand/Wordmark";
 import { AceternityTooltip } from "@/components/aceternity/animated-tooltip";
 import { MovingBorderPill } from "@/components/aceternity/moving-border";
+import { useAuthSession } from "@/components/auth/AuthContext";
 import {
   CloseGlyph,
   HomeGlyph,
@@ -29,6 +31,15 @@ export function Sidebar({
   const pathname = usePathname();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const compact = collapsed && !open;
+  const { isSignedIn, user, signOut } = useAuthSession();
+
+  const authSuffix =
+    pathname &&
+    pathname !== "/dashboard" &&
+    !pathname.startsWith("/sign-in") &&
+    !pathname.startsWith("/sign-up")
+      ? `?redirect_url=${encodeURIComponent(pathname)}`
+      : "";
 
   useEffect(() => {
     if (open) closeButtonRef.current?.focus();
@@ -92,15 +103,41 @@ export function Sidebar({
           </div>
 
           <div className="shrink-0 p-3">
-            <AceternityTooltip label="Get 25 free credits" hint="AI tools" side="right">
-              <Link
-                href="/sign-in"
-                aria-label="Get 25 free credits"
-                className="grid h-11 w-11 place-items-center rounded-xl border border-line bg-white text-ink transition-colors hover:bg-hover"
+            {isSignedIn && user ? (
+              <AceternityTooltip
+                label={`Signed in as ${user.fullName ?? user.email ?? "Account"}`}
+                hint="Sign out"
+                side="right"
               >
-                <SparkGlyph size={17} />
-              </Link>
-            </AceternityTooltip>
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  aria-label="Sign out"
+                  className="grid h-11 w-11 place-items-center rounded-xl border border-line bg-white text-[12px] font-semibold text-ink transition-colors hover:bg-hover"
+                >
+                  {user.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.imageUrl}
+                      alt={user.fullName ?? "Account"}
+                      className="h-7 w-7 rounded-full object-cover"
+                    />
+                  ) : (
+                    user.initials
+                  )}
+                </button>
+              </AceternityTooltip>
+            ) : (
+              <AceternityTooltip label="Sign up · 25 free credits" hint="AI tools" side="right">
+                <Link
+                  href={`/sign-up${authSuffix}`}
+                  aria-label="Create account for 25 free credits"
+                  className="grid h-11 w-11 place-items-center rounded-xl border border-line bg-white text-ink transition-colors hover:bg-hover"
+                >
+                  <SparkGlyph size={17} />
+                </Link>
+              </AceternityTooltip>
+            )}
           </div>
         </>
       ) : (
@@ -170,23 +207,64 @@ export function Sidebar({
           </div>
 
           <div className="shrink-0 p-2.5">
-            <div className="rounded-xl border border-line bg-white p-3.5">
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-rail text-ink">
-                <SparkGlyph size={15} />
-              </span>
-              <p className="mt-3 text-[13px] font-medium text-ink">Get 25 free credits</p>
-              <p className="mt-0.5 text-[12px] leading-[1.5] text-muted">
-                Create an account to try the AI tools.
-              </p>
-              <MovingBorderPill
-                containerClassName="mt-3 w-full"
-                className="w-full px-3 py-2"
-              >
-                <Link href="/sign-in" className="block w-full text-center text-ui font-medium text-ink">
-                  Sign in to claim
+            {isSignedIn && user ? (
+              <div className="rounded-xl border border-line bg-white p-3.5">
+                <div className="flex items-center gap-2.5">
+                  {user.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.imageUrl}
+                      alt={user.fullName ?? "Account avatar"}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink text-[11px] font-semibold text-white">
+                      {user.initials}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium text-ink">
+                      {user.fullName ?? user.firstName ?? "Signed in"}
+                    </p>
+                    {user.email && (
+                      <p className="truncate text-[11.5px] text-muted">{user.email}</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className={buttonClasses("secondary", "sm", "mt-3 w-full text-[12.5px]")}
+                >
+                  <LogOut size={13} aria-hidden />
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-line bg-white p-3.5">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-rail text-ink">
+                  <SparkGlyph size={15} />
+                </span>
+                <p className="mt-3 text-[13px] font-medium text-ink">Get 25 free credits</p>
+                <p className="mt-0.5 text-[12px] leading-[1.5] text-muted">
+                  Create an account to try the AI tools.
+                </p>
+                <MovingBorderPill
+                  containerClassName="mt-3 w-full"
+                  className="w-full px-3 py-2"
+                >
+                  <Link href={`/sign-up${authSuffix}`} className="block w-full text-center text-ui font-medium text-ink">
+                    Create account
+                  </Link>
+                </MovingBorderPill>
+                <Link
+                  href={`/sign-in${authSuffix}`}
+                  className="mt-2 block w-full text-center text-[12px] font-medium text-muted transition-colors hover:text-ink"
+                >
+                  Already have an account? <span className="text-ink underline underline-offset-2">Sign in</span>
                 </Link>
-              </MovingBorderPill>
-            </div>
+              </div>
+            )}
           </div>
         </>
       )}

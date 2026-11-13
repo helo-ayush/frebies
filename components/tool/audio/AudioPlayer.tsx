@@ -245,6 +245,7 @@ export function AudioPlayer({
       <div
         ref={trackRef}
         role="slider"
+        data-sound="none"
         tabIndex={0}
         aria-label="Audio position"
         aria-valuemin={0}

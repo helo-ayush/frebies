@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useAuthSession } from "./auth/AuthContext";
 import { HoverBorderGradient } from "./aceternity/hover-border-gradient";
 import { Btn, grads } from "./ui";
 import { SoundToggle } from "./ui/sound";
@@ -24,6 +25,7 @@ export function Logo() {
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const { isSignedIn, signOut } = useAuthSession();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 240);
@@ -78,7 +80,34 @@ export default function Navbar() {
           </div>
           <div className="flex items-center gap-2">
             <SoundToggle className="text-neutral-400 hover:text-neutral-700" />
-            <Btn sm href="/dashboard">Get started</Btn>
+            {isSignedIn ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className="hidden rounded-full px-3.5 py-2 text-[14px] font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-black sm:inline-flex"
+                >
+                  Sign out
+                </button>
+                <Btn sm href="/dashboard">Open studio</Btn>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/sign-in"
+                  className="hidden rounded-full px-3.5 py-2 text-[14px] font-medium text-neutral-700 transition-colors hover:bg-neutral-100 hover:text-black sm:inline-flex"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/sign-up"
+                  className="hidden rounded-full border border-line bg-white px-4 py-2 text-[14px] font-medium text-ink transition-colors hover:bg-neutral-50 sm:inline-flex"
+                >
+                  Sign up
+                </Link>
+                <Btn sm href="/dashboard">Get started</Btn>
+              </>
+            )}
           </div>
         </div>
       </header>

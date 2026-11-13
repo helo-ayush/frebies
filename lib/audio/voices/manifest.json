@@ -1,0 +1,232 @@
+{
+  "aria": {
+    "id": "aria",
+    "name": "Aria",
+    "description": "Warm, calm and clear narrator voice.",
+    "file": "aria.wav",
+    "text": "Welcome back to our quiet studio. Take a deep breath, settle in, and let the story unfold cleanly.",
+    "durationSec": 6.55,
+    "sampleRate": 44100,
+    "bytes": 577580
+  },
+  "kai": {
+    "id": "kai",
+    "name": "Kai",
+    "description": "Bright, upbeat and conversational.",
+    "file": "kai.wav",
+    "text": "Hey everyone, great to see you here today! Let us dive right in and turn notes into crisp speech.",
+    "durationSec": 6.13,
+    "sampleRate": 44100,
+    "bytes": 540716
+  },
+  "mira": {
+    "id": "mira",
+    "name": "Mira",
+    "description": "Soft, gentle and expressive storytelling.",
+    "file": "mira.wav",
+    "text": "Under the warm amber glow of the evening lamp, every word carried a quiet grace and an easy rhythm.",
+    "durationSec": 7.48,
+    "sampleRate": 44100,
+    "bytes": 659500
+  },
+  "noah": {
+    "id": "noah",
+    "name": "Noah",
+    "description": "Deep, measured documentary voice.",
+    "file": "noah.wav",
+    "text": "Across decades of careful engineering, small deliberate refinements built what followed next.",
+    "durationSec": 6.55,
+    "sampleRate": 44100,
+    "bytes": 577580
+  },
+  "sarah": {
+    "id": "sarah",
+    "name": "Sarah",
+    "description": "Soft, reassuring news and narration voice.",
+    "file": "sarah.wav",
+    "text": "Good evening, and thank you for tuning in. Here is everything you need to know to start tomorrow prepared.",
+    "durationSec": 5.94,
+    "sampleRate": 44100,
+    "bytes": 524366
+  },
+  "laura": {
+    "id": "laura",
+    "name": "Laura",
+    "description": "Upbeat, punchy social and creator voice.",
+    "file": "laura.wav",
+    "text": "Wait until you hear how fast this works! Drop your script right here and listen to the result.",
+    "durationSec": 4.83,
+    "sampleRate": 44100,
+    "bytes": 426062
+  },
+  "alice": {
+    "id": "alice",
+    "name": "Alice",
+    "description": "Confident, articulate British news narrator.",
+    "file": "alice.wav",
+    "text": "Across the Thames at dawn, the city stirs quietly before the morning trains begin their daily rhythm.",
+    "durationSec": 6.36,
+    "sampleRate": 44100,
+    "bytes": 561230
+  },
+  "matilda": {
+    "id": "matilda",
+    "name": "Matilda",
+    "description": "Warm, pleasant audiobook storytelling voice.",
+    "file": "matilda.wav",
+    "text": "She opened the old brass compass on the wooden table and smiled, knowing the journey had finally begun.",
+    "durationSec": 6.13,
+    "sampleRate": 44100,
+    "bytes": 540750
+  },
+  "jessica": {
+    "id": "jessica",
+    "name": "Jessica",
+    "description": "Expressive, friendly modern conversational voice.",
+    "file": "jessica.wav",
+    "text": "Honestly, the easiest way to explain complex ideas is simply to talk like you would with a friend.",
+    "durationSec": 5.25,
+    "sampleRate": 44100,
+    "bytes": 462926
+  },
+  "lily": {
+    "id": "lily",
+    "name": "Lily",
+    "description": "Velvety, atmospheric British storytelling voice.",
+    "file": "lily.wav",
+    "text": "Beyond the mist-covered hills, lantern light flickered through the stone archway as midnight approached.",
+    "durationSec": 5.39,
+    "sampleRate": 44100,
+    "bytes": 475214
+  },
+  "river": {
+    "id": "river",
+    "name": "River",
+    "description": "Calm, balanced, neutral instructional voice.",
+    "file": "river.wav",
+    "text": "Let us walk through each setting step by step, keeping things clear, balanced, and easy to follow.",
+    "durationSec": 5.94,
+    "sampleRate": 44100,
+    "bytes": 524366
+  },
+  "george": {
+    "id": "george",
+    "name": "George",
+    "description": "Warm, resonant British documentary narrator.",
+    "file": "george.wav",
+    "text": "Beneath the surface of every ancient city lies a quiet archive of stone, memory, and human ambition.",
+    "durationSec": 6.41,
+    "sampleRate": 44100,
+    "bytes": 565326
+  },
+  "brian": {
+    "id": "brian",
+    "name": "Brian",
+    "description": "Deep, resonant narration and trailer voice.",
+    "file": "brian.wav",
+    "text": "When the horizon goes silent and only one signal remains, every second counts more than ever before.",
+    "durationSec": 6.36,
+    "sampleRate": 44100,
+    "bytes": 561230
+  },
+  "daniel": {
+    "id": "daniel",
+    "name": "Daniel",
+    "description": "Authoritative British broadcast and news presenter.",
+    "file": "daniel.wav",
+    "text": "Welcome to tonight's briefing. We are tracking major breakthroughs shaping the decade right ahead of us.",
+    "durationSec": 7.01,
+    "sampleRate": 44100,
+    "bytes": 618574
+  },
+  "roger": {
+    "id": "roger",
+    "name": "Roger",
+    "description": "Confident, classic promo and announcer voice.",
+    "file": "roger.wav",
+    "text": "Built for creators who value speed, clarity, and studio polish from the very first spoken word.",
+    "durationSec": 5.71,
+    "sampleRate": 44100,
+    "bytes": 503886
+  },
+  "charlie": {
+    "id": "charlie",
+    "name": "Charlie",
+    "description": "Natural, laid-back Australian conversational voice.",
+    "file": "charlie.wav",
+    "text": "Hey there, let us keep things relaxed and straightforward today, no jargon, just clean results.",
+    "durationSec": 5.67,
+    "sampleRate": 44100,
+    "bytes": 499790
+  },
+  "callum": {
+    "id": "callum",
+    "name": "Callum",
+    "description": "Intense, gravelly dramatic character narrator.",
+    "file": "callum.wav",
+    "text": "The storm rolled across the harbor walls long before anyone realized the lighthouse beam had gone dark.",
+    "durationSec": 6.64,
+    "sampleRate": 44100,
+    "bytes": 585806
+  },
+  "liam": {
+    "id": "liam",
+    "name": "Liam",
+    "description": "Articulate, energetic young creator voice.",
+    "file": "liam.wav",
+    "text": "Here is a simple workflow trick that cuts your editing time in half and keeps viewers watching.",
+    "durationSec": 5.11,
+    "sampleRate": 44100,
+    "bytes": 450638
+  },
+  "will": {
+    "id": "will",
+    "name": "Will",
+    "description": "Warm, relaxed podcast and tutorial host.",
+    "file": "will.wav",
+    "text": "Grab a cup of coffee and take a breath, because today's walkthrough is simpler than you think.",
+    "durationSec": 5.11,
+    "sampleRate": 44100,
+    "bytes": 450638
+  },
+  "eric": {
+    "id": "eric",
+    "name": "Eric",
+    "description": "Smooth, steady, trustworthy narrator.",
+    "file": "eric.wav",
+    "text": "Every dependable product starts with clear communication and thoughtful craftsmanship behind it.",
+    "durationSec": 5.67,
+    "sampleRate": 44100,
+    "bytes": 499790
+  },
+  "chris": {
+    "id": "chris",
+    "name": "Chris",
+    "description": "Down-to-earth, casual everyday speaker.",
+    "file": "chris.wav",
+    "text": "Yeah, so once you hear how smooth the pacing feels, you will know right away it is ready to go.",
+    "durationSec": 5.29,
+    "sampleRate": 44100,
+    "bytes": 467022
+  },
+  "bill": {
+    "id": "bill",
+    "name": "Bill",
+    "description": "Trustworthy, mature documentary narrator.",
+    "file": "bill.wav",
+    "text": "Over half a century of quiet perseverance turned small local workshops into enduring landmarks.",
+    "durationSec": 6.04,
+    "sampleRate": 44100,
+    "bytes": 532558
+  },
+  "harry": {
+    "id": "harry",
+    "name": "Harry",
+    "description": "Dynamic, expressive young character voice.",
+    "file": "harry.wav",
+    "text": "Wait, did you hear footsteps echo down the corridor? Keep the flashlight low and stay close.",
+    "durationSec": 5.9,
+    "sampleRate": 44100,
+    "bytes": 520270
+  }
+}

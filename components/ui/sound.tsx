@@ -357,6 +357,7 @@ function rowPitch(el: HTMLElement) {
 }
 
 function soundFor(target: Element, keyed = false): Cue | null {
+  if (target.closest('[data-sound="none"]')) return null
 
   if (target.closest('.command-overlay')) {
 
@@ -421,6 +422,7 @@ function SoundEffectListener() {
     const DRAG_SLOP_PX = 3
 
     let grab: { x: number; y: number; dragged: boolean } | null = null
+    let interactingSlider: Element | null = null
     let nextTickAt = 0
     const queued = new Set<ReturnType<typeof setTimeout>>()
 
@@ -466,6 +468,8 @@ function SoundEffectListener() {
     const onPointerDown = (event: PointerEvent) => {
 
       if (event.button !== 0 || !(event.target instanceof Element)) return
+      const sliderEl = event.target.closest('input[type="range"], [role="slider"], [data-slot="slider"]')
+      interactingSlider = sliderEl && !sliderEl.closest('[data-sound="none"]') ? sliderEl : null
       const cue = soundFor(event.target)
       if (!cue) return
       if (cue.sound === 'tick') grab = { x: event.clientX, y: event.clientY, dragged: false }
@@ -473,8 +477,22 @@ function SoundEffectListener() {
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.target instanceof Element)) return
+      if (
+        event.key === 'ArrowLeft' ||
+        event.key === 'ArrowRight' ||
+        event.key === 'ArrowUp' ||
+        event.key === 'ArrowDown' ||
+        event.key === 'Home' ||
+        event.key === 'End' ||
+        event.key === 'PageUp' ||
+        event.key === 'PageDown'
+      ) {
+        const sliderEl = event.target.closest('input[type="range"], [role="slider"]')
+        interactingSlider = sliderEl && !sliderEl.closest('[data-sound="none"]') ? sliderEl : null
+      }
       if (event.key !== 'Enter' && event.key !== ' ') return
-      if (event.repeat || !(event.target instanceof Element)) return
+      if (event.repeat) return
       const typing = event.target.matches(TEXT_ENTRY)
 
       const driving = event.key === 'Enter' && event.target.closest('.command-overlay')
@@ -492,6 +510,11 @@ function SoundEffectListener() {
     const onPointerUp = () => {
       if (grab) stopTicking()
       grab = null
+      interactingSlider = null
+    }
+
+    const onBlur = () => {
+      interactingSlider = null
     }
 
     const onContextMenu = () => play(patch, { sound: 'open' })
@@ -518,8 +541,16 @@ function SoundEffectListener() {
         switch (record.attributeName) {
           case 'aria-valuenow': {
             if (slid || !el.matches('input[type="range"], [role="slider"]')) break
+            if (el.closest('[data-sound="none"]')) break
 
             if (value === null || record.oldValue === null) break
+
+            const userDriving =
+              el === interactingSlider ||
+              (interactingSlider !== null &&
+                (el.contains(interactingSlider) || interactingSlider.contains(el))) ||
+              el.matches(':active')
+            if (!userDriving) break
 
             if (grab && !grab.dragged) break
             slid = true
@@ -559,6 +590,7 @@ function SoundEffectListener() {
     document.addEventListener('pointermove', onPointerMove, true)
     document.addEventListener('pointerup', onPointerUp, true)
     document.addEventListener('pointercancel', onPointerUp, true)
+    document.addEventListener('blur', onBlur, true)
     document.addEventListener('keydown', onKeyDown, true)
     document.addEventListener('contextmenu', onContextMenu, true)
     document.addEventListener('input', onInput, true)
@@ -569,6 +601,7 @@ function SoundEffectListener() {
       document.removeEventListener('pointermove', onPointerMove, true)
       document.removeEventListener('pointerup', onPointerUp, true)
       document.removeEventListener('pointercancel', onPointerUp, true)
+      document.removeEventListener('blur', onBlur, true)
       document.removeEventListener('keydown', onKeyDown, true)
       document.removeEventListener('contextmenu', onContextMenu, true)
       document.removeEventListener('input', onInput, true)

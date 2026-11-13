@@ -200,7 +200,7 @@ export default async function ToolPage({ params }: ToolParams) {
   if (tool.path === "/audio/text-to-speech") {
     workspace = (
       <>
-        <ToolHeader tool={tool} category={category} />
+        <ToolHeader tool={tool} category={category} showTierBadge={false} showEngineBadge={false} />
         <section className="mt-5">
           <TextToSpeechStudio />
         </section>

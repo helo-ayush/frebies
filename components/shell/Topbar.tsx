@@ -7,7 +7,9 @@ import { getCategory, getTool } from "@/lib/registry/tools";
 import { AceternityTooltip } from "@/components/aceternity/animated-tooltip";
 import { HoverBorderGradient } from "@/components/aceternity/hover-border-gradient";
 import { buttonClasses } from "@/components/ui/Button";
+import { LogOut } from "lucide-react";
 import { ChevronGlyph, MenuGlyph, PanelGlyph, SearchGlyph } from "@/components/icons/NavGlyph";
+import { useAuthSession } from "@/components/auth/AuthContext";
 import { SoundToggle } from "@/components/ui/sound";
 import { CommandMenu } from "./CommandMenu";
 
@@ -53,8 +55,18 @@ export function Topbar({
   collapsed: boolean;
   onToggleSidebar: () => void;
 }) {
+  const pathname = usePathname();
   const [searchOpen, setSearchOpen] = useState(false);
   const crumbs = useCrumbs();
+  const { isSignedIn, user, signOut } = useAuthSession();
+
+  const authSuffix =
+    pathname &&
+    pathname !== "/dashboard" &&
+    !pathname.startsWith("/sign-in") &&
+    !pathname.startsWith("/sign-up")
+      ? `?redirect_url=${encodeURIComponent(pathname)}`
+      : "";
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -144,22 +156,58 @@ export function Topbar({
           <AceternityTooltip label="Toggle interface sounds" side="bottom">
             <SoundToggle className={`${iconBtn} text-muted hover:text-ink`} />
           </AceternityTooltip>
-          <HoverBorderGradient
-            as={Link}
-            href="/sign-in"
-            containerClassName="hidden rounded-full sm:flex"
-            className="h-8 rounded-full px-3 text-ui transition-colors hover:bg-neutral-50"
-          >
-            Get credits
-          </HoverBorderGradient>
-          <HoverBorderGradient
-            as={Link}
-            href="/sign-in"
-            containerClassName="rounded-full"
-            className="h-8 rounded-full bg-ink px-3 text-ui text-white transition-colors hover:bg-neutral-800"
-          >
-            Sign in
-          </HoverBorderGradient>
+          {isSignedIn && user ? (
+            <div className="flex items-center gap-2">
+              <div
+                className="flex h-8 items-center gap-2 rounded-full border border-line bg-white pl-1 pr-2.5 text-ui text-ink"
+                title={user.email ?? user.fullName ?? "Signed in"}
+              >
+                {user.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.imageUrl}
+                    alt={user.fullName ?? "Account avatar"}
+                    className="h-6 w-6 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[10.5px] font-semibold text-white">
+                    {user.initials}
+                  </span>
+                )}
+                <span className="hidden max-w-[140px] truncate text-[12.5px] font-medium sm:inline">
+                  {user.firstName ?? user.fullName ?? user.email ?? "Account"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => signOut()}
+                aria-label="Sign out"
+                className={`${buttonClasses("secondary", "sm", "h-8 rounded-full px-2.5 text-[12.5px]")}`}
+              >
+                <LogOut size={13} aria-hidden />
+                <span className="hidden sm:inline">Sign out</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <HoverBorderGradient
+                as={Link}
+                href={`/sign-up${authSuffix}`}
+                containerClassName="hidden rounded-full sm:flex"
+                className="h-8 rounded-full px-3 text-ui transition-colors hover:bg-neutral-50"
+              >
+                Get credits
+              </HoverBorderGradient>
+              <HoverBorderGradient
+                as={Link}
+                href={`/sign-in${authSuffix}`}
+                containerClassName="rounded-full"
+                className="h-8 rounded-full bg-ink px-3 text-ui text-white transition-colors hover:bg-neutral-800"
+              >
+                Sign in
+              </HoverBorderGradient>
+            </>
+          )}
         </div>
       </header>
 

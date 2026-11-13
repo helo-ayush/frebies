@@ -673,7 +673,7 @@ const PLANS = [
       "Failed runs refunded automatically",
     ],
     pro: true,
-    href: "/sign-in",
+    href: "/sign-up",
     action: "Claim free credits",
   },
 ];
@@ -944,7 +944,7 @@ const COLS: { title: string; links: [string, string][] }[] = [
     title: "Account",
     links: [
       ["Sign in", "/sign-in"],
-      ["Claim 25 credits", "/sign-in"],
+      ["Sign up · 25 free credits", "/sign-up"],
       ["Privacy approach", "#privacy"],
     ],
   },

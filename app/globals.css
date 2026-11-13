@@ -396,3 +396,104 @@ dialog::backdrop {
     --speaker-ms: 260ms;
     --speaker-delay: 80ms;
 }
+/* ---------- Auth pages (sign-in / sign-up) ---------- */
+@keyframes auth-bar {
+  0%, 100% { transform: scaleY(0.28); }
+  50% { transform: scaleY(1); }
+}
+@keyframes auth-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+@keyframes auth-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(24px, -18px, 0) scale(1.08); }
+}
+@keyframes auth-pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.55; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+@keyframes auth-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.auth-bar { transform-origin: center; animation: auth-bar 1.4s ease-in-out infinite; }
+.auth-float { animation: auth-float 6s ease-in-out infinite; }
+.auth-float-slow { animation: auth-float 8.5s ease-in-out -2s infinite; }
+.auth-drift { animation: auth-drift 14s ease-in-out infinite; }
+.auth-pulse-ring { animation: auth-pulse-ring 2.2s ease-out infinite; }
+.auth-shimmer-text {
+  background-size: 200% 100%;
+  animation: auth-shimmer 6s linear infinite;
+}
+.auth-glass-card {
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.74) 52%,
+    rgba(250, 246, 240, 0.84) 100%
+  );
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(15, 15, 16, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 28px 70px -24px rgba(15, 15, 16, 0.22),
+    0 10px 26px -10px rgba(229, 94, 64, 0.14);
+  transition: box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-glass-card:hover {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(15, 15, 16, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.75),
+    0 32px 80px -22px rgba(15, 15, 16, 0.26),
+    0 14px 34px -10px rgba(229, 94, 64, 0.2);
+}
+.auth-glass-tile {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(255, 255, 255, 0.58) 100%
+  );
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 12px 32px -14px rgba(15, 15, 16, 0.12);
+  transition:
+    background 260ms ease,
+    border-color 260ms ease,
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-glass-tile:hover {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(255, 252, 248, 0.74) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 18px 38px -14px rgba(15, 15, 16, 0.18),
+    0 6px 18px -6px rgba(229, 94, 64, 0.18);
+}
+.auth-glossy-cta {
+  background: linear-gradient(180deg, #2b2b30 0%, #151518 52%, #0a0a0c 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
+    0 12px 28px -10px rgba(15, 15, 16, 0.45),
+    0 4px 12px -4px rgba(229, 94, 64, 0.22);
+}
+.auth-glossy-cta:hover:not(:disabled) {
+  background: linear-gradient(180deg, #36363d 0%, #1a1a1f 52%, #0e0e11 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
+    0 16px 34px -10px rgba(15, 15, 16, 0.54),
+    0 6px 20px -4px rgba(229, 94, 64, 0.36);
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-bar, .auth-float, .auth-float-slow, .auth-drift, .auth-pulse-ring, .auth-shimmer-text { animation: none; }
+}

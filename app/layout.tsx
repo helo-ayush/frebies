@@ -1,7 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Inter_Tight } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import { SoundEffects } from "@/components/ui/sound";
 import { ArcLinkProvider } from "@/components/ArcLinkProvider";
+import { AuthSessionProvider } from "@/components/auth/AuthContext";
+import {
+  AUTH_ROUTES,
+  getClerkPublishableKey,
+  hasClerkServerConfig,
+} from "@/lib/auth/clerk-config";
 import "@/components/arc/foundation.css";
 import "./globals.css";
 
@@ -23,12 +30,34 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const publishableKey = getClerkPublishableKey();
+  const clerkEnabled = Boolean(publishableKey && hasClerkServerConfig());
+
+  const appTree = (
+    <AuthSessionProvider clerkEnabled={clerkEnabled}>
+      <ArcLinkProvider>
+        <SoundEffects>{children}</SoundEffects>
+      </ArcLinkProvider>
+    </AuthSessionProvider>
+  );
+
   return (
     <html lang="en" data-scroll-behavior="smooth" data-accent="coral">
       <body className={`${inter.variable} ${interTight.variable} font-sans`}>
-        <ArcLinkProvider>
-          <SoundEffects>{children}</SoundEffects>
-        </ArcLinkProvider>
+        {clerkEnabled ? (
+          <ClerkProvider
+            publishableKey={publishableKey}
+            signInUrl={AUTH_ROUTES.signIn}
+            signUpUrl={AUTH_ROUTES.signUp}
+            signInFallbackRedirectUrl={AUTH_ROUTES.afterAuth}
+            signUpFallbackRedirectUrl={AUTH_ROUTES.afterAuth}
+            afterSignOutUrl={AUTH_ROUTES.afterAuth}
+          >
+            {appTree}
+          </ClerkProvider>
+        ) : (
+          appTree
+        )}
       </body>
     </html>
   );
