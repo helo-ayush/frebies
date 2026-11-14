@@ -95,8 +95,8 @@ export function loadPoolSettings(): PoolSettings {
   const token = (process.env.MODELSCOPE_API_TOKEN || process.env.MODELSCOPE_API_KEY || "").trim();
   const openApiEndpoint = (process.env.MODELSCOPE_OPENAPI_ENDPOINT || "https://www.modelscope.ai").replace(/\/+$/, "");
 
-  const maxConcurrentRaw = Number.parseInt(process.env.MODELSCOPE_MAX_CONCURRENT_PER_STUDIO || "2", 10);
-  const maxConcurrentPerStudio = Number.isFinite(maxConcurrentRaw) && maxConcurrentRaw > 0 ? Math.min(4, maxConcurrentRaw) : 2;
+  const maxConcurrentRaw = Number.parseInt(process.env.MODELSCOPE_MAX_CONCURRENT_PER_STUDIO || "1", 10);
+  const maxConcurrentPerStudio = Number.isFinite(maxConcurrentRaw) && maxConcurrentRaw > 0 ? Math.min(4, maxConcurrentRaw) : 1;
   const wakeAllOnVisit = (process.env.MODELSCOPE_WAKE_ALL_ON_VISIT || "true").toLowerCase() !== "false";
 
   const studioSpecs = cleanList(process.env.MODELSCOPE_TTS_STUDIOS);

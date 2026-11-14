@@ -1076,7 +1076,7 @@ class TtsManagementCore {
     this.jobs.set(id, job);
     await this.persistJobMetadata(job);
     this.ensureBootMonitor();
-    this.schedulePump();
+    this.pumpQueue();
 
     return this.toJobSnapshot(job);
   }
@@ -1914,7 +1914,7 @@ class TtsManagementCore {
     job.stageLabel = "Re-queued for generation...";
     await this.persistJobMetadata(job);
     await this.getPoolStatus({ wakeIfDown: true, force: true });
-    this.schedulePump();
+    this.pumpQueue();
     return this.toJobSnapshot(job);
   }
 
@@ -1931,6 +1931,7 @@ class TtsManagementCore {
       }
       await fsp.unlink(path.join(this.cacheRoot, "jobs", `${jobId}.json`)).catch(() => {});
       await this.store.deleteGeneration(jobId, ownerId).catch(() => false);
+      this.schedulePump();
       return true;
     }
 
