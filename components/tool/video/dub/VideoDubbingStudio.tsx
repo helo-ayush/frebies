@@ -395,53 +395,94 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
     setStatusError(null);
     try {
       const normalized = await ensureNormalizedBrowserAudio(targetMedia);
+      const tripsToRun =
+        normalized.trips.length > 0
+          ? normalized.trips
+          : [
+              {
+                tripIndex: 0,
+                totalTrips: 1,
+                startSec: 0,
+                endSec: normalized.durationSeconds || targetMedia.duration || 0,
+                durationSec: normalized.durationSeconds || targetMedia.duration || 0,
+                label: "Trip 1/1",
+                blob: normalized.uploadBlob,
+                fileName: normalized.uploadFileName,
+                mimeType: normalized.uploadMimeType,
+              },
+            ];
+
       setTranscribing(true);
-      setBrowserStage({
-        label: "Transcribing with Deepgram & chunking with Drama 3 expression tags...",
-        percent: 62,
-      });
+      const mergedSegments: DubSegment[] = [];
+      let detectedLang: string | undefined;
+      let totalDurationMeasured = targetMedia.duration || normalized.durationSeconds || 0;
+      let capturedSpeakerRef: ExtractedSpeakerRef | null = null;
 
-      const form = new FormData();
-      form.append("audio", normalized.uploadBlob, normalized.uploadFileName);
-      form.append("sourceLanguage", settings.sourceLanguage);
-      form.append("targetLanguage", settings.targetLanguage);
-      form.append("tone", settings.tone);
-      form.append("autoTranslate", "true");
-
-      const res = await fetch("/api/video/dub/transcribe", {
-        method: "POST",
-        body: form,
-      });
-
-      const data = (await res.json()) as {
-        ok?: boolean;
-        detectedLanguage?: string;
-        durationSeconds?: number;
-        segments?: DubSegment[];
-        speakerRef?: (VadReferenceInfo & { audioBase64: string }) | null;
-        error?: string;
-      };
-
-      if (!res.ok || !data.segments) {
-        throw new Error(data.error || "Deepgram transcription failed.");
-      }
-
-      setSegments(data.segments);
-      if (data.detectedLanguage) {
-        setDetectedLangLabel(data.detectedLanguage);
-      }
-      if (data.durationSeconds && (!targetMedia.duration || targetMedia.duration < 1)) {
-        setMedia((cur) => (cur ? { ...cur, duration: data.durationSeconds! } : cur));
-      }
-
-      if (data.speakerRef) {
-        const extracted = vadServerRefToExtracted(data.speakerRef);
-        setSpeakerRef((prev) => {
-          if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
-          return extracted;
+      for (let t = 0; t < tripsToRun.length; t += 1) {
+        const trip = tripsToRun[t];
+        const basePct = 18 + Math.round((t / tripsToRun.length) * 76);
+        setBrowserStage({
+          label: `${trip.label}: Deepgram ASR + Nemotron 3 Ultra translation...`,
+          percent: basePct,
         });
-      } else if (normalized.audioBuffer && data.segments.length > 0) {
-        const fallbackRef = buildVad20sReferenceFromBuffer(normalized.audioBuffer, data.segments);
+
+        const form = new FormData();
+        form.append("audio", trip.blob, trip.fileName);
+        form.append("sourceLanguage", settings.sourceLanguage);
+        form.append("targetLanguage", settings.targetLanguage);
+        form.append("tone", settings.tone);
+        form.append("autoTranslate", "true");
+        form.append("tripOffsetSec", String(trip.startSec));
+        form.append("skipVad", capturedSpeakerRef ? "true" : "false");
+
+        const res = await fetch("/api/video/dub/transcribe", {
+          method: "POST",
+          body: form,
+        });
+
+        const data = (await res.json()) as {
+          ok?: boolean;
+          detectedLanguage?: string;
+          durationSeconds?: number;
+          segments?: DubSegment[];
+          speakerRef?: (VadReferenceInfo & { audioBase64: string }) | null;
+          error?: string;
+        };
+
+        if (!res.ok || !data.segments) {
+          throw new Error(data.error || `Deepgram transcription failed on ${trip.label}.`);
+        }
+
+        if (data.detectedLanguage && !detectedLang) {
+          detectedLang = data.detectedLanguage;
+          setDetectedLangLabel(data.detectedLanguage);
+        }
+        if (data.durationSeconds && tripsToRun.length === 1) {
+          totalDurationMeasured = Math.max(totalDurationMeasured, data.durationSeconds);
+        }
+        if (data.speakerRef && !capturedSpeakerRef) {
+          capturedSpeakerRef = vadServerRefToExtracted(data.speakerRef);
+          setSpeakerRef((prev) => {
+            if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+            return capturedSpeakerRef;
+          });
+        }
+
+        for (const seg of data.segments) {
+          mergedSegments.push({
+            ...seg,
+            id: `seg_${mergedSegments.length + 1}`,
+          });
+        }
+        setSegments([...mergedSegments]);
+      }
+
+      if (totalDurationMeasured > 1 && (!targetMedia.duration || targetMedia.duration < 1)) {
+        setMedia((cur) => (cur ? { ...cur, duration: totalDurationMeasured } : cur));
+      }
+
+      if (!capturedSpeakerRef && normalized.audioBuffer && mergedSegments.length > 0) {
+        const fallbackRef = buildVad20sReferenceFromBuffer(normalized.audioBuffer, mergedSegments);
         if (fallbackRef) {
           setSpeakerRef((prev) => {
             if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
@@ -450,12 +491,12 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
         }
       }
 
-      if (data.segments.length === 0) {
+      if (mergedSegments.length === 0) {
         setStatusError(
           "No clear speech was detected. You can add dialogue lines manually or import an SRT/VTT file.",
         );
       }
-      return data.segments;
+      return mergedSegments;
     } catch (err) {
       setStatusError(err instanceof Error ? err.message : "Audio transcription failed.");
       return null;

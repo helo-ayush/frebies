@@ -6,6 +6,8 @@ import { promisify } from "node:util";
 import { resolveFfmpegPath } from "@/lib/audio/wav-utils";
 import {
   DUB_SOURCE_LANGUAGES,
+  DUB_TRIP_DURATION_SEC,
+  computeDubTripWindows,
   type DeepgramWord,
   type DubLanguageCode,
   type DubSegment,
@@ -258,49 +260,155 @@ async function callDeepgramListen(params: {
   }
 }
 
-/**
- * Transcribe extracted audio using Deepgram (`nova-3` with automatic `nova-2` fallback
- * for any language pair not supported on nova-3), returning word-by-word timestamps.
- */
-export async function transcribeAudioWithDeepgram(params: {
-  audioBuffer: Buffer;
-  mimeType?: string;
-  sourceLanguage?: DubLanguageCode;
-}): Promise<DeepgramTranscriptionResult> {
-  const mimeType = params.mimeType || "audio/wav";
-  const sourceLanguage = params.sourceLanguage || "auto";
+function offsetDeepgramResult(
+  result: DeepgramTranscriptionResult,
+  offsetSec: number,
+): DeepgramTranscriptionResult {
+  if (!offsetSec) return result;
+  return {
+    ...result,
+    words: result.words.map((w) => ({
+      ...w,
+      start: Number((w.start + offsetSec).toFixed(3)),
+      end: Number((w.end + offsetSec).toFixed(3)),
+    })),
+  };
+}
 
+async function transcribeSinglePayloadWithDeepgram(params: {
+  audioBuffer: Buffer;
+  mimeType: string;
+  sourceLanguage: DubLanguageCode;
+}): Promise<DeepgramTranscriptionResult> {
   try {
     const primary = await callDeepgramListen({
       audioBuffer: params.audioBuffer,
-      mimeType,
+      mimeType: params.mimeType,
       model: "nova-3",
-      sourceLanguage,
+      sourceLanguage: params.sourceLanguage,
     });
-    if (primary.words.length > 0 || sourceLanguage === "auto") {
+    if (primary.words.length > 0 || params.sourceLanguage === "auto") {
       return primary;
     }
-    // If nova-3 returned 0 words for an explicit language hint, try nova-2 before giving up.
     const secondary = await callDeepgramListen({
       audioBuffer: params.audioBuffer,
-      mimeType,
+      mimeType: params.mimeType,
       model: "nova-2",
-      sourceLanguage,
+      sourceLanguage: params.sourceLanguage,
     });
     return secondary.words.length > 0 ? secondary : primary;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
-    // Retry on nova-2 only on model/language mismatch (HTTP 400/404/422), not on auth failure
     if (/401|403/i.test(msg)) {
       throw new Error("Deepgram API authentication failed. Please verify DEEPGRAM_API_KEY.");
     }
     return await callDeepgramListen({
       audioBuffer: params.audioBuffer,
-      mimeType,
+      mimeType: params.mimeType,
       model: "nova-2",
-      sourceLanguage,
+      sourceLanguage: params.sourceLanguage,
     });
   }
+}
+
+/**
+ * Transcribe extracted audio using Deepgram (`nova-3` with automatic `nova-2` fallback).
+ * Automatically slices media longer than 30 minutes into sequential 30-minute trips
+ * (e.g., 2 hours = 4 trips) so payloads stay compact and fast without timeouts.
+ */
+export async function transcribeAudioWithDeepgram(params: {
+  audioBuffer: Buffer;
+  mimeType?: string;
+  sourceLanguage?: DubLanguageCode;
+  durationSeconds?: number;
+  tripOffsetSec?: number;
+  onTripProgress?: (tripIndex: number, totalTrips: number, label: string) => void;
+}): Promise<DeepgramTranscriptionResult> {
+  const mimeType = params.mimeType || "audio/wav";
+  const sourceLanguage = params.sourceLanguage || "auto";
+  const baseOffsetSec = params.tripOffsetSec || 0;
+  const totalDurationSec = params.durationSeconds || 0;
+  const ffmpeg = resolveFfmpegPath();
+
+  if (ffmpeg && totalDurationSec > DUB_TRIP_DURATION_SEC + 30) {
+    const trips = computeDubTripWindows(totalDurationSec, DUB_TRIP_DURATION_SEC);
+    const workDir = await fsp.mkdtemp(path.join(os.tmpdir(), "frebies-dg-trips-"));
+    const ext = mimeType.includes("mpeg") || mimeType.includes("mp3") ? "mp3" : mimeType.includes("ogg") ? "ogg" : "wav";
+    const srcPath = path.join(workDir, `source.${ext}`);
+
+    try {
+      await fsp.writeFile(srcPath, params.audioBuffer);
+      const mergedWords: DeepgramWord[] = [];
+      const transcriptParts: string[] = [];
+      let detectedLanguage: string = sourceLanguage === "auto" ? "en" : sourceLanguage;
+      let modelUsed = "nova-3";
+
+      for (const trip of trips) {
+        params.onTripProgress?.(trip.tripIndex, trips.length, trip.label);
+        const tripOutPath = path.join(workDir, `trip_${trip.tripIndex}.mp3`);
+        await execFileAsync(ffmpeg, [
+          "-y",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-ss",
+          trip.startSec.toFixed(2),
+          "-t",
+          trip.durationSec.toFixed(2),
+          "-i",
+          srcPath,
+          "-vn",
+          "-ac",
+          "1",
+          "-ar",
+          "16000",
+          "-c:a",
+          "libmp3lame",
+          "-b:a",
+          "32k",
+          tripOutPath,
+        ]);
+
+        const tripBuf = await fsp.readFile(tripOutPath);
+        if (tripBuf.length < 256) continue;
+
+        const rawRes = await transcribeSinglePayloadWithDeepgram({
+          audioBuffer: tripBuf,
+          mimeType: "audio/mpeg",
+          sourceLanguage,
+        });
+        const aligned = offsetDeepgramResult(rawRes, baseOffsetSec + trip.startSec);
+        if (trip.tripIndex === 0 && aligned.detectedLanguage) {
+          detectedLanguage = aligned.detectedLanguage;
+        }
+        modelUsed = aligned.modelUsed || modelUsed;
+        if (aligned.transcript) transcriptParts.push(aligned.transcript);
+        mergedWords.push(...aligned.words);
+      }
+
+      return {
+        transcript: transcriptParts.join(" ").trim(),
+        words: mergedWords,
+        detectedLanguage,
+        durationSeconds: Number(totalDurationSec.toFixed(2)),
+        modelUsed,
+      };
+    } finally {
+      await fsp.rm(workDir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+
+  params.onTripProgress?.(
+    0,
+    1,
+    totalDurationSec > 0 ? `Trip 1/1 (0m–${Math.max(1, Math.ceil(totalDurationSec / 60))}m)` : "Trip 1/1",
+  );
+  const single = await transcribeSinglePayloadWithDeepgram({
+    audioBuffer: params.audioBuffer,
+    mimeType,
+    sourceLanguage,
+  });
+  return offsetDeepgramResult(single, baseOffsetSec);
 }
 
 /**

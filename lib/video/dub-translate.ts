@@ -1,6 +1,8 @@
 import { buildFallbackSegmentsFromWords } from "./dub-deepgram";
 import {
   DUB_TARGET_LANGUAGES,
+  DUB_TRIP_DURATION_SEC,
+  computeDubTripWindows,
   getDubLanguageLabel,
   type DeepgramWord,
   type DubLanguageCode,
@@ -11,14 +13,15 @@ import {
 
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODELSCOPE_CHAT_URL = "https://api-inference.modelscope.ai/v1/chat/completions";
-const SEGMENT_BATCH_SIZE = 20;
-const WORD_MACRO_BATCH_TARGET = 200;
+const SEGMENT_BATCH_SIZE = 90;
+const TRIP_LLM_MAX_WORDS = 1400;
 
 export type TranslateDubInput = {
   segments: DubSegment[];
   sourceLanguage: DubLanguageCode | string;
   targetLanguage: DubTargetLanguageCode;
   tone: DubTone;
+  onTripProgress?: (tripIndex: number, totalTrips: number, label: string) => void;
 };
 
 export type ChunkAndTranslateInput = {
@@ -27,6 +30,7 @@ export type ChunkAndTranslateInput = {
   targetLanguage: DubTargetLanguageCode;
   tone: DubTone;
   autoTranslate?: boolean;
+  onTripProgress?: (tripIndex: number, totalTrips: number, label: string) => void;
 };
 
 export type TranslateDubResult = {
@@ -46,10 +50,11 @@ function getModelScopeToken(): string {
 function getOpenRouterModels(): string[] {
   const configured = (process.env.OPENROUTER_DUB_MODEL || "").trim();
   const defaults = [
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b",
     "google/gemini-2.5-flash",
     "google/gemini-2.0-flash-001",
     "openai/gpt-4o-mini",
-    "qwen/qwen-2.5-72b-instruct",
   ];
   return Array.from(new Set([configured, ...defaults].filter(Boolean)));
 }
@@ -73,6 +78,7 @@ function toneInstruction(tone: DubTone): string {
 
 function extractJsonObject(raw: string): Record<string, unknown> {
   const cleaned = raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/```\s*$/i, "")
@@ -96,7 +102,7 @@ async function postChatCompletion(params: {
   maxTokens?: number;
 }): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 75_000);
+  const timer = setTimeout(() => controller.abort(), 110_000);
 
   try {
     const res = await fetch(params.url, {
@@ -109,7 +115,7 @@ async function postChatCompletion(params: {
       body: JSON.stringify({
         model: params.model,
         temperature: 0.25,
-        max_tokens: params.maxTokens ?? 2400,
+        max_tokens: params.maxTokens ?? 16384,
         ...params.extraBody,
         messages: [
           { role: "system", content: params.systemPrompt },
@@ -138,9 +144,20 @@ async function postChatCompletion(params: {
   }
 }
 
+function buildExtraBodyForModel(model: string): Record<string, unknown> | undefined {
+  if (model.startsWith("nvidia/nemotron")) {
+    return { reasoning: { effort: "low" } };
+  }
+  if (model.startsWith("openai/") || model.startsWith("google/")) {
+    return { response_format: { type: "json_object" } };
+  }
+  return undefined;
+}
+
 async function callDubLlmWithCascade(
   systemPrompt: string,
   userPrompt: string,
+  preferredMaxTokens = 16384,
 ): Promise<{ content: string; modelUsed: string }> {
   const orKey = getOpenRouterKey();
   const errors: string[] = [];
@@ -148,7 +165,10 @@ async function callDubLlmWithCascade(
   if (orKey) {
     const models = getOpenRouterModels();
     outer: for (const model of models) {
-      const tokenBudgets = [2400, 1200];
+      const tokenBudgets = model.endsWith(":free")
+        ? [preferredMaxTokens, 8192]
+        : [Math.min(preferredMaxTokens, 8192), 4096, 2400];
+
       for (let i = 0; i < tokenBudgets.length; i += 1) {
         try {
           const content = await postChatCompletion({
@@ -162,9 +182,7 @@ async function callDubLlmWithCascade(
               "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://frebies.app",
               "X-Title": "frebies AI Dubbing Studio",
             },
-            extraBody: model.startsWith("openai/") || model.startsWith("google/")
-              ? { response_format: { type: "json_object" } }
-              : undefined,
+            extraBody: buildExtraBodyForModel(model),
           });
           return { content, modelUsed: model };
         } catch (err) {
@@ -203,43 +221,114 @@ async function callDubLlmWithCascade(
 }
 
 /**
- * Partition long word-timestamp streams at natural pause boundaries so up to 2 hours of
- * speech can be semantically chunked and translated in parallel without context overflow.
+ * Find the cleanest sentence-end + pause-gap word boundary near a target index or timestamp.
  */
-function splitWordsIntoMacroBatches(words: DeepgramWord[]): DeepgramWord[][] {
-  if (words.length <= WORD_MACRO_BATCH_TARGET) {
-    return words.length > 0 ? [words] : [];
+function findBestWordSplitIndex(words: DeepgramWord[], minIdx: number, maxIdx: number): number {
+  const safeMin = Math.max(1, minIdx);
+  const safeMax = Math.min(words.length - 1, maxIdx);
+  if (safeMax <= safeMin) return safeMin;
+
+  let splitAt = Math.floor((safeMin + safeMax) / 2);
+  let bestScore = -1;
+
+  for (let i = safeMin; i <= safeMax; i += 1) {
+    const gap = Math.max(0, words[i].start - words[i - 1].end);
+    const endsSent = /[.!?।。！？]$/.test(words[i - 1].punctuatedWord) ? 1 : 0;
+    const spkSwitch =
+      typeof words[i].speaker === "number" &&
+      typeof words[i - 1].speaker === "number" &&
+      words[i].speaker !== words[i - 1].speaker
+        ? 1.2
+        : 0;
+    const score = gap * 4 + endsSent * 1.5 + spkSwitch;
+    if (score > bestScore) {
+      bestScore = score;
+      splitAt = i;
+    }
+  }
+  return splitAt;
+}
+
+/**
+ * Partition word-timestamp streams into 30-minute chronological trips (e.g., 2 hours = 4 trips),
+ * snapping each cut to the cleanest sentence/pause boundary within +-45s of the 30m mark.
+ */
+function splitWordsIntoTimeTrips(
+  words: DeepgramWord[],
+  tripDurationSec = DUB_TRIP_DURATION_SEC,
+): Array<{ tripIndex: number; label: string; words: DeepgramWord[] }> {
+  if (words.length === 0) return [];
+  const lastEnd = words[words.length - 1].end;
+  const firstStart = words[0].start;
+  const spanSec = lastEnd - firstStart;
+
+  if (spanSec <= tripDurationSec + 30) {
+    const startMin = Math.floor(firstStart / 60);
+    const endMin = Math.max(startMin + 1, Math.ceil(lastEnd / 60));
+    return [{ tripIndex: 0, label: `Trip 1/1 (${startMin}m–${endMin}m)`, words }];
   }
 
-  const batches: DeepgramWord[][] = [];
-  let start = 0;
+  const baseWindows = computeDubTripWindows(lastEnd, tripDurationSec);
+  const trips: Array<{ tripIndex: number; label: string; words: DeepgramWord[] }> = [];
+  let cursor = 0;
 
-  while (start < words.length) {
-    const hardEnd = Math.min(words.length, start + WORD_MACRO_BATCH_TARGET + 60);
-    if (hardEnd >= words.length) {
-      batches.push(words.slice(start));
+  for (let t = 0; t < baseWindows.length && cursor < words.length; t += 1) {
+    const win = baseWindows[t];
+    if (t === baseWindows.length - 1) {
+      trips.push({ tripIndex: trips.length, label: win.label, words: words.slice(cursor) });
       break;
     }
 
-    // Look for the cleanest sentence end + pause gap near WORD_MACRO_BATCH_TARGET
-    let splitAt = Math.min(words.length, start + WORD_MACRO_BATCH_TARGET);
-    let bestScore = -1;
-    const scanFrom = Math.max(start + 140, start + WORD_MACRO_BATCH_TARGET - 80);
+    const boundarySec = win.endSec;
+    let lo = cursor + 1;
+    let hi = words.length - 1;
+    while (lo < words.length && words[lo].start < boundarySec - 45) lo += 1;
+    while (hi > lo && words[hi].end > boundarySec + 45) hi -= 1;
 
-    for (let i = scanFrom; i < hardEnd - 1; i += 1) {
-      const gap = Math.max(0, words[i + 1].start - words[i].end);
-      const endsSent = /[.!?।。！？]$/.test(words[i].punctuatedWord) ? 1 : 0;
-      const score = gap * 4 + endsSent * 1.5;
-      if (score > bestScore) {
-        bestScore = score;
-        splitAt = i + 1;
-      }
+    let cutIdx = lo;
+    if (hi > lo) {
+      cutIdx = findBestWordSplitIndex(words, lo, hi);
+    } else {
+      while (cutIdx < words.length && words[cutIdx].start < boundarySec) cutIdx += 1;
     }
 
+    cutIdx = Math.max(cursor + 1, Math.min(words.length, cutIdx));
+    trips.push({
+      tripIndex: trips.length,
+      label: win.label,
+      words: words.slice(cursor, cutIdx),
+    });
+    cursor = cutIdx;
+  }
+
+  if (cursor < words.length && trips.length > 0) {
+    trips[trips.length - 1].words.push(...words.slice(cursor));
+  }
+
+  return trips.map((tr, idx) => ({
+    ...tr,
+    tripIndex: idx,
+    label: tr.label.replace(/\/\d+/, `/${trips.length}`),
+  }));
+}
+
+function splitWordSubBatches(words: DeepgramWord[], maxWords = TRIP_LLM_MAX_WORDS): DeepgramWord[][] {
+  if (words.length <= maxWords) return words.length > 0 ? [words] : [];
+  const batches: DeepgramWord[][] = [];
+  let start = 0;
+  while (start < words.length) {
+    if (words.length - start <= maxWords + 120) {
+      batches.push(words.slice(start));
+      break;
+    }
+    const splitAt = findBestWordSplitIndex(
+      words,
+      start + Math.floor(maxWords * 0.72),
+      start + maxWords,
+    );
     batches.push(words.slice(start, splitAt));
     start = splitAt;
   }
-
   return batches;
 }
 
@@ -250,9 +339,9 @@ const DRAMA3_TAG_PROMPT = [
   "- Rules: Use tags tastefully ONLY when the spoken context, punctuation, or emotion justifies them. Do NOT overuse tags on neutral declarative sentences, and NEVER invent ungrounded sound effects or translator notes.",
 ].join("\n");
 
-async function chunkAndTranslateWordBatch(
+async function callChunkAndTranslateWindow(
   batchWords: DeepgramWord[],
-  batchIndex: number,
+  batchTag: string,
   input: ChunkAndTranslateInput,
   contextTail: string,
 ): Promise<{ detectedLanguage: string; segments: DubSegment[]; modelUsed: string }> {
@@ -292,73 +381,127 @@ async function chunkAndTranslateWordBatch(
     })),
   };
 
+  const { content, modelUsed } = await callDubLlmWithCascade(
+    systemPrompt,
+    JSON.stringify(payload),
+    16384,
+  );
+  const parsed = extractJsonObject(content);
+  const detectedLanguage =
+    typeof parsed.detectedLanguage === "string" && parsed.detectedLanguage.trim()
+      ? parsed.detectedLanguage.trim()
+      : getDubLanguageLabel(input.sourceLanguage);
+
+  const rawSegs = Array.isArray(parsed.segments) ? parsed.segments : [];
+  const minStart = batchWords[0]?.start ?? 0;
+  const maxEnd = batchWords[batchWords.length - 1]?.end ?? minStart + 1;
+
+  const segments: DubSegment[] = [];
+  let lastEnd = 0;
+
+  for (let i = 0; i < rawSegs.length; i += 1) {
+    const item = rawSegs[i];
+    if (!item || typeof item !== "object") continue;
+    const obj = item as Record<string, unknown>;
+    const sourceText = typeof obj.sourceText === "string" ? obj.sourceText.trim() : "";
+    const translatedText = typeof obj.translatedText === "string" ? obj.translatedText.trim() : "";
+    if (!sourceText && !translatedText) continue;
+
+    const rawS = typeof obj.startSec === "number" && Number.isFinite(obj.startSec) ? obj.startSec : minStart;
+    const rawE = typeof obj.endSec === "number" && Number.isFinite(obj.endSec) ? obj.endSec : rawS + 2;
+    const clampedS = Math.max(lastEnd, Math.max(0, rawS));
+    const clampedE = Math.min(maxEnd + 0.5, Math.max(clampedS + 0.35, rawE));
+    lastEnd = clampedS;
+
+    segments.push({
+      id: `seg_${batchTag}_${segments.length + 1}`,
+      startSec: Number(clampedS.toFixed(2)),
+      endSec: Number(clampedE.toFixed(2)),
+      sourceText: sourceText || translatedText,
+      translatedText: autoTranslate ? translatedText || sourceText : "",
+      speaker: typeof obj.speaker === "number" ? obj.speaker : 0,
+    });
+  }
+
+  if (segments.length === 0) {
+    throw new Error("OpenRouter returned zero segments for this window.");
+  }
+
+  // Guard against truncated LLM output dropping the tail of a large 30-min trip
+  const coveredEnd = segments[segments.length - 1].endSec;
+  const totalWindowSpan = Math.max(0.1, maxEnd - minStart);
+  const coveredSpan = Math.max(0, coveredEnd - segments[0].startSec);
+  if (batchWords.length > 350 && coveredSpan < totalWindowSpan * 0.68) {
+    throw new Error("Window output truncated early; bisecting for full coverage.");
+  }
+
+  return { detectedLanguage, segments, modelUsed };
+}
+
+async function chunkAndTranslateWordWindowWithBisect(
+  batchWords: DeepgramWord[],
+  batchTag: string,
+  input: ChunkAndTranslateInput,
+  contextTail: string,
+  depth = 0,
+): Promise<{ detectedLanguage: string; segments: DubSegment[]; modelUsed: string }> {
   try {
-    const { content, modelUsed } = await callDubLlmWithCascade(systemPrompt, JSON.stringify(payload));
-    const parsed = extractJsonObject(content);
-    const detectedLanguage =
-      typeof parsed.detectedLanguage === "string" && parsed.detectedLanguage.trim()
-        ? parsed.detectedLanguage.trim()
-        : getDubLanguageLabel(input.sourceLanguage);
-
-    const rawSegs = Array.isArray(parsed.segments) ? parsed.segments : [];
-    const minStart = batchWords[0]?.start ?? 0;
-    const maxEnd = batchWords[batchWords.length - 1]?.end ?? minStart + 1;
-
-    const segments: DubSegment[] = [];
-    let lastEnd = 0;
-
-    for (let i = 0; i < rawSegs.length; i += 1) {
-      const item = rawSegs[i];
-      if (!item || typeof item !== "object") continue;
-      const obj = item as Record<string, unknown>;
-      const sourceText = typeof obj.sourceText === "string" ? obj.sourceText.trim() : "";
-      const translatedText = typeof obj.translatedText === "string" ? obj.translatedText.trim() : "";
-      if (!sourceText && !translatedText) continue;
-
-      const rawS = typeof obj.startSec === "number" && Number.isFinite(obj.startSec) ? obj.startSec : minStart;
-      const rawE = typeof obj.endSec === "number" && Number.isFinite(obj.endSec) ? obj.endSec : rawS + 2;
-      const clampedS = Math.max(lastEnd, Math.max(0, rawS));
-      const clampedE = Math.min(maxEnd + 0.5, Math.max(clampedS + 0.35, rawE));
-      lastEnd = clampedS;
-
-      segments.push({
-        id: `seg_${batchIndex}_${segments.length + 1}`,
-        startSec: Number(clampedS.toFixed(2)),
-        endSec: Number(clampedE.toFixed(2)),
-        sourceText: sourceText || translatedText,
-        translatedText: autoTranslate ? translatedText || sourceText : "",
-        speaker: typeof obj.speaker === "number" ? obj.speaker : 0,
-      });
-    }
-
-    if (segments.length > 0) {
-      return { detectedLanguage, segments, modelUsed };
-    }
+    return await callChunkAndTranslateWindow(batchWords, batchTag, input, contextTail);
   } catch {
-    // Fall back deterministically below so one noisy JSON batch never kills a long video dub
+    if (batchWords.length >= 240 && depth < 3) {
+      const midIdx = findBestWordSplitIndex(
+        batchWords,
+        Math.floor(batchWords.length * 0.38),
+        Math.floor(batchWords.length * 0.62),
+      );
+      const leftWords = batchWords.slice(0, midIdx);
+      const rightWords = batchWords.slice(midIdx);
+      const leftRes = await chunkAndTranslateWordWindowWithBisect(
+        leftWords,
+        `${batchTag}a`,
+        input,
+        contextTail,
+        depth + 1,
+      );
+      const rightContext = leftWords
+        .slice(-18)
+        .map((w) => w.punctuatedWord)
+        .join(" ");
+      const rightRes = await chunkAndTranslateWordWindowWithBisect(
+        rightWords,
+        `${batchTag}b`,
+        input,
+        rightContext,
+        depth + 1,
+      );
+      return {
+        detectedLanguage: leftRes.detectedLanguage || rightRes.detectedLanguage,
+        segments: [...leftRes.segments, ...rightRes.segments],
+        modelUsed: rightRes.modelUsed || leftRes.modelUsed,
+      };
+    }
   }
 
   const fallback = buildFallbackSegmentsFromWords(batchWords);
-  if (!autoTranslate) {
+  if (input.autoTranslate === false) {
     return {
       detectedLanguage: getDubLanguageLabel(input.sourceLanguage),
       segments: fallback,
       modelUsed: "fallback-gap-segmenter",
     };
   }
-  const translatedFallback = await translateDubSegments({
+  return await translateDubSegments({
     segments: fallback,
     sourceLanguage: input.sourceLanguage,
     targetLanguage: input.targetLanguage,
     tone: input.tone,
   });
-  return translatedFallback;
 }
 
 /**
- * Primary OpenRouter pipeline: takes Deepgram word-by-word timestamps and asks OpenRouter
- * to semantically chunk lines at natural pause/meaning boundaries AND batch-translate with
- * Fish Audio Drama 3 expression tags. Handles up to 2 hours via concurrent macro-batches.
+ * Primary OpenRouter (Nemotron 3 Ultra) pipeline: divides long media into 30-minute
+ * chronological trips (e.g., 2 hours = 4 trips of 30 minutes each), semantically chunks
+ * Deepgram word timestamps at pause gaps, and batch-translates with Drama 3 expression tags.
  */
 export async function chunkAndTranslateWordsWithOpenRouter(
   input: ChunkAndTranslateInput,
@@ -371,47 +514,48 @@ export async function chunkAndTranslateWordsWithOpenRouter(
     };
   }
 
-  const macroBatches = splitWordsIntoMacroBatches(input.words);
-  const results: Array<{ detectedLanguage: string; segments: DubSegment[]; modelUsed: string }> =
-    new Array(macroBatches.length);
-
-  // Process up to 3 macro-batches in parallel for speed on long videos
-  const concurrency = Math.min(3, macroBatches.length);
-  let nextIdx = 0;
-
-  async function worker() {
-    while (true) {
-      const idx = nextIdx;
-      nextIdx += 1;
-      if (idx >= macroBatches.length) return;
-      const prevBatch = idx > 0 ? macroBatches[idx - 1] : null;
-      const contextTail = prevBatch
-        ? prevBatch
-            .slice(-18)
-            .map((w) => w.punctuatedWord)
-            .join(" ")
-        : "";
-      results[idx] = await chunkAndTranslateWordBatch(macroBatches[idx], idx, input, contextTail);
-    }
-  }
-
-  await Promise.all(Array.from({ length: concurrency }, () => worker()));
-
+  const trips = splitWordsIntoTimeTrips(input.words, DUB_TRIP_DURATION_SEC);
   const mergedSegments: DubSegment[] = [];
-  for (const part of results) {
-    if (!part) continue;
-    for (const seg of part.segments) {
-      mergedSegments.push({
-        ...seg,
-        id: `seg_${mergedSegments.length + 1}`,
-      });
+  let detectedLanguage = getDubLanguageLabel(input.sourceLanguage);
+  let modelUsed = getOpenRouterModels()[0];
+  let prevContextTail = "";
+
+  for (const trip of trips) {
+    input.onTripProgress?.(trip.tripIndex, trips.length, trip.label);
+
+    const subBatches = splitWordSubBatches(trip.words, TRIP_LLM_MAX_WORDS);
+    for (let sIdx = 0; sIdx < subBatches.length; sIdx += 1) {
+      const subWords = subBatches[sIdx];
+      const part = await chunkAndTranslateWordWindowWithBisect(
+        subWords,
+        `${trip.tripIndex}_${sIdx}`,
+        input,
+        prevContextTail,
+      );
+
+      if (mergedSegments.length === 0 && part.detectedLanguage) {
+        detectedLanguage = part.detectedLanguage;
+      }
+      if (part.modelUsed && part.modelUsed !== "fallback-gap-segmenter") {
+        modelUsed = part.modelUsed;
+      }
+      for (const seg of part.segments) {
+        mergedSegments.push({
+          ...seg,
+          id: `seg_${mergedSegments.length + 1}`,
+        });
+      }
+      prevContextTail = subWords
+        .slice(-18)
+        .map((w) => w.punctuatedWord)
+        .join(" ");
     }
   }
 
   return {
-    detectedLanguage: results[0]?.detectedLanguage || getDubLanguageLabel(input.sourceLanguage),
+    detectedLanguage,
     segments: mergedSegments,
-    modelUsed: results[0]?.modelUsed || getOpenRouterModels()[0],
+    modelUsed,
   };
 }
 
@@ -455,7 +599,11 @@ async function translateBatch(
     }),
   };
 
-  const { content, modelUsed } = await callDubLlmWithCascade(systemPrompt, JSON.stringify(payload));
+  const { content, modelUsed } = await callDubLlmWithCascade(
+    systemPrompt,
+    JSON.stringify(payload),
+    12288,
+  );
   const parsed = extractJsonObject(content);
   const detectedLanguage =
     typeof parsed.detectedLanguage === "string" && parsed.detectedLanguage.trim()
@@ -478,8 +626,8 @@ async function translateBatch(
 }
 
 /**
- * Batch-translate existing/imported timestamped video segments via OpenRouter
- * with Drama 3 expression tags and timing-fit constraints.
+ * Batch-translate existing/imported timestamped video segments via OpenRouter (Nemotron 3 Ultra)
+ * grouped by 30-minute time trips, with Drama 3 expression tags and timing-fit constraints.
  */
 export async function translateDubSegments(input: TranslateDubInput): Promise<TranslateDubResult> {
   const nonEmpty = input.segments.filter((s) => s.sourceText.trim().length > 0);
@@ -491,20 +639,38 @@ export async function translateDubSegments(input: TranslateDubInput): Promise<Tr
   let detectedLanguage = input.sourceLanguage === "auto" ? "Auto" : getDubLanguageLabel(input.sourceLanguage);
   let modelUsed = getOpenRouterModels()[0];
 
-  for (let start = 0; start < nonEmpty.length; start += SEGMENT_BATCH_SIZE) {
-    const batch = nonEmpty.slice(start, start + SEGMENT_BATCH_SIZE);
-    const contextBefore =
-      start > 0 ? out.filter((s) => batch[0] && s.endSec <= batch[0].startSec + 0.1).slice(-2) : [];
-    const res = await translateBatch(batch, contextBefore, input);
-    if (start === 0) {
-      detectedLanguage = res.detectedLanguage;
-      modelUsed = res.modelUsed;
-    }
+  const tripMap = new Map<number, DubSegment[]>();
+  for (const seg of nonEmpty) {
+    const tripIdx = Math.max(0, Math.floor(seg.startSec / DUB_TRIP_DURATION_SEC));
+    const arr = tripMap.get(tripIdx) ?? [];
+    arr.push(seg);
+    tripMap.set(tripIdx, arr);
+  }
+  const tripEntries = Array.from(tripMap.entries()).sort((a, b) => a[0] - b[0]);
 
-    for (const targetSeg of out) {
-      const translated = res.translations.get(targetSeg.id);
-      if (translated) {
-        targetSeg.translatedText = translated;
+  for (let t = 0; t < tripEntries.length; t += 1) {
+    const [tripBucket, tripSegs] = tripEntries[t];
+    const startMin = tripBucket * 30;
+    const endMin = startMin + 30;
+    input.onTripProgress?.(t, tripEntries.length, `Trip ${t + 1}/${tripEntries.length} (${startMin}m–${endMin}m)`);
+
+    for (let start = 0; start < tripSegs.length; start += SEGMENT_BATCH_SIZE) {
+      const batch = tripSegs.slice(start, start + SEGMENT_BATCH_SIZE);
+      const firstBatchSeg = batch[0];
+      const contextBefore = firstBatchSeg
+        ? out.filter((s) => s.endSec <= firstBatchSeg.startSec + 0.1).slice(-2)
+        : [];
+      const res = await translateBatch(batch, contextBefore, input);
+      if (t === 0 && start === 0) {
+        detectedLanguage = res.detectedLanguage;
+        modelUsed = res.modelUsed;
+      }
+
+      for (const targetSeg of out) {
+        const translated = res.translations.get(targetSeg.id);
+        if (translated) {
+          targetSeg.translatedText = translated;
+        }
       }
     }
   }

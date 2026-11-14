@@ -62,6 +62,12 @@ export async function POST(request: NextRequest) {
         : "natural";
 
     const autoTranslate = form.get("autoTranslate") !== "false";
+    const rawTripOffset = form.get("tripOffsetSec");
+    const tripOffsetSec =
+      typeof rawTripOffset === "string" && Number.isFinite(Number(rawTripOffset))
+        ? Math.max(0, Number(rawTripOffset))
+        : 0;
+    const skipVad = form.get("skipVad") === "true";
     const fileNameField = audioField instanceof File ? audioField.name : "extracted.wav";
     const extHint = fileNameField.split(".").pop()?.toLowerCase();
 
@@ -72,7 +78,7 @@ export async function POST(request: NextRequest) {
       extHint,
     );
 
-    if (prepared.durationSeconds > MAX_DUB_DURATION_SEC + 5) {
+    if (prepared.durationSeconds + tripOffsetSec > MAX_DUB_DURATION_SEC + 15) {
       return NextResponse.json(
         { error: "Media duration exceeds the maximum 2-hour (120 minute) limit." },
         { status: 400 },
@@ -83,29 +89,45 @@ export async function POST(request: NextRequest) {
       audioBuffer: prepared.deepgramPayload,
       mimeType: prepared.deepgramMimeType,
       sourceLanguage,
+      durationSeconds: prepared.durationSeconds,
     });
 
     const durationSeconds = Math.max(
       prepared.durationSeconds || 0,
       dg.durationSeconds || 0,
     );
-    if (durationSeconds > MAX_DUB_DURATION_SEC + 5) {
+    if (durationSeconds + tripOffsetSec > MAX_DUB_DURATION_SEC + 15) {
       return NextResponse.json(
         { error: "Media duration exceeds the maximum 2-hour (120 minute) limit." },
         { status: 400 },
       );
     }
 
-    const vadRef = extractVad20sCloneReference({
-      wavBuffer: prepared.wav24kBuffer,
-      words: dg.words,
-      targetDurationSec: 20,
-    });
+    const vadRef = skipVad
+      ? null
+      : extractVad20sCloneReference({
+          wavBuffer: prepared.wav24kBuffer,
+          words: dg.words,
+          targetDurationSec: 20,
+        });
+    if (vadRef && tripOffsetSec > 0) {
+      vadRef.info.startSec = Number((vadRef.info.startSec + tripOffsetSec).toFixed(2));
+      vadRef.info.endSec = Number((vadRef.info.endSec + tripOffsetSec).toFixed(2));
+    }
+
+    const alignedWords =
+      tripOffsetSec > 0
+        ? dg.words.map((w) => ({
+            ...w,
+            start: Number((w.start + tripOffsetSec).toFixed(3)),
+            end: Number((w.end + tripOffsetSec).toFixed(3)),
+          }))
+        : dg.words;
 
     const chunked =
-      dg.words.length > 0
+      alignedWords.length > 0
         ? await chunkAndTranslateWordsWithOpenRouter({
-            words: dg.words,
+            words: alignedWords,
             sourceLanguage: dg.detectedLanguage || sourceLanguage,
             targetLanguage,
             tone,

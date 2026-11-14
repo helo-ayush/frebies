@@ -391,6 +391,11 @@ class VideoDubManagerCore {
           audioBuffer: preparedAudio.deepgramPayload,
           mimeType: preparedAudio.deepgramMimeType,
           sourceLanguage: job.input.sourceLanguage,
+          durationSeconds: preparedAudio.durationSeconds,
+          onTripProgress: (idx, total, label) => {
+            job.progress = 8 + Math.round(((idx + 0.5) / Math.max(1, total)) * 5);
+            job.stageLabel = `Deepgram ASR ${label}...`;
+          },
         });
 
         if (dg.words.length === 0) {
@@ -405,7 +410,7 @@ class VideoDubManagerCore {
 
         // Step 1b: Extract ~20s VAD continuous speech sample if user requested speaker cloning and didn't provide custom file
         if (job.input.voiceMode === "clone" && !customVoiceToUse?.audioBase64) {
-          job.progress = 13;
+          job.progress = 14;
           job.stageLabel = "Finding ~20s clean speech sample via VAD...";
           const vadRef = extractVad20sCloneReference({
             wavBuffer: preparedAudio.wav24kBuffer,
@@ -424,8 +429,8 @@ class VideoDubManagerCore {
         }
 
         job.status = "translating";
-        job.progress = 18;
-        job.stageLabel = `Semantic chunking & translating into ${getDubLanguageLabel(job.input.targetLanguage)} via OpenRouter...`;
+        job.progress = 17;
+        job.stageLabel = `Semantic chunking & translating into ${getDubLanguageLabel(job.input.targetLanguage)} via Nemotron 3 Ultra...`;
 
         const chunked = await chunkAndTranslateWordsWithOpenRouter({
           words: dg.words,
@@ -433,6 +438,10 @@ class VideoDubManagerCore {
           targetLanguage: job.input.targetLanguage,
           tone: job.input.tone,
           autoTranslate: true,
+          onTripProgress: (idx, total, label) => {
+            job.progress = 17 + Math.round(((idx + 0.5) / Math.max(1, total)) * 4);
+            job.stageLabel = `${label}: Semantic chunking & Drama 3 tags via Nemotron 3 Ultra...`;
+          },
         });
 
         workingSegments = chunked.segments;
@@ -447,12 +456,16 @@ class VideoDubManagerCore {
         if (needsTranslate) {
           job.status = "translating";
           job.progress = 12;
-          job.stageLabel = `Translating ${workingSegments.length} lines with Drama 3 expression tags via OpenRouter...`;
+          job.stageLabel = `Translating ${workingSegments.length} lines with Drama 3 expression tags via Nemotron 3 Ultra...`;
           const translated = await translateDubSegments({
             segments: workingSegments,
             sourceLanguage: job.input.sourceLanguage,
             targetLanguage: job.input.targetLanguage,
             tone: job.input.tone,
+            onTripProgress: (idx, total, label) => {
+              job.progress = 12 + Math.round(((idx + 0.5) / Math.max(1, total)) * 8);
+              job.stageLabel = `${label}: Translating via Nemotron 3 Ultra...`;
+            },
           });
           workingSegments = translated.segments;
           job.modelUsed = translated.modelUsed;

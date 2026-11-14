@@ -2,7 +2,50 @@ import type { TtsStyle, VoiceId } from "@/components/tool/audio/tts/model";
 
 export const MAX_DUB_DURATION_SEC = 7200; // 2 hours
 export const MAX_DUB_DURATION_MIN = 120;
+export const DUB_TRIP_DURATION_SEC = 30 * 60; // 30 minutes per trip (2 hours = 4 trips)
 export const DURATION_MATCH_TOLERANCE_SEC = 1.8;
+
+export type DubTimeTripWindow = {
+  tripIndex: number;
+  totalTrips: number;
+  startSec: number;
+  endSec: number;
+  durationSec: number;
+  label: string;
+};
+
+/**
+ * Divide any media duration (up to 2 hours / 7200s) into sequential 30-minute processing
+ * trips (e.g., 2h = 4 trips: 0m–30m, 30m–60m, 60m–90m, 90m–120m) so long videos are
+ * never extracted, transcribed, or translated in a single monolithic pass.
+ */
+export function computeDubTripWindows(
+  totalDurationSec: number,
+  tripDurationSec = DUB_TRIP_DURATION_SEC,
+): DubTimeTripWindow[] {
+  const safeTotal = Math.min(MAX_DUB_DURATION_SEC, Math.max(0.1, totalDurationSec));
+  const step = Math.max(60, tripDurationSec);
+  const count = Math.max(1, Math.ceil(safeTotal / step));
+  const windows: DubTimeTripWindow[] = [];
+
+  for (let i = 0; i < count; i += 1) {
+    const startSec = Number((i * step).toFixed(2));
+    const endSec = Number(Math.min(safeTotal, (i + 1) * step).toFixed(2));
+    const durationSec = Number(Math.max(0.1, endSec - startSec).toFixed(2));
+    const startMin = Math.round(startSec / 60);
+    const endMin = Math.max(startMin + 1, Math.round(endSec / 60));
+    windows.push({
+      tripIndex: i,
+      totalTrips: count,
+      startSec,
+      endSec,
+      durationSec,
+      label: `Trip ${i + 1}/${count} (${startMin}m–${endMin}m)`,
+    });
+  }
+
+  return windows;
+}
 
 export type DubLanguageCode =
   | "auto"

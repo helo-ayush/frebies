@@ -2,8 +2,10 @@
 
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
 import {
+  DUB_TRIP_DURATION_SEC,
   DURATION_MATCH_TOLERANCE_SEC,
   MAX_DUB_DURATION_SEC,
+  computeDubTripWindows,
   getIso639_2Code,
   stripDramaTagsForSubtitles,
   type DubBindAudioMode,
@@ -216,6 +218,18 @@ function resampleLinear(samples: Float32Array, fromRate: number, toRate: number)
   return out;
 }
 
+export type BrowserAudioTrip = {
+  tripIndex: number;
+  totalTrips: number;
+  startSec: number;
+  endSec: number;
+  durationSec: number;
+  label: string;
+  blob: Blob;
+  fileName: string;
+  mimeType: string;
+};
+
 export type NormalizedBrowserAudio = {
   uploadBlob: Blob;
   uploadFileName: string;
@@ -223,12 +237,14 @@ export type NormalizedBrowserAudio = {
   durationSeconds: number;
   audioBuffer: AudioBuffer | null;
   codecConverted: boolean;
+  trips: BrowserAudioTrip[];
 };
 
 /**
  * Extract ONLY the audio track from the uploaded video/audio in the user's browser so heavy video
- * never hits our servers or Tigris storage. Automatically detects unsupported/poor audio codecs
- * or oversized streams and converts them into compact mono 24 kHz audio via browser FFmpeg.
+ * never hits our servers or Tigris storage. For media over 30 minutes (up to 2 hours = 4 trips),
+ * extracts audio initially in clean 30-minute trips so long videos are never converted or uploaded
+ * as a single monolithic pass.
  */
 export async function extractAndNormalizeAudioForServer(
   file: File,
@@ -238,13 +254,15 @@ export async function extractAndNormalizeAudioForServer(
   const isAudioFile = detectMediaKind(file) === "audio";
   const baseStem = file.name.replace(/\.[^/.]+$/, "").replace(/[^a-z0-9-_]+/gi, "-") || "media";
 
-  // Small compliant audio files (MP3/WAV/M4A <= 30 MB) can still be verified via Web Audio decode
   onProgress?.("Checking audio codec in browser...", 10);
 
   let decoded: AudioBuffer | null = null;
-  let needsFfmpegConversion = file.size > 45 * 1024 * 1024 || !isAudioFile;
+  let needsFfmpegConversion =
+    file.size > 45 * 1024 * 1024 ||
+    !isAudioFile ||
+    durationHintSec > DUB_TRIP_DURATION_SEC + 30;
 
-  if (file.size <= 120 * 1024 * 1024) {
+  if (file.size <= 120 * 1024 * 1024 && durationHintSec <= DUB_TRIP_DURATION_SEC + 30) {
     const ctx = new AudioContext();
     try {
       const buf = await file.arrayBuffer();
@@ -252,34 +270,65 @@ export async function extractAndNormalizeAudioForServer(
       if (decoded.duration > MAX_DUB_DURATION_SEC + 5) {
         throw new Error("Media duration exceeds the maximum 2-hour (120 minute) limit.");
       }
-      // If it's a native audio file under 18 MB that decoded cleanly and is <= 8 min,
-      // encode a crisp 24 kHz mono WAV or keep compact MP3 without waiting on FFmpeg load.
-      if (isAudioFile && file.size <= 18 * 1024 * 1024 && /\.(mp3|wav|m4a|ogg)$/i.test(file.name)) {
-        return {
-          uploadBlob: file,
-          uploadFileName: file.name,
-          uploadMimeType: file.type || "audio/mpeg",
-          durationSeconds: decoded.duration,
-          audioBuffer: decoded,
-          codecConverted: false,
-        };
-      }
 
-      if (decoded.duration <= 6 * 60) {
-        onProgress?.("Normalizing extracted audio waveform in browser...", 28);
-        const mono = mixAudioBufferToMono(decoded, 0, decoded.duration);
-        const resampled = resampleLinear(mono, decoded.sampleRate, 24_000);
-        const wavBytes = encodeMonoWav(resampled, 24_000);
-        if (wavBytes.byteLength <= 22 * 1024 * 1024) {
-          const safeBuf = new Uint8Array(wavBytes).buffer;
+      if (decoded.duration <= DUB_TRIP_DURATION_SEC + 30) {
+        const singleLabel = `Trip 1/1 (0m–${Math.max(1, Math.ceil(decoded.duration / 60))}m)`;
+        if (isAudioFile && file.size <= 18 * 1024 * 1024 && /\.(mp3|wav|m4a|ogg)$/i.test(file.name)) {
+          const mime = file.type || "audio/mpeg";
           return {
-            uploadBlob: new Blob([safeBuf], { type: "audio/wav" }),
-            uploadFileName: `${baseStem}-audio.wav`,
-            uploadMimeType: "audio/wav",
+            uploadBlob: file,
+            uploadFileName: file.name,
+            uploadMimeType: mime,
             durationSeconds: decoded.duration,
             audioBuffer: decoded,
-            codecConverted: !isAudioFile,
+            codecConverted: false,
+            trips: [
+              {
+                tripIndex: 0,
+                totalTrips: 1,
+                startSec: 0,
+                endSec: Number(decoded.duration.toFixed(2)),
+                durationSec: Number(decoded.duration.toFixed(2)),
+                label: singleLabel,
+                blob: file,
+                fileName: file.name,
+                mimeType: mime,
+              },
+            ],
           };
+        }
+
+        if (decoded.duration <= 6 * 60) {
+          onProgress?.("Normalizing extracted audio waveform in browser...", 28);
+          const mono = mixAudioBufferToMono(decoded, 0, decoded.duration);
+          const resampled = resampleLinear(mono, decoded.sampleRate, 24_000);
+          const wavBytes = encodeMonoWav(resampled, 24_000);
+          if (wavBytes.byteLength <= 22 * 1024 * 1024) {
+            const safeBuf = new Uint8Array(wavBytes).buffer;
+            const uploadBlob = new Blob([safeBuf], { type: "audio/wav" });
+            const uploadFileName = `${baseStem}-audio.wav`;
+            return {
+              uploadBlob,
+              uploadFileName,
+              uploadMimeType: "audio/wav",
+              durationSeconds: decoded.duration,
+              audioBuffer: decoded,
+              codecConverted: !isAudioFile,
+              trips: [
+                {
+                  tripIndex: 0,
+                  totalTrips: 1,
+                  startSec: 0,
+                  endSec: Number(decoded.duration.toFixed(2)),
+                  durationSec: Number(decoded.duration.toFixed(2)),
+                  label: singleLabel,
+                  blob: uploadBlob,
+                  fileName: uploadFileName,
+                  mimeType: "audio/wav",
+                },
+              ],
+            };
+          }
         }
       }
       needsFfmpegConversion = true;
@@ -294,19 +343,148 @@ export async function extractAndNormalizeAudioForServer(
   }
 
   if (needsFfmpegConversion) {
-    onProgress?.("Converting & compressing audio codec in browser (zero video upload)...", 20);
-    const ff = await getSharedBrowserFfmpeg((msg) => onProgress?.(msg, 22));
+    const knownDuration = decoded?.duration || durationHintSec;
+    if (knownDuration > MAX_DUB_DURATION_SEC + 5) {
+      throw new Error("Media duration exceeds the maximum 2-hour (120 minute) limit.");
+    }
+
+    const isMultiTrip = knownDuration > DUB_TRIP_DURATION_SEC + 30;
+    const windows = isMultiTrip
+      ? computeDubTripWindows(knownDuration, DUB_TRIP_DURATION_SEC)
+      : [
+          {
+            tripIndex: 0,
+            totalTrips: 1,
+            startSec: 0,
+            endSec: knownDuration > 0 ? knownDuration : 0,
+            durationSec: knownDuration > 0 ? knownDuration : 0,
+            label: knownDuration > 0 ? `Trip 1/1 (0m–${Math.max(1, Math.ceil(knownDuration / 60))}m)` : "Trip 1/1",
+          },
+        ];
+
+    onProgress?.(
+      isMultiTrip
+        ? `Preparing ${windows.length} × 30-min audio trips in browser (zero video upload)...`
+        : "Converting & compressing audio codec in browser (zero video upload)...",
+      18,
+    );
+    const ff = await getSharedBrowserFfmpeg((msg) => onProgress?.(msg, 20));
     const ext = file.name.split(".").pop()?.toLowerCase() || (isAudioFile ? "mp3" : "mp4");
     const inName = `extract_in.${ext}`;
     const outMp3Name = "extract_out.mp3";
     const outWavName = "extract_out.wav";
+    const concatListName = "trip_concat.txt";
+    const tempFilesToClean = new Set<string>([inName, outMp3Name, outWavName, concatListName]);
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     await ff.writeFile(inName, bytes);
 
     try {
+      if (windows.length > 1) {
+        const extractedTrips: BrowserAudioTrip[] = [];
+        const concatLines: string[] = [];
+        const byteChunks: Uint8Array[] = [];
+
+        for (const win of windows) {
+          onProgress?.(
+            `Extracting ${win.label} in browser...`,
+            22 + Math.round((win.tripIndex / windows.length) * 32),
+          );
+          const tripFile = `trip_${win.tripIndex}.mp3`;
+          tempFilesToClean.add(tripFile);
+
+          const exitCode = await ff.exec([
+            "-y",
+            "-ss",
+            win.startSec.toFixed(2),
+            "-t",
+            win.durationSec.toFixed(2),
+            "-i",
+            inName,
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "48k",
+            tripFile,
+          ]);
+          if (exitCode !== 0) {
+            throw new Error(`Could not extract ${win.label} audio stream from this file.`);
+          }
+
+          const rawTrip = await ff.readFile(tripFile);
+          const tripBytes =
+            rawTrip instanceof Uint8Array ? new Uint8Array(rawTrip) : new TextEncoder().encode(String(rawTrip));
+          if (tripBytes.byteLength >= 256) {
+            byteChunks.push(tripBytes);
+            concatLines.push(`file '${tripFile}'`);
+            extractedTrips.push({
+              tripIndex: extractedTrips.length,
+              totalTrips: windows.length,
+              startSec: win.startSec,
+              endSec: win.endSec,
+              durationSec: win.durationSec,
+              label: win.label,
+              blob: new Blob([tripBytes.buffer], { type: "audio/mpeg" }),
+              fileName: `${baseStem}-trip-${win.tripIndex + 1}.mp3`,
+              mimeType: "audio/mpeg",
+            });
+          }
+        }
+
+        if (extractedTrips.length === 0) {
+          throw new Error("No audible audio stream was found inside this file.");
+        }
+
+        await ff.writeFile(concatListName, new TextEncoder().encode(concatLines.join("\n")));
+        const concatExit = await ff.exec([
+          "-y",
+          "-f",
+          "concat",
+          "-safe",
+          "0",
+          "-i",
+          concatListName,
+          "-c",
+          "copy",
+          outMp3Name,
+        ]);
+
+        let combinedBlob: Blob;
+        if (concatExit === 0) {
+          const rawCombined = await ff.readFile(outMp3Name);
+          const combinedBytes =
+            rawCombined instanceof Uint8Array
+              ? new Uint8Array(rawCombined)
+              : new TextEncoder().encode(String(rawCombined));
+          combinedBlob = new Blob([combinedBytes.buffer], { type: "audio/mpeg" });
+        } else {
+          combinedBlob = new Blob(
+            byteChunks.map((c) => new Uint8Array(c).buffer),
+            { type: "audio/mpeg" },
+          );
+        }
+
+        return {
+          uploadBlob: combinedBlob,
+          uploadFileName: `${baseStem}-audio.mp3`,
+          uploadMimeType: "audio/mpeg",
+          durationSeconds: knownDuration,
+          audioBuffer: decoded,
+          codecConverted: true,
+          trips: extractedTrips.map((tr, i) => ({
+            ...tr,
+            tripIndex: i,
+            totalTrips: extractedTrips.length,
+          })),
+        };
+      }
+
       onProgress?.("Transcoding audio stream in browser...", 35);
-      // Try compact mono 24 kHz 64 kbps MP3 first (2 hours = ~56 MB, crisp speech fidelity)
       let exitCode = await ff.exec([
         "-y",
         "-i",
@@ -328,7 +506,6 @@ export async function extractAndNormalizeAudioForServer(
       let outFileName = `${baseStem}-audio.mp3`;
 
       if (exitCode !== 0) {
-        // Fallback to 16 kHz PCM WAV if libmp3lame isn't active for a rare container
         exitCode = await ff.exec([
           "-y",
           "-i",
@@ -352,7 +529,7 @@ export async function extractAndNormalizeAudioForServer(
 
       const rawOut = await ff.readFile(outName);
       const outBytes =
-        rawOut instanceof Uint8Array ? rawOut : new TextEncoder().encode(String(rawOut));
+        rawOut instanceof Uint8Array ? new Uint8Array(rawOut) : new TextEncoder().encode(String(rawOut));
       const safeBuffer = new Uint8Array(outBytes).buffer;
       const uploadBlob = new Blob([safeBuffer], { type: outMime });
 
@@ -360,7 +537,6 @@ export async function extractAndNormalizeAudioForServer(
         throw new Error("No audible audio stream was found inside this file.");
       }
 
-      // Try decoding small/medium converted outputs for instant client-side preview
       if (!decoded && uploadBlob.size <= 35 * 1024 * 1024) {
         const ctx = new AudioContext();
         try {
@@ -372,7 +548,7 @@ export async function extractAndNormalizeAudioForServer(
         }
       }
 
-      const finalDuration = decoded?.duration || durationHintSec;
+      const finalDuration = decoded?.duration || knownDuration;
       if (finalDuration > MAX_DUB_DURATION_SEC + 5) {
         throw new Error("Media duration exceeds the maximum 2-hour (120 minute) limit.");
       }
@@ -384,13 +560,24 @@ export async function extractAndNormalizeAudioForServer(
         durationSeconds: finalDuration,
         audioBuffer: decoded,
         codecConverted: true,
+        trips: [
+          {
+            tripIndex: 0,
+            totalTrips: 1,
+            startSec: 0,
+            endSec: Number((finalDuration || 0).toFixed(2)),
+            durationSec: Number((finalDuration || 0).toFixed(2)),
+            label: finalDuration > 0 ? `Trip 1/1 (0m–${Math.max(1, Math.ceil(finalDuration / 60))}m)` : "Trip 1/1",
+            blob: uploadBlob,
+            fileName: outFileName,
+            mimeType: outMime,
+          },
+        ],
       };
     } finally {
-      await Promise.all([
-        ff.deleteFile(inName).catch(() => {}),
-        ff.deleteFile(outMp3Name).catch(() => {}),
-        ff.deleteFile(outWavName).catch(() => {}),
-      ]);
+      await Promise.all(
+        Array.from(tempFilesToClean).map((name) => ff.deleteFile(name).catch(() => {})),
+      );
     }
   }
 
