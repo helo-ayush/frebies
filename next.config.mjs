@@ -7,6 +7,9 @@ const root = dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   reactStrictMode: true,
   turbopack: { root },
+  experimental: {
+    proxyClientMaxBodySize: "120mb",
+  },
 };
 
 export default nextConfig;

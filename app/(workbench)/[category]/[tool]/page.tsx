@@ -236,7 +236,7 @@ export default async function ToolPage({ params }: ToolParams) {
       <>
         <ToolHeader tool={tool} category={category} showTierBadge={false} showEngineBadge={false} />
         <section className="mt-5">
-          <VideoDubbingStudio maxSizeMB={tool.limits.maxSizeMB ?? 150} />
+          <VideoDubbingStudio maxSizeMB={tool.limits.maxSizeMB ?? 2048} />
         </section>
       </>
     );
