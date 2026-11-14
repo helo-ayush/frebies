@@ -1,6 +1,7 @@
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -263,18 +264,75 @@ export function computeWavPeaks(
   return raw.map((v) => Math.max(0.06, Math.min(1, Math.pow(v / loudest, 0.72))));
 }
 
+let cachedFfmpegPath: string | null | undefined;
+let ffmpegStaticPathChecked = false;
+let ffmpegStaticResolvedPath: string | null = null;
+
+function resolveBundledFfmpegStatic(): string | null {
+  if (!ffmpegStaticPathChecked) {
+    ffmpegStaticPathChecked = true;
+    try {
+      const req = createRequire(import.meta.url);
+      const mod = req("ffmpeg-static");
+      if (typeof mod === "string" && mod.trim()) {
+        ffmpegStaticResolvedPath = mod.trim();
+      }
+    } catch {
+      // Optional or untraced
+    }
+  }
+  if (ffmpegStaticResolvedPath && fs.existsSync(/*turbopackIgnore: true*/ ffmpegStaticResolvedPath)) {
+    return ffmpegStaticResolvedPath;
+  }
+
+  const binName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  const fallbacks = [
+    path.join(process.cwd(), "node_modules", "ffmpeg-static", binName),
+    "/var/task/node_modules/ffmpeg-static/ffmpeg",
+  ];
+  for (const cand of fallbacks) {
+    if (fs.existsSync(/*turbopackIgnore: true*/ cand)) return cand;
+  }
+  return null;
+}
+
+function probeFfmpegExecutable(candidate: string): boolean {
+  try {
+    if (candidate !== "ffmpeg" && !fs.existsSync(/*turbopackIgnore: true*/ candidate)) {
+      return false;
+    }
+    const probe = spawnSync(candidate, ["-version"], {
+      stdio: "ignore",
+      timeout: 4000,
+    });
+    return !probe.error && probe.status === 0;
+  } catch {
+    return false;
+  }
+}
+
 export function resolveFfmpegPath(): string | null {
+  if (cachedFfmpegPath !== undefined) {
+    return cachedFfmpegPath;
+  }
+
   const candidates = [
     process.env.FFMPEG_PATH,
+    resolveBundledFfmpegStatic(),
+    "/usr/bin/ffmpeg",
+    "/usr/local/bin/ffmpeg",
     "C:\\ffmpeg\\bin\\ffmpeg.exe",
     "ffmpeg",
   ].filter(Boolean) as string[];
 
   for (const cand of candidates) {
-    if (cand === "ffmpeg" || fs.existsSync(cand)) {
+    if (probeFfmpegExecutable(cand)) {
+      cachedFfmpegPath = cand;
       return cand;
     }
   }
+
+  cachedFfmpegPath = null;
   return null;
 }
 
@@ -314,7 +372,7 @@ export async function postProcessWav(
 ): Promise<{
   buffer: Buffer;
   format: "mp3" | "wav";
-  mimeType: string;
+  mimeType: "audio/mpeg" | "audio/wav";
   durationSeconds: number;
   peaks: number[];
 }> {
@@ -456,6 +514,18 @@ export async function postProcessWav(
       mimeType: "audio/wav",
       durationSeconds: finalDuration,
       peaks: finalPeaks,
+    };
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException | null)?.code;
+    if (code === "ENOENT" || code === "EACCES") {
+      cachedFfmpegPath = null;
+    }
+    return {
+      buffer: wavBuffer,
+      format: "wav",
+      mimeType: "audio/wav",
+      durationSeconds: rawDuration,
+      peaks: rawPeaks,
     };
   } finally {
     await fsp.rm(workDir, { recursive: true, force: true }).catch(() => {});

@@ -236,6 +236,7 @@ export async function assembleDubbedSpeechTrack(options: {
   backgroundWavBuffer?: Buffer | null;
 }): Promise<{
   mp3Buffer: Buffer;
+  mimeType: "audio/mpeg" | "audio/wav";
   peaks: number[];
   durationSeconds: number;
   alignedSegments: DubAlignedSegment[];
@@ -332,6 +333,7 @@ export async function assembleDubbedSpeechTrack(options: {
 
     return {
       mp3Buffer: encoded.buffer,
+      mimeType: encoded.mimeType,
       peaks,
       durationSeconds: finalDurationSec,
       alignedSegments,
@@ -394,6 +396,7 @@ export async function assembleDubbedSpeechTrack(options: {
       const wavBuf = await fsp.readFile(speechWavPath);
       return {
         mp3Buffer: wavBuf,
+        mimeType: "audio/wav",
         peaks,
         durationSeconds: finalDurationSec,
         alignedSegments,
@@ -412,6 +415,7 @@ export async function assembleDubbedSpeechTrack(options: {
       });
       return {
         mp3Buffer,
+        mimeType: "audio/mpeg",
         peaks,
         durationSeconds: finalDurationSec,
         alignedSegments,
@@ -440,6 +444,7 @@ export async function assembleDubbedSpeechTrack(options: {
     const mp3Buffer = await fsp.readFile(outMp3Path);
     return {
       mp3Buffer,
+      mimeType: "audio/mpeg",
       peaks,
       durationSeconds: finalDurationSec,
       alignedSegments,

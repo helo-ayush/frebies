@@ -568,6 +568,9 @@ class VideoDubManagerCore {
       const completedAt = Date.now();
       const stageLabel = `Ready (${getDubLanguageLabel(job.input.targetLanguage)} via ${job.assignedStudioLabel || "Drama 3"})`;
 
+      const outExt = assembled.mimeType === "audio/wav" ? "wav" : "mp3";
+      job.fileName = job.fileName.replace(/\.(mp3|wav)$/i, `.${outExt}`);
+
       job.progress = 94;
       job.stageLabel = "Saving dubbed audio & subtitles to Tigris cloud vault...";
       const stored = await this.store.saveArtifact<DubStoredMeta>({
@@ -575,7 +578,7 @@ class VideoDubManagerCore {
         toolSlug: DUB_TOOL_SLUG,
         ownerId: job.ownerId,
         fileName: job.fileName,
-        mimeType: "audio/mpeg",
+        mimeType: assembled.mimeType,
         buffer: assembled.mp3Buffer,
         createdAt: job.createdAt,
         completedAt,
