@@ -273,6 +273,7 @@ class TtsManagementCore {
   private bootTimer: ReturnType<typeof setInterval> | null = null;
   private pumpScheduled = false;
   private initPromise: Promise<void> | null = null;
+  private lastStoreSyncByOwner = new Map<string, number>();
 
   constructor() {
     this.settings = loadPoolSettings();
@@ -327,20 +328,26 @@ class TtsManagementCore {
     return this.initPromise;
   }
 
-  private async hydrateRecentJobs(): Promise<void> {
-    const ttlMs = this.effectiveTtlMs();
+  private async syncCompletedFromStore(ownerId?: string, force = false): Promise<void> {
+    const cacheKey = ownerId ?? "__all__";
     const now = Date.now();
-    const cutoff = now - ttlMs;
+    const lastSync = this.lastStoreSyncByOwner.get(cacheKey) ?? 0;
+    if (!force && now - lastSync < 2500) {
+      return;
+    }
+    this.lastStoreSyncByOwner.set(cacheKey, now);
 
-    // 1) Hydrate completed generations persisted in Cloudflare R2 (or local GenerationStore fallback)
     try {
       const stored = await this.store.listGenerations<TtsStoredMeta>({
         toolSlug: "audio/text-to-speech",
-        limit: 200,
+        ownerId,
+        limit: ownerId ? 60 : 200,
       });
 
       for (const rec of stored) {
-        if (this.jobs.has(rec.id) || rec.expiresAt <= now) continue;
+        if (rec.expiresAt <= now) continue;
+        const existing = this.jobs.get(rec.id);
+        if (existing && existing.status === "completed") continue;
         const meta = rec.meta ?? {};
         const format: TtsFormat = meta.format === "wav" ? "wav" : "mp3";
         const voiceName = meta.voiceName || "Aria";
@@ -365,7 +372,7 @@ class TtsManagementCore {
           },
           status: "completed",
           progress: 100,
-          stageLabel: meta.stageLabel || "Stored on Cloudflare R2",
+          stageLabel: meta.stageLabel || "Stored on Tigris",
           assignedStudio: meta.assignedStudio ?? null,
           assignedStudioLabel: meta.assignedStudioLabel ?? null,
           bootStartedAt: null,
@@ -394,8 +401,17 @@ class TtsManagementCore {
         this.jobs.set(rec.id, hydrated);
       }
     } catch {
-      // Ignore remote store hydration failure on transient boot errors
+      // Ignore remote store hydration failure on transient errors
     }
+  }
+
+  private async hydrateRecentJobs(): Promise<void> {
+    const ttlMs = this.effectiveTtlMs();
+    const now = Date.now();
+    const cutoff = now - ttlMs;
+
+    // 1) Hydrate completed generations persisted in Tigris / R2 (or local GenerationStore fallback)
+    await this.syncCompletedFromStore(undefined, true);
 
     // 2) Hydrate recent failed jobs from local transient metadata so "Try again" survives restarts
     try {
@@ -1929,8 +1945,30 @@ class TtsManagementCore {
     return this.toJobSnapshot(job);
   }
 
+  public async getJobAsync(jobId: string, ownerId?: string): Promise<TtsJobSnapshot | null> {
+    await this.ensureCacheDirs();
+    const local = this.getJob(jobId, ownerId);
+    if (local && (local.status === "completed" || local.status === "failed")) {
+      return local;
+    }
+    await this.syncCompletedFromStore(ownerId, true);
+    return this.getJob(jobId, ownerId);
+  }
+
+  public async waitForJob(jobId: string, timeoutMs = 285_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const job = this.jobs.get(jobId);
+      if (!job || job.status === "completed" || job.status === "failed") {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 450));
+    }
+  }
+
   public async listJobsAsync(ownerId?: string): Promise<TtsJobSnapshot[]> {
     await this.ensureCacheDirs();
+    await this.syncCompletedFromStore(ownerId);
     return this.listJobs(ownerId);
   }
 
@@ -1939,7 +1977,7 @@ class TtsManagementCore {
     return Array.from(this.jobs.values())
       .filter((j) => ownerId === undefined || j.ownerId === ownerId)
       .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 30)
+      .slice(0, 60)
       .map((j) => this.toJobSnapshot(j));
   }
 

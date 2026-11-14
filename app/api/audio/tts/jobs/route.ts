@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import {
   DEFAULT_TTS_SETTINGS,
   TTS_BITRATES,
@@ -16,6 +16,7 @@ import { getTtsManager, type TtsJobInput } from "@/lib/audio/tts-manager";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 function pickValid<T extends string>(val: unknown, allowed: readonly T[], fallback: T): T {
   return typeof val === "string" && allowed.includes(val as T) ? (val as T) : fallback;
@@ -122,6 +123,8 @@ export async function POST(request: NextRequest) {
       ownerId: owner.ownerId,
       customVoice,
     });
+
+    after(() => manager.waitForJob(job.id));
 
     const pool = manager.getCachedPoolSnapshot();
     const storage = manager.getCachedStorageStats(owner.ownerId);

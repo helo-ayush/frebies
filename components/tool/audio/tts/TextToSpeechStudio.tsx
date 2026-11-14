@@ -6,6 +6,8 @@ import {
   AudioLines,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Download,
   Loader2,
@@ -178,6 +180,8 @@ export function TextToSpeechStudio() {
 
   const [pool, setPool] = useState<PoolStatusSnapshot | null>(null);
   const [jobs, setJobs] = useState<TtsJobSnapshot[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
   const [storage, setStorage] = useState<GenerationStorageStats | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<number>(() => Date.now());
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
@@ -193,6 +197,7 @@ export function TextToSpeechStudio() {
   const mountedRef = useRef(true);
   const prevOwnerIdRef = useRef<string | null | undefined>(undefined);
   const draftHydratedRef = useRef(false);
+  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (draftHydratedRef.current) return;
@@ -262,7 +267,26 @@ export function TextToSpeechStudio() {
       if (!mountedRef.current) return;
       const now = Date.now();
       setPool(nextPool);
-      setJobs(nextJobs);
+      setJobs((prev) => {
+        const byId = new Map<string, TtsJobSnapshot>();
+        for (const j of nextJobs) {
+          if (!deletedIdsRef.current.has(j.id)) {
+            byId.set(j.id, j);
+          }
+        }
+        for (const p of prev) {
+          if (
+            ACTIVE_STATUSES.has(p.status) &&
+            !deletedIdsRef.current.has(p.id) &&
+            !byId.has(p.id) &&
+            now - p.createdAt < 25 * 60 * 1000
+          ) {
+            byId.set(p.id, p);
+          }
+        }
+        return Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
+      });
+      setJobsLoading(false);
       if (nextStorage !== undefined) {
         setStorage(nextStorage);
       }
@@ -271,6 +295,21 @@ export function TextToSpeechStudio() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (!ownerUserId) return;
+    try {
+      const key = `frebies:tts-active:${ownerUserId}`;
+      const active = jobs.filter((j) => ACTIVE_STATUSES.has(j.status));
+      if (active.length > 0) {
+        window.sessionStorage.setItem(key, JSON.stringify(active));
+      } else {
+        window.sessionStorage.removeItem(key);
+      }
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [jobs, ownerUserId]);
 
   const fetchStatus = useCallback(
     async (opts?: { wake?: boolean; force?: boolean }) => {
@@ -299,16 +338,37 @@ export function TextToSpeechStudio() {
 
     if (prevOwnerIdRef.current !== ownerUserId) {
       prevOwnerIdRef.current = ownerUserId;
-      setJobs([]);
+      deletedIdsRef.current.clear();
+      setCurrentPage(1);
       setStorage(null);
       setSubmitError(null);
       setActiveCloneId(null);
       setClonerOpen(false);
       setSavedClones(loadSavedClonedVoices(ownerUserId));
+
+      let cachedActive: TtsJobSnapshot[] = [];
+      if (ownerUserId) {
+        try {
+          const raw = window.sessionStorage.getItem(`frebies:tts-active:${ownerUserId}`);
+          if (raw) {
+            const parsed = JSON.parse(raw) as TtsJobSnapshot[];
+            if (Array.isArray(parsed)) {
+              cachedActive = parsed.filter(
+                (j) => j?.id && ACTIVE_STATUSES.has(j.status) && Date.now() - j.createdAt < 25 * 60 * 1000,
+              );
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+      setJobs(cachedActive);
+      setJobsLoading(Boolean(isSignedIn));
     }
 
     fetchStatus({ wake: Boolean(isSignedIn) }).catch((err) => {
       if (mountedRef.current) {
+        setJobsLoading(false);
         setSubmitError(
           err instanceof Error
             ? friendlyJobError(err.message)
@@ -477,6 +537,7 @@ export function TextToSpeechStudio() {
         throw new Error(data.error || `Could not start voice generation (${res.status})`);
       }
 
+      setCurrentPage(1);
       const nextJobs = [data.job, ...jobs.filter((j) => j.id !== data.job!.id)];
       if (data.pool) {
         applySync(data.pool, nextJobs, data.storage);
@@ -545,6 +606,7 @@ export function TextToSpeechStudio() {
         return;
       }
       if (res.ok) {
+        deletedIdsRef.current.add(jobId);
         const data = (await res.json().catch(() => ({}))) as {
           storage?: GenerationStorageStats;
         };
@@ -889,7 +951,31 @@ export function TextToSpeechStudio() {
           </div>
         )}
 
-        {jobs.length === 0 ? (
+        {jobsLoading && jobs.length === 0 && isSignedIn ? (
+          <div className="space-y-3" aria-busy="true" aria-label="Loading audio history">
+            {[0, 1, 2].map((skeletonIdx) => (
+              <div
+                key={skeletonIdx}
+                className="overflow-hidden rounded-[20px] border border-line bg-white p-4 shadow-[0_1px_2px_rgba(15,15,16,0.03)] sm:p-5"
+              >
+                <div className="flex items-start gap-3 animate-pulse">
+                  <div className="h-9 w-9 shrink-0 rounded-xl bg-[#efeeea]" />
+                  <div className="min-w-0 flex-1 space-y-2.5">
+                    <div className="h-3.5 w-4/5 rounded-full bg-[#efeeea]" />
+                    <div className="h-3.5 w-1/2 rounded-full bg-[#f4f3ef]" />
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <div className="h-5 w-16 rounded-full bg-[#efeeea]" />
+                      <div className="h-5 w-14 rounded-full bg-[#f4f3ef]" />
+                      <div className="h-5 w-10 rounded-full bg-[#f4f3ef]" />
+                    </div>
+                  </div>
+                  <div className="h-4 w-12 shrink-0 rounded-full bg-[#f4f3ef]" />
+                </div>
+                <div className="mt-4 h-12 rounded-xl bg-[#f7f6f3] animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : jobs.length === 0 ? (
           isLoaded && !isSignedIn ? (
             <div className="flex flex-col items-center rounded-[22px] border border-dashed border-[#d6d4cc] bg-white/60 px-6 py-11 text-center">
               <span className="grid h-12 w-12 place-items-center rounded-2xl bg-rail text-ink ring-1 ring-line">
@@ -924,8 +1010,16 @@ export function TextToSpeechStudio() {
             </div>
           )
         ) : (
-          <div className="space-y-3">
-            {jobs.map((job) => {
+          (() => {
+            const pageSize = 5;
+            const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
+            const safePage = Math.min(currentPage, totalPages);
+            const startIndex = (safePage - 1) * pageSize;
+            const visibleJobs = jobs.slice(startIndex, startIndex + pageSize);
+
+            return (
+              <div className="space-y-3">
+                {visibleJobs.map((job) => {
               const badge = jobStatusPill(job);
               const isActive = ACTIVE_STATUSES.has(job.status);
               const canDelete = job.status !== "synthesizing" && job.status !== "processing_audio";
@@ -1046,7 +1140,43 @@ export function TextToSpeechStudio() {
                 </article>
               );
             })}
-          </div>
+
+                {totalPages > 1 && (
+                  <nav
+                    aria-label="Audio history pages"
+                    className="flex flex-wrap items-center justify-between gap-2 pt-2"
+                  >
+                    <span className="text-[12px] tabular-nums text-muted">
+                      Showing {startIndex + 1}–{Math.min(startIndex + pageSize, jobs.length)} of {jobs.length}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+                        disabled={safePage <= 1}
+                        className="inline-flex h-8 items-center gap-1 rounded-full border border-line bg-white px-3 text-[12px] font-medium text-ink transition hover:bg-[#f7f7f5] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <ChevronLeft size={13} aria-hidden />
+                        Prev
+                      </button>
+                      <span className="px-2 text-[12px] font-medium tabular-nums text-ink">
+                        Page {safePage} / {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+                        disabled={safePage >= totalPages}
+                        className="inline-flex h-8 items-center gap-1 rounded-full border border-line bg-white px-3 text-[12px] font-medium text-ink transition hover:bg-[#f7f7f5] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Next
+                        <ChevronRight size={13} aria-hidden />
+                      </button>
+                    </div>
+                  </nav>
+                )}
+              </div>
+            );
+          })()
         )}
       </section>
 

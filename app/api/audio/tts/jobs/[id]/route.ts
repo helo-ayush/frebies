@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { authRequiredResponse, requireAuthenticatedOwner } from "@/lib/auth/owner";
 import { getTtsManager } from "@/lib/audio/tts-manager";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   if (!owner) return authRequiredResponse();
   const { id } = await context.params;
   const manager = getTtsManager();
-  const job = manager.getJob(id, owner.ownerId);
+  const job = await manager.getJobAsync(id, owner.ownerId);
   if (!job) {
     return NextResponse.json({ error: "Generation job not found or expired." }, { status: 404 });
   }
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!job) {
     return NextResponse.json({ error: "Generation job not found or expired." }, { status: 404 });
   }
+  after(() => manager.waitForJob(job.id));
   const pool = manager.getCachedPoolSnapshot();
   const storage = manager.getCachedStorageStats(owner.ownerId);
   return NextResponse.json({ job, pool, storage });
