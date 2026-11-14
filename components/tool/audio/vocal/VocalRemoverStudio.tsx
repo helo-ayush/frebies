@@ -40,6 +40,10 @@ import {
 } from "@/components/tool/GenerationRetentionBadge";
 import { CreditGate } from "@/components/tool/paid/CreditGate";
 import {
+  submitWorkerMultipartForm,
+  type BrowserWorkerAuth,
+} from "@/lib/worker/browser-upload";
+import {
   DEFAULT_VOCAL_SETTINGS,
   MIXER_PRESETS,
   VOCAL_COST,
@@ -212,6 +216,7 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
   const demoUrlRef = useRef<string | null>(null);
 
   const [gpuStatus, setGpuStatus] = useState<GpuStatusPayload | null>(null);
+  const [workerAuth, setWorkerAuth] = useState<BrowserWorkerAuth | null>(null);
   const [jobs, setJobs] = useState<VocalJobSnapshot[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -290,8 +295,12 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
         cache: "no-store",
       });
       if (!res.ok) return;
-      const data = (await res.json()) as { status?: GpuStatusPayload };
+      const data = (await res.json()) as {
+        status?: GpuStatusPayload;
+        workerAuth?: BrowserWorkerAuth | null;
+      };
       if (data.status) setGpuStatus(data.status);
+      if (data.workerAuth !== undefined) setWorkerAuth(data.workerAuth);
     } catch {
       // Ignore transient status polling error
     }
@@ -641,9 +650,14 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
       form.append("file", stagedAudio.file);
       form.append("settings", JSON.stringify(settings));
 
-      const res = await fetch("/api/audio/vocal/jobs", {
-        method: "POST",
-        body: form,
+      const res = await submitWorkerMultipartForm({
+        workerAuth,
+        refreshStatusUrl: "/api/audio/vocal/status",
+        onWorkerAuth: setWorkerAuth,
+        workerPath: "/api/audio/vocal/jobs",
+        proxyPath: "/api/audio/vocal/jobs",
+        form,
+        fileSizeBytes: stagedAudio.file.size,
       });
 
       if (res.status === 401) {

@@ -29,6 +29,10 @@ import {
   GenerationStorageNotice,
 } from "@/components/tool/GenerationRetentionBadge";
 import { CreditGate } from "@/components/tool/paid/CreditGate";
+import {
+  submitWorkerMultipartForm,
+  type BrowserWorkerAuth,
+} from "@/lib/worker/browser-upload";
 import type { StudioImage } from "@/components/tool/studio/types";
 import { useImageQueue } from "@/components/tool/studio/useImageQueue";
 import {
@@ -184,6 +188,7 @@ export function UpscalerStudio({ maxSizeMB }: { maxSizeMB: number }) {
   const samplePreviewRef = useRef<string | null>(null);
 
   const [gpuStatus, setGpuStatus] = useState<GpuStatusPayload | null>(null);
+  const [workerAuth, setWorkerAuth] = useState<BrowserWorkerAuth | null>(null);
   const [jobs, setJobs] = useState<UpscaleJobSnapshot[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -236,8 +241,12 @@ export function UpscalerStudio({ maxSizeMB }: { maxSizeMB: number }) {
         cache: "no-store",
       });
       if (!res.ok) return;
-      const data = (await res.json()) as { status?: GpuStatusPayload };
+      const data = (await res.json()) as {
+        status?: GpuStatusPayload;
+        workerAuth?: BrowserWorkerAuth | null;
+      };
       if (data.status) setGpuStatus(data.status);
+      if (data.workerAuth !== undefined) setWorkerAuth(data.workerAuth);
     } catch {
       // Ignore transient status polling error
     }
@@ -368,9 +377,14 @@ export function UpscalerStudio({ maxSizeMB }: { maxSizeMB: number }) {
       form.append("originalHeight", String(stagedSource.height ?? 0));
       form.append("settings", JSON.stringify(settings));
 
-      const res = await fetch("/api/image/upscale/jobs", {
-        method: "POST",
-        body: form,
+      const res = await submitWorkerMultipartForm({
+        workerAuth,
+        refreshStatusUrl: "/api/image/upscale/status",
+        onWorkerAuth: setWorkerAuth,
+        workerPath: "/api/image/upscale/jobs",
+        proxyPath: "/api/image/upscale/jobs",
+        form,
+        fileSizeBytes: stagedSource.file.size,
       });
 
       if (res.status === 401) {
