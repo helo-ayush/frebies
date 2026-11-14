@@ -11,7 +11,8 @@ export type SeparatedStemsResult = {
 };
 
 const DEFAULT_SEPARATOR_STUDIO = "helo-ayush/Upscaler_VocalSeperator";
-const CHUNK_SECONDS = 300; // 5-minute chunks keep HTTP JSON payloads ~19 MB & ~3-6s on L20 GPU
+const MAX_SINGLE_STEM_CHUNK_BYTES = 14 * 1024 * 1024;
+const MAX_DUAL_STEM_CHUNK_BYTES = 8 * 1024 * 1024; // Keeps dual-stem base64 payloads safely under ModelScope's 32 MB limit
 
 function getSeparatorBaseUrl(): string {
   return (
@@ -151,7 +152,10 @@ export async function separateAudioStemsWithGpu(
 
   const bytesPerSample = Math.max(1, (parsed.bitsPerSample / 8) * parsed.numChannels);
   const alignedBytesPerSec = parsed.sampleRate * bytesPerSample;
-  const maxChunkBytes = Math.max(alignedBytesPerSec * 10, CHUNK_SECONDS * alignedBytesPerSec);
+  const maxRawChunkBytes =
+    returnVocals && returnInstrumental ? MAX_DUAL_STEM_CHUNK_BYTES : MAX_SINGLE_STEM_CHUNK_BYTES;
+  const chunkSeconds = Math.max(10, Math.floor(maxRawChunkBytes / Math.max(1, alignedBytesPerSec)));
+  const maxChunkBytes = chunkSeconds * alignedBytesPerSec;
 
   const pcmChunks: Buffer[] = [];
   for (let offset = 0; offset < parsed.pcmData.length; offset += maxChunkBytes) {

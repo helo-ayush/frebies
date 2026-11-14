@@ -332,11 +332,146 @@ function splitWordSubBatches(words: DeepgramWord[], maxWords = TRIP_LLM_MAX_WORD
   return batches;
 }
 
+type PacingProfile = "slow_deliberate" | "relaxed_measured" | "natural_conversational" | "fast_energetic";
+
+function classifyPacingProfile(wordsPerSec: number): {
+  pacingProfile: PacingProfile;
+  cadenceFactor: number;
+  recommendedPacingTags: string[];
+} {
+  const cadenceFactor = Math.max(0.72, Math.min(1.22, wordsPerSec / 2.4));
+  if (wordsPerSec < 1.85) {
+    return {
+      pacingProfile: "slow_deliberate",
+      cadenceFactor,
+      recommendedPacingTags: ["[calm]", "[sighs]", "[hesitant]", "[empathetic]", "[serious]"],
+    };
+  }
+  if (wordsPerSec < 2.25) {
+    return {
+      pacingProfile: "relaxed_measured",
+      cadenceFactor,
+      recommendedPacingTags: ["[calm]", "[conversational]", "[empathetic]", "[curious]"],
+    };
+  }
+  if (wordsPerSec <= 2.7) {
+    return {
+      pacingProfile: "natural_conversational",
+      cadenceFactor,
+      recommendedPacingTags: ["[conversational]", "[confident]", "[cheerful]", "[curious]", "[surprised]"],
+    };
+  }
+  return {
+    pacingProfile: "fast_energetic",
+    cadenceFactor,
+    recommendedPacingTags: ["[excited]", "[cheerful]", "[confident]", "[surprised]", "[laughs]"],
+  };
+}
+
+function estimateSpokenWordCount(text: string): number {
+  const stripped = text
+    .replace(/\[[^\]]*\]/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .trim();
+  if (!stripped) return 0;
+  const tokens = stripped.split(/\s+/).filter(Boolean);
+  // CJK scripts have no whitespace between words; approximate ~2.2 chars per spoken word
+  if (tokens.length <= 2 && stripped.replace(/\s+/g, "").length >= 10) {
+    return Math.max(tokens.length, Math.round(stripped.replace(/\s+/g, "").length / 2.2));
+  }
+  return tokens.length;
+}
+
+function computeWordWindowCadence(words: DeepgramWord[], baseCps: number): {
+  effectiveCharsPerSec: number;
+  wordsPerSec: number;
+  pacingProfile: PacingProfile;
+  recommendedPacingTags: string[];
+  bySpeaker: Record<string, { wordsPerSec: number; effectiveCharsPerSec: number; pacingProfile: PacingProfile }>;
+} {
+  if (words.length === 0) {
+    return {
+      effectiveCharsPerSec: baseCps,
+      wordsPerSec: 2.4,
+      pacingProfile: "natural_conversational",
+      recommendedPacingTags: ["[conversational]", "[confident]", "[curious]"],
+      bySpeaker: {},
+    };
+  }
+
+  let activeSec = 0;
+  const spkWords = new Map<number, DeepgramWord[]>();
+  for (let i = 0; i < words.length; i += 1) {
+    const w = words[i];
+    const spk = w.speaker ?? 0;
+    const list = spkWords.get(spk) ?? [];
+    list.push(w);
+    spkWords.set(spk, list);
+
+    activeSec += Math.max(0.08, w.end - w.start);
+    if (i > 0) {
+      const gap = Math.max(0, w.start - words[i - 1].end);
+      if (gap < 1.1) activeSec += gap;
+    }
+  }
+  activeSec = Math.max(0.6, activeSec);
+
+  const wordsPerSec = Number((words.length / activeSec).toFixed(2));
+  const overall = classifyPacingProfile(wordsPerSec);
+
+  const bySpeaker: Record<string, { wordsPerSec: number; effectiveCharsPerSec: number; pacingProfile: PacingProfile }> = {};
+  for (const [spk, list] of spkWords.entries()) {
+    let spkActiveSec = 0;
+    for (let i = 0; i < list.length; i += 1) {
+      spkActiveSec += Math.max(0.08, list[i].end - list[i].start);
+      if (i > 0) {
+        const gap = Math.max(0, list[i].start - list[i - 1].end);
+        if (gap < 1.1) spkActiveSec += gap;
+      }
+    }
+    const spkWps = Number((list.length / Math.max(0.5, spkActiveSec)).toFixed(2));
+    const spkCls = classifyPacingProfile(spkWps);
+    bySpeaker[`spk_${spk}`] = {
+      wordsPerSec: spkWps,
+      effectiveCharsPerSec: Number((baseCps * spkCls.cadenceFactor).toFixed(1)),
+      pacingProfile: spkCls.pacingProfile,
+    };
+  }
+
+  return {
+    effectiveCharsPerSec: Number((baseCps * overall.cadenceFactor).toFixed(1)),
+    wordsPerSec,
+    pacingProfile: overall.pacingProfile,
+    recommendedPacingTags: overall.recommendedPacingTags,
+    bySpeaker,
+  };
+}
+
+function computeSegmentCadence(sourceText: string, durationSec: number, baseCps: number): {
+  segCps: number;
+  wordsPerSec: number;
+  pacingStyle: PacingProfile;
+  recommendedPacingTags: string[];
+} {
+  const safeDur = Math.max(0.6, durationSec);
+  const wordCount = Math.max(1, estimateSpokenWordCount(sourceText));
+  const wordsPerSec = Number((wordCount / safeDur).toFixed(2));
+  const cls = classifyPacingProfile(wordsPerSec);
+  return {
+    segCps: Number((baseCps * cls.cadenceFactor).toFixed(1)),
+    wordsPerSec,
+    pacingStyle: cls.pacingProfile,
+    recommendedPacingTags: cls.recommendedPacingTags,
+  };
+}
+
 const DRAMA3_TAG_PROMPT = [
-  "Fish Audio Drama 3 expression tags you may weave naturally into translatedText:",
-  "- Emotion / delivery tags at phrase starts: [excited], [whispers], [sighs], [laughs], [calm], [cheerful], [conversational]",
-  "- Inline pacing / stress tags around key words: <emphasis>...</emphasis>, <slow>...</slow>, <fast>...</fast>",
-  "- Rules: Use tags tastefully ONLY when the spoken context, punctuation, or emotion justifies them. Do NOT overuse tags on neutral declarative sentences, and NEVER invent ungrounded sound effects or translator notes.",
+  "Fish Audio Drama 3 native expression & pacing cues (weave richly into almost EVERY segment — 90%+ of lines):",
+  "- Leading delivery / emotion tags (use ONLY native square-bracket tags at phrase/clause starts): [calm], [conversational], [excited], [cheerful], [serious], [confident], [empathetic], [curious], [surprised], [sad], [whispers], [hesitant]",
+  "- Expressive human reactions & natural breaths (place where emotion shifts): [sighs], [laughs], [chuckling], [gasp]",
+  "- SLOW-PACED DELIVERY RULE: When a speaker or chunk is slow (`slow_deliberate` or `relaxed_measured`, wide timestamps between words), START translatedText with a deliberate/measured tag like [calm], [sighs], [hesitant], [empathetic], or [whispers], keep the wording spare so it doesn't rush, and insert `...` or ` — ` between clauses so the voice actor pauses and speaks slowly.",
+  "- ENERGETIC / FAST DELIVERY RULE: When a speaker or chunk is rapid (`fast_energetic`) or emphatic, use [excited], [cheerful], [confident], or [surprised] with natural expressive punctuation (`!`, `?`).",
+  "- Rules: NEVER use angle-bracket XML tags like `<slow>`, `<fast>`, or `<emphasis>` (square-bracket cues + `...` / `—` work natively in Drama 3). Do NOT pad words with filler or invent ungrounded translator notes.",
 ].join("\n");
 
 async function callChunkAndTranslateWindow(
@@ -348,7 +483,8 @@ async function callChunkAndTranslateWindow(
   const sourceLabel =
     input.sourceLanguage === "auto" ? "auto-detected source language" : getDubLanguageLabel(input.sourceLanguage);
   const targetLabel = getDubLanguageLabel(input.targetLanguage);
-  const cps = targetCharsPerSecond(input.targetLanguage);
+  const baseCps = targetCharsPerSecond(input.targetLanguage);
+  const cadence = computeWordWindowCadence(batchWords, baseCps);
   const autoTranslate = input.autoTranslate !== false;
 
   const systemPrompt = [
@@ -360,9 +496,9 @@ async function callChunkAndTranslateWindow(
     "- Every word in the input must belong cleanly to exactly one chunk in strict chronological order, using `s` of the chunk's first word for `startSec` and `e` of the chunk's last word for `endSec`.",
     autoTranslate
       ? [
-          `Task 2 — Natural 1.0x Spoken Dubbing Translation (${sourceLabel} -> ${targetLabel}) + Drama 3 Expression Tags:`,
-          `- Each chunk occupies a speaking window of durationSec = (endSec - startSec), with comfortable 1.0x speaking budget maxChars = round(durationSec * ${cps}). Aim for ~75% to 92% of maxChars so the voice actor speaks calmly at normal 1.0x speed and finishes cleanly inside the slot with a brief breath before the next line.`,
-          `- NO FILLER BLOAT: Never pad lines with filler phrases ("you see,", "in fact,", "right now,", "honestly,") or extra redundant words just to stretch character count, and NEVER exceed maxChars — exceeding maxChars forces ugly fast speed-up in TTS. Write direct, idiomatic, complete spoken sentences.`,
+          `Task 2 — Dynamic Cadence & Expressive Dubbing Translation (${sourceLabel} -> ${targetLabel}):`,
+          `- Speaker cadence analysis for this window: ${cadence.wordsPerSec} words/sec (${cadence.pacingProfile}, dynamic budget ~${cadence.effectiveCharsPerSec} chars/sec vs baseline ${baseCps}). Adapt per chunk using bySpeaker + local word density: if a chunk has slow wide-spaced timestamps (< 1.85 words/sec), keep translated words sparse (~70%–85% of budget) and add [calm] / [sighs] / [hesitant] + "..." breaks so it matches the slow pace; if a chunk has rapid dense speech (> 2.7 words/sec), fit the full idea clearly up to ~100% of maxChars without bloated filler.`,
+          `- Aim for natural 1.0x spoken rhythm within each chunk's dynamic round(durationSec * speakerCps) ceiling — never pack redundant filler words ("you see,", "in fact,", "honestly,") that force TTS speed-up.`,
           `- ${toneInstruction(input.tone)}`,
           DRAMA3_TAG_PROMPT,
         ].join("\n")
@@ -373,7 +509,8 @@ async function callChunkAndTranslateWindow(
   const payload = {
     previousContext: contextTail || undefined,
     targetLanguage: targetLabel,
-    targetCharsPerSec: cps,
+    baselineCharsPerSec: baseCps,
+    speakerCadence: cadence,
     words: batchWords.map((w) => ({
       w: w.punctuatedWord,
       s: Number(w.start.toFixed(2)),
@@ -575,9 +712,10 @@ async function translateBatch(
     `Translate spoken dialogue lines from ${sourceLabel} into natural spoken ${targetLabel}.`,
     toneInstruction(input.tone),
     DRAMA3_TAG_PROMPT,
-    "Natural 1.0x Timing-Sync Rules:",
-    "- Aim each translated line near `targetChars` (~75%–92% of `maxChars`) and strictly avoid exceeding `maxChars` so the voice actor reads comfortably at natural 1.0x speed without being forced to speed up.",
-    "- STRICT NO-BLOAT RULE: Never pad short lines with artificial filler phrases or extra redundant clauses just to lengthen text. Use direct, idiomatic conversational phrasing that conveys the full meaning cleanly.",
+    "Dynamic Cadence & Expressive Sync Rules:",
+    "- Each segment provides its own measured `segCps`, `pacingStyle`, `recommendedPacingTags`, and character budget (`minChars`, `targetChars`, `maxChars`).",
+    "- Respect `pacingStyle`: for `slow_deliberate` or `relaxed_measured` lines, start with a measured tag from `recommendedPacingTags` (such as [calm], [sighs], [hesitant], or [empathetic]) and include natural `...` / `—` pauses so the delivery slows down cleanly.",
+    "- Keep each line within `minChars..maxChars` (never exceed `maxChars`, and never pad with filler bloat) so the voice speaks comfortably near 1.0x speed.",
     "- Preserve numbers, proper nouns, and conversational flow.",
     "- Never output translator notes or markdown outside the JSON object.",
     "- If source is already in target language, refine punctuation and add appropriate Drama 3 delivery tags cleanly.",
@@ -590,14 +728,20 @@ async function translateBatch(
       translatedText: seg.translatedText || undefined,
     })),
     targetLanguage: targetLabel,
+    baselineCharsPerSec: cps,
     segments: batch.map((seg) => {
       const durationSec = Math.max(0.6, Number((seg.endSec - seg.startSec).toFixed(2)));
-      const maxChars = Math.max(14, Math.round(durationSec * cps));
-      const targetChars = Math.max(10, Math.round(durationSec * cps * 0.9));
+      const segCadence = computeSegmentCadence(seg.sourceText, durationSec, cps);
+      const maxChars = Math.max(12, Math.round(durationSec * segCadence.segCps));
+      const targetChars = Math.max(9, Math.round(maxChars * 0.88));
       return {
         id: seg.id,
         durationSec,
-        minChars: Math.max(8, Math.round(targetChars * 0.72)),
+        sourceWordsPerSec: segCadence.wordsPerSec,
+        segCps: segCadence.segCps,
+        pacingStyle: segCadence.pacingStyle,
+        recommendedPacingTags: segCadence.recommendedPacingTags,
+        minChars: Math.max(6, Math.round(targetChars * 0.72)),
         targetChars,
         maxChars,
         text: seg.sourceText.trim(),

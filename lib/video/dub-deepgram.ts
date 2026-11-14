@@ -144,6 +144,51 @@ export async function prepareAudioForDeepgramAndVad(
   }
 }
 
+/**
+ * Encode an already-separated 24 kHz vocal WAV into a compact 16 kHz mono MP3 (48 kbps)
+ * so Deepgram transcribes pure dry vocals without background music tails skewing timestamps.
+ */
+export async function encodeWav24kToDeepgramMp3(wav24kBuffer: Buffer): Promise<{
+  payload: Buffer;
+  mimeType: string;
+}> {
+  const ffmpeg = resolveFfmpegPath();
+  if (!ffmpeg || wav24kBuffer.length <= 256 * 1024) {
+    return { payload: wav24kBuffer, mimeType: "audio/wav" };
+  }
+
+  const workDir = await fsp.mkdtemp(path.join(os.tmpdir(), "frebies-dg-vstem-"));
+  const inWavPath = path.join(workDir, "vocals_24k.wav");
+  const outMp3Path = path.join(workDir, "vocals_16k.mp3");
+
+  try {
+    await fsp.writeFile(inWavPath, wav24kBuffer);
+    await execFileAsync(ffmpeg, [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      inWavPath,
+      "-ac",
+      "1",
+      "-ar",
+      "16000",
+      "-c:a",
+      "libmp3lame",
+      "-b:a",
+      "48k",
+      outMp3Path,
+    ]);
+    const payload = await fsp.readFile(outMp3Path);
+    return { payload, mimeType: "audio/mpeg" };
+  } catch {
+    return { payload: wav24kBuffer, mimeType: "audio/wav" };
+  } finally {
+    await fsp.rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 type DeepgramRawWord = {
   word?: string;
   punctuated_word?: string;

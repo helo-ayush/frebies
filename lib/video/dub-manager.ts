@@ -10,6 +10,7 @@ import { getGenerationStore } from "@/lib/storage/generation-store";
 import { DEFAULT_GENERATION_TTL_MS } from "@/lib/storage/retention";
 import { assembleDubbedSpeechTrack } from "./dub-audio";
 import {
+  encodeWav24kToDeepgramMp3,
   prepareAudioForDeepgramAndVad,
   transcribeAudioWithDeepgram,
 } from "./dub-deepgram";
@@ -39,7 +40,65 @@ import {
 } from "./dub-types";
 
 export const DUB_TOOL_SLUG = "video/dubbing";
-const DUB_MANAGER_REVISION = 2;
+const DUB_MANAGER_REVISION = 3;
+
+function estimateSourceWords(text: string): number {
+  const clean = text.replace(/\[[^\]]*\]/g, " ").replace(/<[^>]+>/g, " ").trim();
+  if (!clean) return 0;
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length <= 2 && clean.replace(/\s+/g, "").length >= 10) {
+    return Math.max(parts.length, Math.round(clean.replace(/\s+/g, "").length / 2.2));
+  }
+  return parts.length;
+}
+
+/**
+ * Convert XML/SSML cues into native square-bracket Drama 3 expression tags and ensure
+ * slow source speakers or untagged lines receive rich delivery & pacing cues before TTS.
+ */
+function prepareDubLineForSynthesis(seg: DubSegment, tone: DubTone): string {
+  const raw = (seg.translatedText || seg.sourceText || "").trim();
+  if (!raw) return "";
+
+  let line = raw
+    .replace(/<slow>/gi, "[calm] ")
+    .replace(/<fast>/gi, "[excited] ")
+    .replace(/<\/?(?:slow|fast|emphasis|whisper|prosody|break)\b[^>]*>/gi, " ")
+    .replace(/\[pause\]/gi, "... ")
+    .replace(/<\|?(?:[a-z0-9_:-]+)\|?>/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const srcDur = Math.max(0.6, seg.endSec - seg.startSec);
+  const srcWords = estimateSourceWords(seg.sourceText || raw);
+  const srcWps = srcWords / srcDur;
+  const hasLeadingTag = /^\s*\[[^\]]+\]/.test(line);
+
+  if (srcWords >= 2 && srcWps < 1.8) {
+    if (!hasLeadingTag) {
+      line = `[calm] ${line}`;
+    }
+    if (!line.includes("...")) {
+      line = line.replace(/,\s+(?=[^\s])/g, "... ");
+    }
+  } else if (!hasLeadingTag) {
+    let defaultTag = "[conversational]";
+    if (/\?\s*$/.test(line)) {
+      defaultTag = "[curious]";
+    } else if (/!\s*$/.test(line)) {
+      defaultTag = "[excited]";
+    } else if (line.includes("...") || line.includes("—")) {
+      defaultTag = "[calm]";
+    } else if (tone === "cheerful") {
+      defaultTag = "[cheerful]";
+    } else if (tone === "narration") {
+      defaultTag = "[calm]";
+    }
+    line = `${defaultTag} ${line}`;
+  }
+
+  return line.replace(/\s+/g, " ").trim();
+}
 
 export type CreateDubJobInput = {
   ownerId: string;
@@ -418,11 +477,16 @@ class VideoDubManagerCore {
 
         job.status = "transcribing";
         job.progress = 8;
-        job.stageLabel = "Transcribing audio word timestamps via Deepgram...";
+        job.stageLabel = "Transcribing clean vocal stem word timestamps via Deepgram...";
+
+        const dgAudio =
+          cleanVocalsWav24k && cleanVocalsWav24k !== preparedAudio.wav24kBuffer
+            ? await encodeWav24kToDeepgramMp3(cleanVocalsWav24k)
+            : { payload: preparedAudio.deepgramPayload, mimeType: preparedAudio.deepgramMimeType };
 
         const dg = await transcribeAudioWithDeepgram({
-          audioBuffer: preparedAudio.deepgramPayload,
-          mimeType: preparedAudio.deepgramMimeType,
+          audioBuffer: dgAudio.payload,
+          mimeType: dgAudio.mimeType,
           sourceLanguage: job.input.sourceLanguage,
           durationSeconds: preparedAudio.durationSeconds,
           onTripProgress: (idx, total, label) => {
@@ -543,7 +607,7 @@ class VideoDubManagerCore {
 
       const { wavs, studioLabel } = await ttsManager.synthesizeSegmentPool({
         segments: activeSegments.map((seg) => {
-          const line = (seg.translatedText || seg.sourceText).trim();
+          const line = prepareDubLineForSynthesis(seg, job.input.tone);
           return {
             text: line,
             maxNewTokens: estimateMaxNewTokens(line),
@@ -553,6 +617,9 @@ class VideoDubManagerCore {
         customVoice: useCustom ? customVoiceToUse : null,
         preferredStudio: job.input.preferredStudio,
         style: toneMeta.ttsStyle,
+        temperature:
+          toneMeta.ttsStyle === "narration" ? 0.68 : toneMeta.ttsStyle === "cheerful" ? 0.84 : 0.78,
+        topP: 0.84,
         onWaiting: (bootingLabel, phase) => {
           job.status = "waiting_for_server";
           if (!job.bootStartedAt) job.bootStartedAt = Date.now();

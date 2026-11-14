@@ -85,15 +85,21 @@ export type DubBindSubtitleMode =
 
 export const DUB_EXPRESSION_TAGS = [
   { tag: "[excited]", label: "Excited" },
-  { tag: "[whispers]", label: "Whispers" },
-  { tag: "[laughs]", label: "Laughs" },
-  { tag: "[sighs]", label: "Sighs" },
-  { tag: "[calm]", label: "Calm" },
   { tag: "[cheerful]", label: "Cheerful" },
+  { tag: "[calm]", label: "Calm" },
   { tag: "[conversational]", label: "Natural" },
-  { tag: "<emphasis>", label: "Emphasis" },
-  { tag: "<slow>", label: "Slow" },
-  { tag: "<fast>", label: "Fast" },
+  { tag: "[serious]", label: "Serious" },
+  { tag: "[confident]", label: "Confident" },
+  { tag: "[empathetic]", label: "Empathetic" },
+  { tag: "[curious]", label: "Curious" },
+  { tag: "[surprised]", label: "Surprised" },
+  { tag: "[sad]", label: "Sad" },
+  { tag: "[whispers]", label: "Whispers" },
+  { tag: "[sighs]", label: "Sighs" },
+  { tag: "[laughs]", label: "Laughs" },
+  { tag: "[chuckling]", label: "Chuckling" },
+  { tag: "[gasp]", label: "Gasp" },
+  { tag: "[hesitant]", label: "Hesitant" },
 ] as const;
 
 export const DUB_SOURCE_LANGUAGES: {
@@ -210,7 +216,7 @@ export const DEFAULT_DUB_SETTINGS: DubSettings = {
   voiceId: "aria",
   tone: "natural",
   keepBackground: true,
-  backgroundLevel: 0.18,
+  backgroundLevel: 0.32,
   syncToTimeline: true,
   embedSubtitles: true,
   preferredStudio: "auto",
@@ -289,7 +295,7 @@ export function stripDramaTagsForSubtitles(text: string): string {
   return text
     .replace(/<\|speaker:\d+\|>/gi, " ")
     .replace(/<\/?(?:emphasis|slow|fast|whisper)>/gi, " ")
-    .replace(/\[(?:excited|whispers?|sighs?|laughs?|calm|cheerful|conversational|pause|gasp|chuckle|sad|angry|nervous|happy)\]/gi, " ")
+    .replace(/\[(?:excited|whispers?|sighs?|laughs?|chuckl(?:e|ing)|calm|cheerful|conversational|pause|gasps?|sad|angry|nervous|happy|serious|confident|empathetic|curious|surprised|hesitant|sarcastically|slow|fast|deliberate|warm|dramatic)\]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -119,6 +119,57 @@ function applySoftEdgeFades(pcm16: Buffer, sampleRate: number): void {
 }
 
 /**
+ * Per-chunk speech RMS loudness leveling (~ -17.5 dBFS active speech RMS with smooth
+ * soft-knee ceiling at -0.6 dBFS) so independently synthesized segments sound like one cohesive take.
+ */
+function levelSegmentSpeechRms(pcm16Mono: Buffer, sampleRate: number): void {
+  const totalSamples = Math.floor(pcm16Mono.length / 2);
+  if (sampleRate <= 0 || totalSamples < Math.floor(sampleRate * 0.15)) return;
+
+  const winSamples = Math.max(1, Math.floor(sampleRate * 0.02));
+  const numWins = Math.floor(totalSamples / winSamples);
+  if (numWins === 0) return;
+
+  let activeWinCount = 0;
+  let activeRmsSqSum = 0;
+
+  for (let w = 0; w < numWins; w += 1) {
+    const start = w * winSamples;
+    const end = start + winSamples;
+    let sumSq = 0;
+    for (let s = start; s < end; s += 1) {
+      const val = pcm16Mono.readInt16LE(s * 2);
+      sumSq += val * val;
+    }
+    const meanSq = sumSq / winSamples;
+    const rms = Math.sqrt(meanSq);
+    if (rms > 350) {
+      activeWinCount += 1;
+      activeRmsSqSum += meanSq;
+    }
+  }
+
+  if (activeWinCount === 0) return;
+  const activeRms = Math.sqrt(activeRmsSqSum / activeWinCount);
+  if (activeRms < 120) return;
+
+  const targetActiveRms = 4300;
+  const gain = Math.max(0.55, Math.min(2.35, targetActiveRms / activeRms));
+  if (Math.abs(gain - 1) <= 0.06) return;
+
+  for (let i = 0; i < totalSamples; i += 1) {
+    let val = pcm16Mono.readInt16LE(i * 2) * gain;
+    const abs = Math.abs(val);
+    if (abs > 28_000) {
+      const excess = abs - 28_000;
+      const limited = 28_000 + (2500 * excess) / (excess + 2500);
+      val = val < 0 ? -limited : limited;
+    }
+    pcm16Mono.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(val))), i * 2);
+  }
+}
+
+/**
  * Layer 2 (Prosodic Pause Expansion): detect brief internal low-energy clause breaks (60–420ms)
  * inside a synthesized sentence and gently lengthen them instead of leaving a dead gap after the sentence.
  */
@@ -259,7 +310,76 @@ function buildWavHeader(pcmDataBytes: number, sampleRate: number, numChannels = 
 }
 
 /**
- * Mix optional original audio bed ducked underneath active speech windows into a single MP3 via ffmpeg.
+ * Restore musical presence on separated instrumental/BGM stems (which often sit quiet after vocal removal)
+ * by measuring the 80th-percentile active RMS and gently lifting up to 2.8x toward -19 dBFS with soft limiting.
+ */
+function boostInstrumentalPresence(wavBuffer: Buffer, isInstrumentalStem?: boolean): Buffer {
+  if (!isInstrumentalStem) return wavBuffer;
+
+  try {
+    const parsed = parseWav(wavBuffer);
+    if (parsed.bitsPerSample !== 16 || parsed.sampleRate <= 0 || parsed.pcmData.length < 256) {
+      return wavBuffer;
+    }
+
+    const pcm = parsed.pcmData;
+    const numChannels = Math.max(1, parsed.numChannels);
+    const blockAlign = 2 * numChannels;
+    const totalFrames = Math.floor(pcm.length / blockAlign);
+    const winFrames = Math.max(1, Math.floor(parsed.sampleRate * 0.05));
+    const numWins = Math.floor(totalFrames / winFrames);
+    if (numWins < 2) return wavBuffer;
+
+    const activeRmsList: number[] = [];
+    const stride = Math.max(1, Math.floor(winFrames / 24));
+    for (let w = 0; w < numWins; w += 1) {
+      const startFrame = w * winFrames;
+      const endFrame = startFrame + winFrames;
+      let sumSq = 0;
+      let count = 0;
+      for (let f = startFrame; f < endFrame; f += stride) {
+        let chSum = 0;
+        for (let ch = 0; ch < numChannels; ch += 1) {
+          chSum += pcm.readInt16LE(f * blockAlign + ch * 2);
+        }
+        const monoSample = chSum / numChannels;
+        sumSq += monoSample * monoSample;
+        count += 1;
+      }
+      const winRms = Math.sqrt(sumSq / Math.max(1, count));
+      if (winRms > 60) activeRmsList.push(winRms);
+    }
+
+    if (activeRmsList.length === 0) return wavBuffer;
+    activeRmsList.sort((a, b) => a - b);
+    const p80Rms = activeRmsList[Math.min(activeRmsList.length - 1, Math.floor(activeRmsList.length * 0.8))];
+    if (p80Rms <= 60) return wavBuffer;
+
+    const targetBedRms = 3600;
+    const gain = Math.max(1.0, Math.min(2.8, targetBedRms / p80Rms));
+    if (gain <= 1.08) return wavBuffer;
+
+    const outPcm = Buffer.allocUnsafe(pcm.length);
+    const totalSamples = Math.floor(pcm.length / 2);
+    for (let i = 0; i < totalSamples; i += 1) {
+      let val = pcm.readInt16LE(i * 2) * gain;
+      const abs = Math.abs(val);
+      if (abs > 29_000) {
+        const excess = abs - 29_000;
+        const limited = 29_000 + (2500 * excess) / (excess + 2500);
+        val = val < 0 ? -limited : limited;
+      }
+      outPcm.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(val))), i * 2);
+    }
+
+    return buildWav(outPcm, parsed.sampleRate, parsed.numChannels, parsed.bitsPerSample, parsed.audioFormat);
+  } catch {
+    return wavBuffer;
+  }
+}
+
+/**
+ * Mix optional original audio bed ducked underneath active speech windows into a single stereo MP3 via ffmpeg.
  */
 async function mixSpeechAndBackgroundToMp3(params: {
   speechWavPath: string;
@@ -272,20 +392,24 @@ async function mixSpeechAndBackgroundToMp3(params: {
   ffmpeg: string;
 }): Promise<Buffer> {
   const bgPath = path.join(path.dirname(params.speechWavPath), "bg.wav");
-  await fsp.writeFile(bgPath, params.backgroundWavBuffer);
-  const bgGain = Math.max(0.05, Math.min(0.65, params.backgroundLevel));
-  const bgVolume = params.isInstrumentalStem
-    ? Math.min(0.95, Math.max(0.28, bgGain * 2.4))
-    : Math.max(0.18, bgGain * 1.35);
-  const scRatio = params.isInstrumentalStem ? 3.5 : 6;
+  const preparedBg = boostInstrumentalPresence(params.backgroundWavBuffer, params.isInstrumentalStem);
+  await fsp.writeFile(bgPath, preparedBg);
 
-  // sidechaincompress ducks original audio whenever dubbed speech is active, without hitting
-  // command-line length limits even for 2-hour videos with hundreds of segments.
+  const bgGain = Math.max(0.05, Math.min(0.85, params.backgroundLevel));
+  const bgVolume = params.isInstrumentalStem
+    ? Math.min(1.65, Math.max(0.55, bgGain * 2.8))
+    : Math.max(0.2, bgGain * 1.35);
+  const scRatio = params.isInstrumentalStem ? 2.0 : 5.0;
+  const scThreshold = params.isInstrumentalStem ? 0.045 : 0.022;
+  const scAttack = params.isInstrumentalStem ? 45 : 30;
+  const scRelease = params.isInstrumentalStem ? 380 : 280;
+
+  // sidechaincompress gently tucks instrumental/ambient bed during speech while keeping stereo clarity.
   const filterComplex =
-    `[0:a]aresample=${OUTPUT_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=mono[sp];` +
+    `[0:a]aresample=${OUTPUT_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo[sp];` +
     `[sp]asplit=2[sp_sc][sp_mix];` +
-    `[1:a]aresample=${OUTPUT_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=mono,volume=${bgVolume.toFixed(2)}[bg];` +
-    `[bg][sp_sc]sidechaincompress=threshold=0.018:ratio=${scRatio}:attack=30:release=260:makeup=1[bg_ducked];` +
+    `[1:a]aresample=${OUTPUT_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${bgVolume.toFixed(2)}[bg];` +
+    `[bg][sp_sc]sidechaincompress=threshold=${scThreshold}:ratio=${scRatio}:attack=${scAttack}:release=${scRelease}:makeup=1[bg_ducked];` +
     `[bg_ducked][sp_mix]amix=inputs=2:duration=first:dropout_transition=0.25:normalize=0,alimiter=limit=0.96[aout]`;
 
   try {
@@ -302,6 +426,8 @@ async function mixSpeechAndBackgroundToMp3(params: {
       filterComplex,
       "-map",
       "[aout]",
+      "-ac",
+      "2",
       "-c:a",
       "libmp3lame",
       "-b:a",
@@ -317,8 +443,8 @@ async function mixSpeechAndBackgroundToMp3(params: {
   } catch {
     // Simple constant-ducked fallback mix if sidechaincompress isn't supported in a build
     const simpleFilter =
-      `[1:a]aresample=${OUTPUT_SAMPLE_RATE},volume=${bgGain.toFixed(2)}[bg];` +
-      `[0:a]aresample=${OUTPUT_SAMPLE_RATE}[sp];` +
+      `[1:a]aresample=${OUTPUT_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${bgVolume.toFixed(2)}[bg];` +
+      `[0:a]aresample=${OUTPUT_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo[sp];` +
       `[bg][sp]amix=inputs=2:duration=first:normalize=0[aout]`;
     await execFileAsync(params.ffmpeg, [
       "-y",
@@ -333,6 +459,8 @@ async function mixSpeechAndBackgroundToMp3(params: {
       simpleFilter,
       "-map",
       "[aout]",
+      "-ac",
+      "2",
       "-c:a",
       "libmp3lame",
       "-b:a",
@@ -461,6 +589,7 @@ export async function assembleDubbedSpeechTrack(options: {
         expandInternalClausePauses(copyPcm, OUTPUT_SAMPLE_RATE, originalSlotSec - fitted.durationSec),
       );
     }
+    levelSegmentSpeechRms(copyPcm, OUTPUT_SAMPLE_RATE);
     applySoftEdgeFades(copyPcm, OUTPUT_SAMPLE_RATE);
 
     const segmentDurationSec = copyPcm.length / 2 / OUTPUT_SAMPLE_RATE;

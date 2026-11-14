@@ -548,7 +548,7 @@ export function DubControls({
                 label="Background level during speech"
                 value={Math.round(settings.backgroundLevel * 100)}
                 min={5}
-                max={45}
+                max={85}
                 step={1}
                 suffix="%"
                 left="Subtle"
