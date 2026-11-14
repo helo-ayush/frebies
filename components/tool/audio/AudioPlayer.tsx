@@ -7,7 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
+import { Loader2, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { formatTime } from "./format";
 
 export type AudioSelection = { start: number; end: number };
@@ -41,6 +41,7 @@ export function AudioPlayer({
   const trackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragMode | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
   const [volume, setVolume] = useState(1);
@@ -55,6 +56,7 @@ export function AudioPlayer({
   useEffect(() => {
     setCurrentTime(0);
     setPlaying(false);
+    setLoading(false);
     const audio = audioRef.current;
     if (audio) audio.load();
   }, [src]);
@@ -161,9 +163,10 @@ export function AudioPlayer({
   async function togglePlayback() {
     const audio = audioRef.current;
     if (!audio) return;
-    if (playing) {
+    if (playing || loading) {
       audio.pause();
       setPlaying(false);
+      setLoading(false);
       return;
     }
     if (selection && loopSelection) {
@@ -171,11 +174,16 @@ export function AudioPlayer({
         audio.currentTime = selection.start;
       }
     }
+    if (audio.readyState < 3) {
+      setLoading(true);
+    }
     try {
       await audio.play();
       setPlaying(true);
+      setLoading(false);
     } catch {
       setPlaying(false);
+      setLoading(false);
     }
   }
 
@@ -215,7 +223,20 @@ export function AudioPlayer({
           if (Number.isFinite(value)) setAudioDuration(value);
         }}
         onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        onPlaying={() => {
+          setPlaying(true);
+          setLoading(false);
+        }}
+        onWaiting={() => setLoading(true)}
+        onCanPlay={() => setLoading(false)}
+        onPause={() => {
+          setPlaying(false);
+          setLoading(false);
+        }}
+        onError={() => {
+          setPlaying(false);
+          setLoading(false);
+        }}
         onEnded={() => {
           const audio = audioRef.current;
           if (selection && loopSelection && audio) {
@@ -331,10 +352,13 @@ export function AudioPlayer({
           <button
             type="button"
             onClick={() => void togglePlayback()}
-            aria-label={playing ? "Pause" : "Play"}
+            aria-label={loading ? "Loading audio" : playing ? "Pause" : "Play"}
+            aria-busy={loading}
             className="grid h-10 w-10 place-items-center rounded-full bg-ink text-white transition-colors hover:bg-[#2a2a2b]"
           >
-            {playing ? (
+            {loading ? (
+              <Loader2 size={15} className="animate-spin" aria-hidden />
+            ) : playing ? (
               <Pause size={15} fill="currentColor" aria-hidden />
             ) : (
               <Play size={15} fill="currentColor" className="ml-0.5" aria-hidden />
