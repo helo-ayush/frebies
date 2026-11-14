@@ -17,8 +17,8 @@ import type { DubAlignedSegment, DubSegment } from "./dub-types";
 const execFileAsync = promisify(execFile);
 
 const OUTPUT_SAMPLE_RATE = 44_100;
-const MIN_ATEMPO = 0.84;
-const MAX_ATEMPO = 1.32;
+const MIN_ATEMPO = 0.90;
+const MAX_ATEMPO = 1.18;
 
 /**
  * Resample & time-stretch a synthesized segment WAV so it fits cleanly inside its
@@ -184,7 +184,7 @@ function expandInternalClausePauses(
     return pcm16Mono;
   }
 
-  const maxInsertSec = Math.min(targetExtraSec * 0.65, rawRuns.length * 0.18, 0.48);
+  const maxInsertSec = Math.min(targetExtraSec * 0.65, rawRuns.length * 0.14, 0.36);
   const minPerRunSamples = Math.floor(sampleRate * 0.035);
   let activeRuns = rawRuns;
   let insertSamplesPerRun = Math.floor((maxInsertSec * sampleRate) / activeRuns.length);
@@ -372,15 +372,10 @@ export async function assembleDubbedSpeechTrack(options: {
     throw new Error("Segment count mismatch while assembling dubbed audio.");
   }
 
-  const placements: { startSample: number; pcm16: Buffer }[] = [];
-  const alignedSegments: DubAlignedSegment[] = [];
-  let cursorSec = 0;
-  let canvasEndSec = Math.max(1, options.totalDurationSec);
-
+  // Pass 1: Measure actual trimmed speech duration of every synthesized segment upfront
+  // so adjacent windows can share upcoming slack via 1-step lookahead without rushing.
+  const spokenSecs: number[] = [];
   for (let i = 0; i < segments.length; i += 1) {
-    const seg = segments[i];
-    const prevSeg = i > 0 ? segments[i - 1] : null;
-    const nextSeg = segments[i + 1];
     const initialParsed = parseWav(rawWavs[i]);
     const cleaned = trimChunkSilence(
       initialParsed.pcmData,
@@ -389,51 +384,79 @@ export async function assembleDubbedSpeechTrack(options: {
       initialParsed.bitsPerSample,
     );
     const spokenSec =
-      cleaned.length / ((initialParsed.bitsPerSample / 8) * initialParsed.numChannels) / initialParsed.sampleRate;
+      cleaned.length /
+      ((initialParsed.bitsPerSample / 8) * initialParsed.numChannels) /
+      initialParsed.sampleRate;
+    spokenSecs.push(spokenSec);
+  }
+
+  const placements: { startSample: number; pcm16: Buffer }[] = [];
+  const alignedSegments: DubAlignedSegment[] = [];
+  let cursorSec = 0;
+  let canvasEndSec = Math.max(1, options.totalDurationSec);
+
+  // Pass 2: Place & time-fit each segment with breath preservation and damped tempo curves.
+  for (let i = 0; i < segments.length; i += 1) {
+    const seg = segments[i];
+    const prevSeg = i > 0 ? segments[i - 1] : null;
+    const nextSeg = segments[i + 1];
+    const spokenSec = spokenSecs[i];
 
     const originalSlotSec = Math.max(0.45, seg.endSec - seg.startSec);
     const sameSpeaker = prevSeg ? (seg.speaker ?? 0) === (prevSeg.speaker ?? 0) : false;
     const originalInterGapSec = prevSeg ? Math.max(0, seg.startSec - prevSeg.endSec) : seg.startSec;
+    const minBreathGapSec = sameSpeaker ? 0.2 : 0.3;
 
-    // Layer 4a (Elastic Pull-Forward): when continuous speech finishes early, pull the next
-    // segment gently closer (bounded <= 0.72s from its anchor) so natural pauses stay 0.25–0.45s
-    // instead of turning into 1.5–2s dead air.
+    // Layer 4a (Elastic Onset + Breath Preservation): maintain at least 200–300ms human breath
+    // between sentences, and only pull earlier when genuine extra dead air (> naturalPauseFloor) exists.
     let targetStartSec = Math.max(0, seg.startSec);
-    if (syncToTimeline && i > 0 && cursorSec < seg.startSec) {
-      const rawGapSec = seg.startSec - cursorSec;
-      const naturalPauseFloor = sameSpeaker
-        ? Math.min(0.45, Math.max(0.24, originalInterGapSec + 0.12))
-        : Math.min(0.65, Math.max(0.38, originalInterGapSec + 0.18));
-      if (rawGapSec > naturalPauseFloor + 0.12 && originalInterGapSec < 0.85) {
-        const pullBackSec = Math.min(
-          sameSpeaker ? 0.72 : 0.35,
-          (rawGapSec - naturalPauseFloor) * (sameSpeaker ? 0.65 : 0.4),
-        );
-        targetStartSec = Math.max(cursorSec + 0.04, seg.startSec - pullBackSec);
+    if (syncToTimeline && i > 0) {
+      if (cursorSec + minBreathGapSec < seg.startSec) {
+        const rawGapSec = seg.startSec - cursorSec;
+        const naturalPauseFloor = sameSpeaker
+          ? Math.min(0.48, Math.max(0.26, originalInterGapSec + 0.12))
+          : Math.min(0.65, Math.max(0.36, originalInterGapSec + 0.16));
+        if (rawGapSec > naturalPauseFloor + 0.14 && originalInterGapSec < 0.85) {
+          const pullBackSec = Math.min(
+            sameSpeaker ? 0.65 : 0.32,
+            (rawGapSec - naturalPauseFloor) * (sameSpeaker ? 0.6 : 0.38),
+          );
+          targetStartSec = Math.max(cursorSec + minBreathGapSec, seg.startSec - pullBackSec);
+        }
+      } else if (cursorSec + minBreathGapSec > seg.startSec) {
+        targetStartSec = cursorSec + minBreathGapSec;
       }
     }
     const wasPulledEarly = targetStartSec < seg.startSec - 0.02;
 
+    // 1-step lookahead: borrow into upcoming segment spare time before applying speed-up
+    const nextOriginalSlot = nextSeg ? Math.max(0.45, nextSeg.endSec - nextSeg.startSec) : 0;
+    const nextSpareSec = nextSeg ? Math.max(0, nextOriginalSlot - spokenSecs[i + 1]) : 0;
+    const borrowCap = 0.45 + Math.min(0.45, nextSpareSec * 0.7);
+
     const slotEndLimit = nextSeg
-      ? Math.max(seg.endSec, Math.min(seg.endSec + 0.65, nextSeg.startSec - 0.04))
+      ? Math.max(
+          seg.endSec,
+          Math.min(seg.endSec + borrowCap, nextSeg.startSec - minBreathGapSec + borrowCap),
+        )
       : Math.max(seg.endSec + 1.2, options.totalDurationSec);
     const availableWindowSec = Math.max(0.55, slotEndLimit - Math.min(seg.startSec, targetStartSec));
 
-    // Layer 3 (Bi-Directional Tempo Fit): gently speed up overflowing lines (<= 1.32x) OR
-    // gently relax fast lines down to 0.88x so compact English fills its visual slot naturally.
+    // Layer 3 (Wide 1.00x Natural Speed Deadband + Damped Tempo Curve):
+    // Keep 1.00x normal speech speed across [0.85 * originalSlotSec, 1.08 * availableWindowSec].
     let desiredTempo = 1;
-    if (syncToTimeline && spokenSec > availableWindowSec * 1.03) {
-      desiredTempo = Math.min(MAX_ATEMPO, spokenSec / availableWindowSec);
-    } else if (syncToTimeline && spokenSec < originalSlotSec * 0.93) {
-      desiredTempo = Math.max(0.88, spokenSec / (originalSlotSec * 0.96));
+    if (syncToTimeline && spokenSec > availableWindowSec * 1.08) {
+      const rawTempo = spokenSec / availableWindowSec;
+      desiredTempo = Math.min(MAX_ATEMPO, 1 + (rawTempo - 1) * 0.7);
+    } else if (syncToTimeline && spokenSec < originalSlotSec * 0.85) {
+      desiredTempo = Math.max(MIN_ATEMPO, spokenSec / (originalSlotSec * 0.92));
     }
 
     const fitted = await normalizeAndFitWav(rawWavs[i], OUTPUT_SAMPLE_RATE, desiredTempo);
 
-    // Layer 2 (Prosodic Clause Pause Expansion): if a short segment still leaves dead air
-    // after tempo fitting, absorb up to 0.48s inside its internal comma/clause pauses.
+    // Layer 2 (Conservative Internal Pause Expansion): only soften shorter lines that did not speed up.
     let copyPcm = Buffer.from(fitted.pcm16Mono);
-    if (syncToTimeline && originalSlotSec - fitted.durationSec > 0.18) {
+    if (syncToTimeline && desiredTempo <= 1.0 && originalSlotSec - fitted.durationSec > 0.28) {
       copyPcm = Buffer.from(
         expandInternalClausePauses(copyPcm, OUTPUT_SAMPLE_RATE, originalSlotSec - fitted.durationSec),
       );
@@ -442,8 +465,7 @@ export async function assembleDubbedSpeechTrack(options: {
 
     const segmentDurationSec = copyPcm.length / 2 / OUTPUT_SAMPLE_RATE;
 
-    // Layer 4b (Subtle Slot Centering): center slightly short phrases inside their visual
-    // mouth-movement window rather than front-loading at millisecond zero.
+    // Layer 4b (Subtle Slot Centering): center slightly short phrases inside their visual window.
     if (syncToTimeline && !wasPulledEarly && segmentDurationSec < originalSlotSec - 0.18) {
       const leadHeadroom = Math.max(0, slotEndLimit - (targetStartSec + segmentDurationSec) - 0.05);
       const leadCenterSec = Math.min(
@@ -456,7 +478,7 @@ export async function assembleDubbedSpeechTrack(options: {
       }
     }
 
-    const startSec = Math.max(cursorSec + (cursorSec > 0 ? 0.03 : 0), targetStartSec);
+    const startSec = Math.max(cursorSec > 0 ? cursorSec + minBreathGapSec : 0, targetStartSec);
     const alignedEndSec = startSec + segmentDurationSec;
     cursorSec = alignedEndSec;
     canvasEndSec = Math.max(canvasEndSec, alignedEndSec + 0.15);

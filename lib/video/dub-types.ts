@@ -123,18 +123,18 @@ export const DUB_TARGET_LANGUAGES: {
   charsPerSec: number;
   iso639_2: string;
 }[] = [
-  { code: "hi", label: "Hindi", nativeName: "हिन्दी", charsPerSec: 13, iso639_2: "hin" },
-  { code: "en", label: "English", nativeName: "English", charsPerSec: 15, iso639_2: "eng" },
-  { code: "es", label: "Spanish", nativeName: "Español", charsPerSec: 15, iso639_2: "spa" },
-  { code: "fr", label: "French", nativeName: "Français", charsPerSec: 14, iso639_2: "fra" },
-  { code: "de", label: "German", nativeName: "Deutsch", charsPerSec: 14, iso639_2: "deu" },
-  { code: "pt", label: "Portuguese", nativeName: "Português", charsPerSec: 15, iso639_2: "por" },
-  { code: "it", label: "Italian", nativeName: "Italiano", charsPerSec: 15, iso639_2: "ita" },
-  { code: "ja", label: "Japanese", nativeName: "日本語", charsPerSec: 6, iso639_2: "jpn" },
-  { code: "ko", label: "Korean", nativeName: "한국어", charsPerSec: 7, iso639_2: "kor" },
-  { code: "zh", label: "Chinese (Mandarin)", nativeName: "中文", charsPerSec: 5, iso639_2: "zho" },
-  { code: "ar", label: "Arabic", nativeName: "العربية", charsPerSec: 13, iso639_2: "ara" },
-  { code: "ru", label: "Russian", nativeName: "Русский", charsPerSec: 14, iso639_2: "rus" },
+  { code: "hi", label: "Hindi", nativeName: "हिन्दी", charsPerSec: 11.5, iso639_2: "hin" },
+  { code: "en", label: "English", nativeName: "English", charsPerSec: 12.5, iso639_2: "eng" },
+  { code: "es", label: "Spanish", nativeName: "Español", charsPerSec: 13, iso639_2: "spa" },
+  { code: "fr", label: "French", nativeName: "Français", charsPerSec: 12.5, iso639_2: "fra" },
+  { code: "de", label: "German", nativeName: "Deutsch", charsPerSec: 12.5, iso639_2: "deu" },
+  { code: "pt", label: "Portuguese", nativeName: "Português", charsPerSec: 13, iso639_2: "por" },
+  { code: "it", label: "Italian", nativeName: "Italiano", charsPerSec: 13, iso639_2: "ita" },
+  { code: "ja", label: "Japanese", nativeName: "日本語", charsPerSec: 5.5, iso639_2: "jpn" },
+  { code: "ko", label: "Korean", nativeName: "한국어", charsPerSec: 6.5, iso639_2: "kor" },
+  { code: "zh", label: "Chinese (Mandarin)", nativeName: "中文", charsPerSec: 4.5, iso639_2: "zho" },
+  { code: "ar", label: "Arabic", nativeName: "العربية", charsPerSec: 11.5, iso639_2: "ara" },
+  { code: "ru", label: "Russian", nativeName: "Русский", charsPerSec: 12.5, iso639_2: "rus" },
 ];
 
 export const DUB_TONES: { value: DubTone; label: string; hint: string; ttsStyle: TtsStyle }[] = [
