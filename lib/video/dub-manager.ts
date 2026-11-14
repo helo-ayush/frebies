@@ -18,6 +18,7 @@ import {
   translateDubSegments,
 } from "./dub-translate";
 import { extractVad20sCloneReference } from "./dub-vad";
+import { separateAudioStemsWithGpu } from "./dub-vocal-separator";
 import {
   DUB_TONES,
   MAX_DUB_DURATION_SEC,
@@ -348,6 +349,7 @@ class VideoDubManagerCore {
   private async executeJob(job: InternalDubJob): Promise<void> {
     const ttsManager = getTtsManager();
     let backgroundWavBuffer: Buffer | null = null;
+    let backgroundIsCleanStem = false;
 
     try {
       let workingSegments = job.input.segments.map((s) => ({ ...s }));
@@ -360,6 +362,7 @@ class VideoDubManagerCore {
         deepgramMimeType: string;
         durationSeconds: number;
       } | null = null;
+      let cleanVocalsWav24k: Buffer | null = null;
 
       if (job.tempSourceAudioPath) {
         const rawBuf = await fsp.readFile(job.tempSourceAudioPath);
@@ -372,8 +375,38 @@ class VideoDubManagerCore {
           job.durationSeconds = Math.min(MAX_DUB_DURATION_SEC, preparedAudio.durationSeconds);
           job.input.durationSeconds = job.durationSeconds;
         }
-        if (job.input.keepBackground) {
-          backgroundWavBuffer = preparedAudio.wav24kBuffer;
+        cleanVocalsWav24k = preparedAudio.wav24kBuffer;
+
+        const needVocals = workingSegments.length === 0 || (job.input.voiceMode === "clone" && !customVoiceToUse?.audioBase64);
+        const needInstrumental = job.input.keepBackground;
+
+        if (needVocals || needInstrumental) {
+          job.progress = 6;
+          job.stageLabel = "Separating clean vocals & instrumental BGM on L20 GPU...";
+          const sep = await separateAudioStemsWithGpu(preparedAudio.wav24kBuffer, {
+            model: "bs_roformer",
+            returnVocals: needVocals,
+            returnInstrumental: needInstrumental,
+            onProgress: (done, total) => {
+              if (total > 1) {
+                job.stageLabel = `Separating vocals & BGM on L20 GPU (${done}/${total})...`;
+              }
+            },
+          });
+
+          if (sep.separated) {
+            if (sep.vocalsWav24k) {
+              cleanVocalsWav24k = sep.vocalsWav24k;
+            }
+            if (needInstrumental && sep.instrumentalWav24k) {
+              backgroundWavBuffer = sep.instrumentalWav24k;
+              backgroundIsCleanStem = true;
+            } else if (needInstrumental) {
+              backgroundWavBuffer = preparedAudio.wav24kBuffer;
+            }
+          } else if (needInstrumental) {
+            backgroundWavBuffer = preparedAudio.wav24kBuffer;
+          }
         }
       }
 
@@ -408,12 +441,12 @@ class VideoDubManagerCore {
           job.input.durationSeconds = job.durationSeconds;
         }
 
-        // Step 1b: Extract ~20s VAD continuous speech sample if user requested speaker cloning and didn't provide custom file
+        // Step 1b: Extract ~20s VAD continuous speech sample from isolated vocals
         if (job.input.voiceMode === "clone" && !customVoiceToUse?.audioBase64) {
           job.progress = 14;
-          job.stageLabel = "Finding ~20s clean speech sample via VAD...";
+          job.stageLabel = "Finding ~20s clean vocal sample via VAD...";
           const vadRef = extractVad20sCloneReference({
-            wavBuffer: preparedAudio.wav24kBuffer,
+            wavBuffer: cleanVocalsWav24k || preparedAudio.wav24kBuffer,
             words: dg.words,
             targetDurationSec: 20,
           });
@@ -485,7 +518,7 @@ class VideoDubManagerCore {
 
       if (useCustom && !customVoiceToUse?.audioBase64 && preparedAudio) {
         const vadFallback = extractVad20sCloneReference({
-          wavBuffer: preparedAudio.wav24kBuffer,
+          wavBuffer: cleanVocalsWav24k || preparedAudio.wav24kBuffer,
           targetDurationSec: 20,
         });
         if (vadFallback) {
@@ -558,6 +591,7 @@ class VideoDubManagerCore {
         keepBackground: job.input.keepBackground,
         backgroundLevel: job.input.backgroundLevel,
         backgroundWavBuffer,
+        isInstrumentalStem: backgroundIsCleanStem,
       });
 
       const srtText = buildSrtFromSegments(assembled.alignedSegments, true);

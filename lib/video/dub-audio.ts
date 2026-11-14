@@ -145,6 +145,7 @@ async function mixSpeechAndBackgroundToMp3(params: {
   speechWavPath: string;
   backgroundWavBuffer: Buffer;
   backgroundLevel: number;
+  isInstrumentalStem?: boolean;
   title: string;
   voiceLabel: string;
   outMp3Path: string;
@@ -152,15 +153,19 @@ async function mixSpeechAndBackgroundToMp3(params: {
 }): Promise<Buffer> {
   const bgPath = path.join(path.dirname(params.speechWavPath), "bg.wav");
   await fsp.writeFile(bgPath, params.backgroundWavBuffer);
-  const bgGain = Math.max(0.05, Math.min(0.6, params.backgroundLevel));
+  const bgGain = Math.max(0.05, Math.min(0.65, params.backgroundLevel));
+  const bgVolume = params.isInstrumentalStem
+    ? Math.min(0.95, Math.max(0.28, bgGain * 2.4))
+    : Math.max(0.18, bgGain * 1.35);
+  const scRatio = params.isInstrumentalStem ? 3.5 : 6;
 
   // sidechaincompress ducks original audio whenever dubbed speech is active, without hitting
   // command-line length limits even for 2-hour videos with hundreds of segments.
   const filterComplex =
     `[0:a]aresample=${OUTPUT_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=mono[sp];` +
     `[sp]asplit=2[sp_sc][sp_mix];` +
-    `[1:a]aresample=${OUTPUT_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=mono,volume=${Math.max(0.18, bgGain * 1.35).toFixed(2)}[bg];` +
-    `[bg][sp_sc]sidechaincompress=threshold=0.015:ratio=6:attack=30:release=260:makeup=1[bg_ducked];` +
+    `[1:a]aresample=${OUTPUT_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=mono,volume=${bgVolume.toFixed(2)}[bg];` +
+    `[bg][sp_sc]sidechaincompress=threshold=0.018:ratio=${scRatio}:attack=30:release=260:makeup=1[bg_ducked];` +
     `[bg_ducked][sp_mix]amix=inputs=2:duration=first:dropout_transition=0.25:normalize=0,alimiter=limit=0.96[aout]`;
 
   try {
@@ -234,6 +239,7 @@ export async function assembleDubbedSpeechTrack(options: {
   keepBackground?: boolean;
   backgroundLevel?: number;
   backgroundWavBuffer?: Buffer | null;
+  isInstrumentalStem?: boolean;
 }): Promise<{
   mp3Buffer: Buffer;
   mimeType: "audio/mpeg" | "audio/wav";
@@ -408,6 +414,7 @@ export async function assembleDubbedSpeechTrack(options: {
         speechWavPath,
         backgroundWavBuffer: options.backgroundWavBuffer,
         backgroundLevel: options.backgroundLevel ?? 0.18,
+        isInstrumentalStem: options.isInstrumentalStem,
         title: options.title.slice(0, 64) || "frebies dubbed audio",
         voiceLabel: options.voiceLabel,
         outMp3Path,
