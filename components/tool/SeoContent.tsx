@@ -11,7 +11,7 @@ export function SeoContent({ tool, category }: { tool: Tool; category: Category 
     : [
         tool.category === "audio" && tool.slug === "text-to-speech"
           ? "Enter or paste the script you want to turn into speech."
-          : `Add the ${tool.category === "image" ? "image" : tool.category === "audio" ? "audio file" : "document"} you want to work with.`,
+          : `Add the ${tool.category === "image" ? "image" : tool.category === "audio" ? "audio file" : tool.category === "video" ? "video" : "document"} you want to work with.`,
         "Choose the output settings that fit your task, with the cost visible before you run.",
         "Review the result in the workspace and download your finished file.",
       ];

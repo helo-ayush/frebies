@@ -31,6 +31,12 @@ const styles: Record<
     glyph: "/audio/text-to-speech",
     count: "text-[#5c7867]",
   },
+  video: {
+    card: "bg-[#f6eced]",
+    orb: "bg-[radial-gradient(circle_at_35%_28%,#ffe5e9_0%,#f2b3be_46%,#d96b7e_100%)]",
+    glyph: "/video/dubbing",
+    count: "text-[#7e545c]",
+  },
 };
 
 export function CategoryCards() {
@@ -52,7 +58,7 @@ export function CategoryCards() {
         </Link>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {categories.map((category, index) => {
           const count = toolsForCategory(category.slug).length;
           const sample = toolsForCategory(category.slug).slice(0, 3);
@@ -82,7 +88,9 @@ export function CategoryCards() {
                     <ToolGlyph path={visual.glyph} size={21} />
                   </span>
                   <span className="flex items-center gap-1.5 text-micro font-medium text-[#6f675d]">
-                    <span className={visual.count}>{count} tools</span>
+                    <span className={visual.count}>
+                      {count} {count === 1 ? "tool" : "tools"}
+                    </span>
                     <span className="grid h-7 w-7 place-items-center rounded-full border border-white/70 bg-white/55 text-muted transition-colors group-hover:bg-white group-hover:text-ink">
                       <ArrowRightGlyph size={12} />
                     </span>

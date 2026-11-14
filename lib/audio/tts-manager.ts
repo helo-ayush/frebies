@@ -182,15 +182,15 @@ type TtsStoredMeta = {
 
 const JOB_TTL_MS = DEFAULT_GENERATION_TTL_MS;
 const HEALTH_CACHE_MS = 6_000;
-const BOOT_POLL_INTERVAL_MS = 8_000;
+const BOOT_POLL_INTERVAL_MS = 5_000;
 const WAKE_DEBOUNCE_MS = 180_000;
-const FAILOVER_REQUEST_TIMEOUT_MS = 40_000;
-const STUDIO_REQUEST_TIMEOUT_MS = 85_000;
-const STREAM_HEADERS_TIMEOUT_MS = 38_000;
-const STREAM_IDLE_TIMEOUT_MS = 28_000;
-const STREAM_TOTAL_TIMEOUT_MS = 95_000;
+const FAILOVER_REQUEST_TIMEOUT_MS = 75_000;
+const STUDIO_REQUEST_TIMEOUT_MS = 120_000;
+const STREAM_HEADERS_TIMEOUT_MS = 90_000;
+const STREAM_IDLE_TIMEOUT_MS = 45_000;
+const STREAM_TOTAL_TIMEOUT_MS = 150_000;
 const DRAMA3_PCM_SAMPLE_RATE = 44100;
-const MANAGER_REVISION = 7;
+const MANAGER_REVISION = 8;
 
 type ReferencePayload = {
   voiceTag: string;
@@ -527,7 +527,7 @@ class TtsManagementCore {
       const res = await this.fetchWithTimeout(
         `${studio.apiUrl}/health`,
         { method: "GET", headers: this.authHeaders() },
-        6_500,
+        12_000,
       );
 
       if (res.ok) {
@@ -658,6 +658,80 @@ class TtsManagementCore {
 
     const run = async () => {
       const now = Date.now();
+
+      // Safety guard 1: Never call /deploy if the container's /health endpoint is already responding
+      // (unless forceDeploy was explicitly requested via manual restart).
+      if (!forceDeploy) {
+        try {
+          const healthRes = await this.fetchWithTimeout(
+            `${studio.apiUrl}/health`,
+            { method: "GET", headers: this.authHeaders() },
+            5_000,
+          );
+          if (healthRes.ok) {
+            const payload = (await healthRes.json()) as { status?: string; phase?: string };
+            const st = (payload.status || "").toLowerCase();
+            if (st === "ready") {
+              studio.state = "ready";
+              studio.platformStatus = "Running";
+              studio.phase = "Ready";
+              studio.bootStartedAt = null;
+              studio.bootElapsedMs = 0;
+              return;
+            }
+            if (st === "booting") {
+              studio.state = "booting";
+              studio.platformStatus = "Running";
+              studio.phase = payload.phase || "Loading model into VRAM";
+              if (!studio.bootStartedAt) studio.bootStartedAt = now;
+              studio.bootElapsedMs = now - studio.bootStartedAt;
+              return;
+            }
+          }
+        } catch {
+          // Container not reachable directly; inspect OpenAPI status next
+        }
+      }
+
+      // Safety guard 2: Check ModelScope OpenAPI status before firing /deploy.
+      // Calling POST /deploy on a studio that is already Running, Building, or Deploying
+      // destroys the live container and forces a full rebuild/redeploy loop.
+      if (this.settings.token) {
+        try {
+          const metaRes = await this.fetchWithTimeout(
+            `${this.settings.openApiEndpoint}/openapi/v1/studios/${studio.owner}/${studio.repo}`,
+            { method: "GET", headers: this.authHeaders() },
+            8_000,
+          );
+          if (metaRes.ok) {
+            const json = (await metaRes.json()) as {
+              data?: { status?: string; runtime?: { status?: string } };
+            };
+            const pStatus = json.data?.runtime?.status || json.data?.status || "";
+            const norm = pStatus.toLowerCase();
+            if (
+              norm === "building" ||
+              norm === "deploying" ||
+              norm === "starting" ||
+              norm === "initializing" ||
+              (!forceDeploy && norm === "running")
+            ) {
+              studio.platformStatus = pStatus || "Running";
+              studio.state = "booting";
+              if (!studio.bootStartedAt) studio.bootStartedAt = now;
+              studio.bootElapsedMs = now - studio.bootStartedAt;
+              studio.phase =
+                norm === "building"
+                  ? "Preparing studio image..."
+                  : "Starting speech runtime on GPU...";
+              return;
+            }
+          }
+        } catch {
+          // Proceed if metadata check fails
+        }
+      }
+
       studio.lastWakeAt = now;
       studio.state = "waking";
       studio.bootStartedAt = forceDeploy ? now : studio.bootStartedAt || now;
@@ -671,31 +745,7 @@ class TtsManagementCore {
         studio.consecutiveFailures = 0;
       }
 
-      // Step 1: Light HTTP wake attempt for public studios before /deploy
-      if (!forceDeploy && studio.visibility === "public") {
-        try {
-          const funRes = await this.fetchWithTimeout(
-            `${studio.config.msFunUrl}/health`,
-            { method: "GET" },
-            4_500,
-          );
-          if (funRes.ok) {
-            const payload = (await funRes.json()) as { status?: string; phase?: string };
-            if ((payload.status || "").toLowerCase() === "ready") {
-              studio.state = "ready";
-              studio.platformStatus = "Running";
-              studio.phase = "Ready";
-              studio.bootStartedAt = null;
-              studio.bootElapsedMs = 0;
-              return;
-            }
-          }
-        } catch {
-          // Proceed to OpenAPI restart/deploy endpoint
-        }
-      }
-
-      // Step 2: ModelScope OpenAPI deploy/restart trigger
+      // Step 2: ModelScope OpenAPI deploy/restart trigger (only when truly sleeping/stopped/failed)
       if (!this.settings.token) return;
       try {
         const res = await this.fetchWithTimeout(
@@ -1394,22 +1444,296 @@ class TtsManagementCore {
     studio.lastError = msg || "Studio failure";
 
     if (code === 503 || code === 502 || code === 504 || isTimeout || isSleepingSubdomain) {
-      const backoffMs = studio.consecutiveFailures >= 2 ? 90_000 : 40_000;
+      const backoffMs = studio.consecutiveFailures >= 2 ? 60_000 : 25_000;
       studio.cooldownUntil = Date.now() + backoffMs;
-      studio.state = isSleepingSubdomain ? "sleeping" : "booting";
-      if (!studio.bootStartedAt && !isSleepingSubdomain) {
-        studio.bootStartedAt = Date.now();
-      }
-      if (
-        isTimeout &&
-        studio.consecutiveFailures >= 2 &&
-        Date.now() - studio.lastWakeAt > WAKE_DEBOUNCE_MS
-      ) {
-        void this.triggerWakeStudio(studio, true);
+      if (isSleepingSubdomain) {
+        studio.state = "sleeping";
+        studio.bootStartedAt = null;
+        if (Date.now() - studio.lastWakeAt > WAKE_DEBOUNCE_MS) {
+          void this.triggerWakeStudio(studio, false);
+        }
+      } else {
+        // Do NOT call triggerWakeStudio(..., true) on inference timeouts — firing /deploy
+        // on a busy or warming studio kills the live container and causes a redeploy loop.
+        // Instead, place the studio on temporary routing cooldown and probe /health.
+        studio.phase = "Cooling down after timeout — routing traffic to healthy backup";
+        void this.probeSingleStudio(studio, false);
       }
     }
 
     return { code, msg, isTimeout, clientRejected: false };
+  }
+
+  private async resolveReferencePayload(
+    voice: VoiceId,
+    customVoice?: { name?: string; audioBase64: string; text?: string } | null,
+  ): Promise<ReferencePayload | null> {
+    const presetRef = customVoice ? null : await getPresetVoiceReferenceAsync(voice);
+    if (customVoice?.audioBase64) {
+      const cleanB64 = customVoice.audioBase64.replace(/^data:[^,]+,/, "");
+      const audioBuffer = Buffer.from(cleanB64, "base64");
+      const text = customVoice.text?.trim() || undefined;
+      const hash = crypto
+        .createHash("sha256")
+        .update(audioBuffer)
+        .update(text || "")
+        .digest("hex")
+        .slice(0, 12);
+      return {
+        voiceTag: `frebies-custom-${hash}`,
+        audioBuffer,
+        audioBase64: cleanB64,
+        text,
+      };
+    }
+    if (presetRef) {
+      return {
+        voiceTag: `frebies-${presetRef.id}-${presetRef.contentHash}`,
+        audioBuffer: presetRef.audioBuffer,
+        audioBase64: presetRef.audioBase64,
+        text: presetRef.text,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Run parallel segment synthesis across healthy ModelScope Drama 3 studios with
+   * automatic failover. Caller must pass `initialStudio` with `activeJobs` already claimed.
+   */
+  private async synthesizeChunksWithPool(options: {
+    chunks: { text: string; maxNewTokens?: number }[];
+    refPayload: ReferencePayload | null;
+    preferredId: string | null;
+    initialStudio: InternalStudio;
+    style: TtsStyle;
+    temperature?: number;
+    topP?: number;
+    onStageLabel: (label: string) => void;
+    onAssignedStudio: (studio: InternalStudio) => void;
+    onChunkDone: (done: number, total: number, activeLabels: string[]) => void;
+    onAttempt?: () => void;
+  }): Promise<{ ok: true; wavs: Buffer[] } | { ok: false; requeueWaiting: true }> {
+    const { chunks, refPayload, preferredId, initialStudio, style } = options;
+    const maxPoolConcurrency = Math.max(
+      1,
+      this.studios.reduce((sum, s) => sum + s.maxConcurrent, 0),
+    );
+    const targetWorkers = Math.min(chunks.length, maxPoolConcurrency);
+
+    const startingStudios: InternalStudio[] = [initialStudio];
+    while (startingStudios.length < targetWorkers) {
+      const extra = this.pickLeastQueueStudio(preferredId);
+      if (!extra) break;
+      extra.activeJobs += 1;
+      startingStudios.push(extra);
+    }
+
+    const segmentWavs: (Buffer | null)[] = new Array(chunks.length).fill(null);
+    const workerStudios = new Map<number, string>();
+    let nextChunkIdx = 0;
+    let completedChunks = 0;
+    let fatalError: Error | null = null;
+    let shouldRequeueWaiting = false;
+
+    const updateParallelStageLabel = () => {
+      const activeLabels = Array.from(new Set(workerStudios.values()));
+      options.onChunkDone(completedChunks, chunks.length, activeLabels);
+      const hosts = activeLabels.length > 0 ? activeLabels.join(" + ") : initialStudio.label || "GPU";
+      if (chunks.length === 1) {
+        options.onStageLabel(`Generating speech on ${hosts}...`);
+      } else if (activeLabels.length > 1) {
+        options.onStageLabel(`Generating in parallel on ${hosts} (${completedChunks}/${chunks.length} ready)...`);
+      } else {
+        options.onStageLabel(`Generating on ${hosts} (${completedChunks}/${chunks.length} segments)...`);
+      }
+    };
+
+    const runWorker = async (workerId: number, firstStudio: InternalStudio) => {
+      let heldStudio: InternalStudio | null = firstStudio;
+      try {
+        while (!fatalError && !shouldRequeueWaiting) {
+          const myIdx = nextChunkIdx;
+          if (myIdx >= chunks.length) break;
+          nextChunkIdx += 1;
+
+          const chunk = chunks[myIdx];
+          let chunkRetries = 0;
+          const maxChunkRetries = Math.max(1, this.studios.length);
+
+          while (!fatalError && !shouldRequeueWaiting) {
+            if (!heldStudio) break;
+            workerStudios.set(workerId, heldStudio.label);
+            updateParallelStageLabel();
+
+            try {
+              const baseTemp = options.temperature ?? 0.72;
+              const moodTemp =
+                style === "cheerful"
+                  ? Math.min(1.0, Math.max(baseTemp, 0.84))
+                  : style === "narration"
+                    ? Math.min(baseTemp, 0.65)
+                    : baseTemp;
+              const wav = await this.callStudioTts(heldStudio, chunk.text, refPayload, {
+                temperature: moodTemp,
+                topP: options.topP,
+                maxNewTokens: chunk.maxNewTokens,
+              });
+              segmentWavs[myIdx] = wav;
+              completedChunks += 1;
+              options.onAssignedStudio(heldStudio);
+              updateParallelStageLabel();
+              break;
+            } catch (err) {
+              const failedStudio = heldStudio;
+              const info = this.handleStudioChunkFailure(failedStudio, err);
+              failedStudio.activeJobs = Math.max(0, failedStudio.activeJobs - 1);
+              heldStudio = null;
+              workerStudios.delete(workerId);
+
+              if (info.clientRejected) {
+                fatalError = new Error(info.msg);
+                return;
+              }
+
+              options.onAttempt?.();
+              chunkRetries += 1;
+              if (chunkRetries > maxChunkRetries) {
+                fatalError = new Error(info.msg || "Synthesis failed after failover retries");
+                return;
+              }
+
+              let fallback = this.pickLeastQueueStudio(preferredId);
+              if (!fallback && this.hasReadyCandidate(preferredId)) {
+                for (let waitStep = 0; waitStep < 24 && !fallback && !fatalError && !shouldRequeueWaiting; waitStep += 1) {
+                  if (!this.hasReadyCandidate(preferredId)) break;
+                  await new Promise((resolve) => setTimeout(resolve, 1200));
+                  fallback = this.pickLeastQueueStudio(preferredId);
+                }
+              }
+
+              if (fallback) {
+                fallback.activeJobs += 1;
+                heldStudio = fallback;
+                options.onAssignedStudio(fallback);
+                options.onStageLabel(`Re-routing segment ${myIdx + 1} to ${fallback.label}...`);
+                continue;
+              }
+
+              if (completedChunks === 0) {
+                shouldRequeueWaiting = true;
+                return;
+              }
+
+              fatalError = new Error(info.msg || "Voice servers became unavailable mid-generation");
+              return;
+            }
+          }
+        }
+      } finally {
+        workerStudios.delete(workerId);
+        if (heldStudio) {
+          heldStudio.activeJobs = Math.max(0, heldStudio.activeJobs - 1);
+          heldStudio = null;
+        }
+      }
+    };
+
+    await Promise.all(startingStudios.map((studio, i) => runWorker(i, studio)));
+
+    if (shouldRequeueWaiting && !fatalError) {
+      return { ok: false, requeueWaiting: true };
+    }
+    if (fatalError) {
+      throw fatalError;
+    }
+
+    const wavs = chunks.map((_, idx) => {
+      const wav = segmentWavs[idx];
+      if (!wav) {
+        throw new Error(`Missing synthesized segment ${idx + 1} of ${chunks.length}`);
+      }
+      return wav;
+    });
+    return { ok: true, wavs };
+  }
+
+  /**
+   * Public pooled synthesis helper reused by sibling AI workflows (such as Video Dubbing).
+   * Automatically wakes sleeping studios and waits until a slot becomes available.
+   */
+  public async synthesizeSegmentPool(options: {
+    segments: { text: string; maxNewTokens?: number }[];
+    voice: VoiceId;
+    customVoice?: { name?: string; audioBase64: string; text?: string } | null;
+    preferredStudio?: string;
+    style?: TtsStyle;
+    temperature?: number;
+    topP?: number;
+    maxWaitMs?: number;
+    onWaiting?: (bootingLabel: string | null, phase: string | null) => void;
+    onProgress?: (done: number, total: number, studioLabel: string | null) => void;
+    onStageLabel?: (label: string) => void;
+  }): Promise<{ wavs: Buffer[]; studioLabel: string | null }> {
+    await this.ensureCacheDirs();
+    const preferredId =
+      options.preferredStudio && options.preferredStudio !== "auto" ? options.preferredStudio : null;
+    const refPayload = await this.resolveReferencePayload(options.voice, options.customVoice);
+    const maxWaitMs = options.maxWaitMs ?? 480_000;
+    const deadline = Date.now() + maxWaitMs;
+    let lastAssignedLabel: string | null = null;
+
+    while (Date.now() < deadline) {
+      await this.getPoolStatus({ wakeIfDown: true, force: true });
+      const studio = this.pickLeastQueueStudio(preferredId);
+
+      if (!studio) {
+        const booting =
+          this.studios.find((s) => s.state === "booting" || s.state === "waking") ??
+          this.studios[0] ??
+          null;
+        options.onWaiting?.(booting?.label ?? null, booting?.phase ?? null);
+        await new Promise((resolve) => setTimeout(resolve, 6_000));
+        continue;
+      }
+
+      studio.activeJobs += 1;
+      lastAssignedLabel = studio.label;
+      let passedToPool = false;
+
+      try {
+        passedToPool = true;
+        const result = await this.synthesizeChunksWithPool({
+          chunks: options.segments,
+          refPayload,
+          preferredId,
+          initialStudio: studio,
+          style: options.style ?? "neutral",
+          temperature: options.temperature,
+          topP: options.topP,
+          onStageLabel: (label) => options.onStageLabel?.(label),
+          onAssignedStudio: (s) => {
+            lastAssignedLabel = s.label;
+          },
+          onChunkDone: (done, total, activeLabels) => {
+            options.onProgress?.(done, total, activeLabels[0] ?? lastAssignedLabel);
+          },
+        });
+
+        if (result.ok) {
+          return { wavs: result.wavs, studioLabel: lastAssignedLabel };
+        }
+        options.onWaiting?.(lastAssignedLabel, "Restarting voice server");
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+      } finally {
+        if (!passedToPool) {
+          studio.activeJobs = Math.max(0, studio.activeJobs - 1);
+        }
+        this.schedulePump();
+      }
+    }
+
+    throw new Error("Timed out waiting for a healthy ModelScope voice studio.");
   }
 
   private async executeJob(job: InternalJob, initialStudio: InternalStudio): Promise<void> {
@@ -1422,171 +1746,36 @@ class TtsManagementCore {
         emphasizeNumbers: job.input.emphasizeNumbers,
       });
 
-      const presetRef = job.input.customVoice
-        ? null
-        : await getPresetVoiceReferenceAsync(job.input.voice);
-      let refPayload: ReferencePayload | null = null;
-      if (job.input.customVoice?.audioBase64) {
-        const cleanB64 = job.input.customVoice.audioBase64.replace(/^data:[^,]+,/, "");
-        const audioBuffer = Buffer.from(cleanB64, "base64");
-        const text = job.input.customVoice.text?.trim() || undefined;
-        const hash = crypto
-          .createHash("sha256")
-          .update(audioBuffer)
-          .update(text || "")
-          .digest("hex")
-          .slice(0, 12);
-        refPayload = {
-          voiceTag: `frebies-custom-${hash}`,
-          audioBuffer,
-          audioBase64: cleanB64,
-          text,
-        };
-      } else if (presetRef) {
-        refPayload = {
-          voiceTag: `frebies-${presetRef.id}-${presetRef.contentHash}`,
-          audioBuffer: presetRef.audioBuffer,
-          audioBase64: presetRef.audioBase64,
-          text: presetRef.text,
-        };
-      }
-
+      const refPayload = await this.resolveReferencePayload(job.input.voice, job.input.customVoice);
       const preferredId =
         job.input.preferredStudio && job.input.preferredStudio !== "auto" ? job.input.preferredStudio : null;
-      const maxPoolConcurrency = Math.max(
-        1,
-        this.studios.reduce((sum, s) => sum + s.maxConcurrent, 0),
-      );
-      const targetWorkers = Math.min(chunks.length, maxPoolConcurrency);
 
-      const startingStudios: InternalStudio[] = [initialStudio];
       initialOwnedByCaller = false;
+      const poolResult = await this.synthesizeChunksWithPool({
+        chunks,
+        refPayload,
+        preferredId,
+        initialStudio,
+        style: job.input.style,
+        temperature: job.input.temperature,
+        topP: job.input.topP,
+        onStageLabel: (label) => {
+          job.stageLabel = label;
+        },
+        onAssignedStudio: (studio) => {
+          job.assignedStudio = studio.id;
+          job.assignedStudioLabel = studio.label;
+        },
+        onChunkDone: (done, total) => {
+          job.chunksDone = done;
+          job.progress = 10 + Math.round((done / Math.max(1, total)) * 75);
+        },
+        onAttempt: () => {
+          job.attempts += 1;
+        },
+      });
 
-      while (startingStudios.length < targetWorkers) {
-        const extra = this.pickLeastQueueStudio(preferredId);
-        if (!extra) break;
-        extra.activeJobs += 1;
-        startingStudios.push(extra);
-      }
-
-      const segmentWavs: (Buffer | null)[] = new Array(chunks.length).fill(null);
-      const workerStudios = new Map<number, string>();
-      let nextChunkIdx = 0;
-      let completedChunks = 0;
-      let fatalError: Error | null = null;
-      let shouldRequeueWaiting = false;
-
-      const updateParallelStageLabel = () => {
-        const activeLabels = Array.from(new Set(workerStudios.values()));
-        const hosts = activeLabels.length > 0 ? activeLabels.join(" + ") : job.assignedStudioLabel || "GPU";
-        if (chunks.length === 1) {
-          job.stageLabel = `Generating speech on ${hosts}...`;
-        } else if (activeLabels.length > 1) {
-          job.stageLabel = `Generating in parallel on ${hosts} (${completedChunks}/${chunks.length} ready)...`;
-        } else {
-          job.stageLabel = `Generating on ${hosts} (${completedChunks}/${chunks.length} segments)...`;
-        }
-      };
-
-      const runWorker = async (workerId: number, firstStudio: InternalStudio) => {
-        let heldStudio: InternalStudio | null = firstStudio;
-        try {
-          while (!fatalError && !shouldRequeueWaiting) {
-            const myIdx = nextChunkIdx;
-            if (myIdx >= chunks.length) break;
-            nextChunkIdx += 1;
-
-            const chunk = chunks[myIdx];
-            let chunkRetries = 0;
-            const maxChunkRetries = Math.max(1, this.studios.length);
-
-            while (!fatalError && !shouldRequeueWaiting) {
-              if (!heldStudio) break;
-              workerStudios.set(workerId, heldStudio.label);
-              updateParallelStageLabel();
-
-              try {
-                // Tune sampling lightly by selected Speaking Mood when left at default
-                const baseTemp = job.input.temperature ?? 0.72;
-                const moodTemp =
-                  job.input.style === "cheerful"
-                    ? Math.min(1.0, Math.max(baseTemp, 0.84))
-                    : job.input.style === "narration"
-                      ? Math.min(baseTemp, 0.65)
-                      : baseTemp;
-                const wav = await this.callStudioTts(heldStudio, chunk.text, refPayload, {
-                  temperature: moodTemp,
-                  topP: job.input.topP,
-                  maxNewTokens: chunk.maxNewTokens,
-                });
-                segmentWavs[myIdx] = wav;
-                completedChunks += 1;
-                job.chunksDone = completedChunks;
-                job.progress = 10 + Math.round((completedChunks / chunks.length) * 75);
-                job.assignedStudio = heldStudio.id;
-                job.assignedStudioLabel = heldStudio.label;
-                updateParallelStageLabel();
-                break;
-              } catch (err) {
-                const failedStudio = heldStudio;
-                const info = this.handleStudioChunkFailure(failedStudio, err);
-                failedStudio.activeJobs = Math.max(0, failedStudio.activeJobs - 1);
-                heldStudio = null;
-                workerStudios.delete(workerId);
-
-                if (info.clientRejected) {
-                  fatalError = new Error(info.msg);
-                  return;
-                }
-
-                job.attempts += 1;
-                chunkRetries += 1;
-                if (chunkRetries > maxChunkRetries) {
-                  fatalError = new Error(info.msg || "Synthesis failed after failover retries");
-                  return;
-                }
-
-                // Wait briefly if healthy peer slots are temporarily occupied by sibling workers
-                let fallback = this.pickLeastQueueStudio(preferredId);
-                if (!fallback && this.hasReadyCandidate(preferredId)) {
-                  for (let waitStep = 0; waitStep < 24 && !fallback && !fatalError && !shouldRequeueWaiting; waitStep += 1) {
-                    if (!this.hasReadyCandidate(preferredId)) break;
-                    await new Promise((resolve) => setTimeout(resolve, 1200));
-                    fallback = this.pickLeastQueueStudio(preferredId);
-                  }
-                }
-
-                if (fallback) {
-                  fallback.activeJobs += 1;
-                  heldStudio = fallback;
-                  job.assignedStudio = fallback.id;
-                  job.assignedStudioLabel = fallback.label;
-                  job.stageLabel = `Re-routing segment ${myIdx + 1} to ${fallback.label}...`;
-                  continue;
-                }
-
-                if (completedChunks === 0) {
-                  shouldRequeueWaiting = true;
-                  return;
-                }
-
-                fatalError = new Error(info.msg || "Voice servers became unavailable mid-generation");
-                return;
-              }
-            }
-          }
-        } finally {
-          workerStudios.delete(workerId);
-          if (heldStudio) {
-            heldStudio.activeJobs = Math.max(0, heldStudio.activeJobs - 1);
-            heldStudio = null;
-          }
-        }
-      };
-
-      await Promise.all(startingStudios.map((studio, i) => runWorker(i, studio)));
-
-      if (shouldRequeueWaiting && !fatalError) {
+      if (!poolResult.ok) {
         job.status = "waiting_for_server";
         job.progress = 5;
         job.chunksDone = 0;
@@ -1598,17 +1787,10 @@ class TtsManagementCore {
         return;
       }
 
-      if (fatalError) {
-        throw fatalError;
-      }
-
-      const wavSegments = chunks.map((chunk, idx) => {
-        const wav = segmentWavs[idx];
-        if (!wav) {
-          throw new Error(`Missing synthesized segment ${idx + 1} of ${chunks.length}`);
-        }
-        return { wav, pauseAfterMs: chunk.pauseAfterMs };
-      });
+      const wavSegments = chunks.map((chunk, idx) => ({
+        wav: poolResult.wavs[idx],
+        pauseAfterMs: chunk.pauseAfterMs,
+      }));
 
       job.status = "processing_audio";
       job.progress = 88;

@@ -37,7 +37,7 @@ export default function Navbar() {
   return (
     <>
       <div className="flex flex-wrap items-center justify-center gap-3 border-b border-line bg-white px-4 py-3 text-[15px]">
-        <span>16 focused tools for images, documents and audio.</span>
+        <span>17 focused tools for images, documents, audio and video.</span>
         <HoverBorderGradient
           as={Link}
           href="/dashboard"

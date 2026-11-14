@@ -593,7 +593,7 @@ export function Tools() {
       <Head
         label="The toolbox"
         title="One place for the small jobs."
-        copy="Sixteen focused workspaces. Everything is free unless it is marked AI."
+        copy="Seventeen focused workspaces. Everything is free unless it is marked AI."
         cta=""
       />
       <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

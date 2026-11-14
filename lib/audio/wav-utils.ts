@@ -263,7 +263,7 @@ export function computeWavPeaks(
   return raw.map((v) => Math.max(0.06, Math.min(1, Math.pow(v / loudest, 0.72))));
 }
 
-function resolveFfmpegPath(): string | null {
+export function resolveFfmpegPath(): string | null {
   const candidates = [
     process.env.FFMPEG_PATH,
     "C:\\ffmpeg\\bin\\ffmpeg.exe",
@@ -278,7 +278,7 @@ function resolveFfmpegPath(): string | null {
   return null;
 }
 
-function buildAtempoChain(factor: number): string[] {
+export function buildAtempoChain(factor: number): string[] {
   const filters: string[] = [];
   let rem = factor;
   while (rem > 2.0) {

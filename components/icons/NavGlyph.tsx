@@ -251,6 +251,14 @@ export function ToolGlyph({ path, ...props }: GlyphProps & { path: string }) {
           <path d="m4 4.2 16 16" />
         </Glyph>
       );
+    case "/video/dubbing":
+      return (
+        <Glyph {...props}>
+          <rect x="3" y="4.75" width="13.5" height="14.5" rx="2.3" />
+          <path d="m16.5 9.6 4.5-2.5v9.8l-4.5-2.5" />
+          <path d="M7.2 10.2v3.6M9.75 8.5v7M12.3 10.2v3.6" />
+        </Glyph>
+      );
     default:
       return (
         <Glyph {...props}>

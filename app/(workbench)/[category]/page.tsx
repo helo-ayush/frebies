@@ -68,6 +68,17 @@ const showcases: Record<
       { title: "Make audio useful", copy: "Transcribe conversations or separate vocals from instrumentals.", icon: FileStack },
     ],
   },
+  video: {
+    eyebrow: "Built for multi-language video",
+    title: "Localize videos without studio overhead.",
+    copy: "Transcribe dialogue, translate with scene-aware pacing, and synthesize natural dubbing that keeps music and ambience alive.",
+    points: ["MP4, MOV, WebM and MKV", "Voice clone or preset talent", "Ducked background & SRT captions"],
+    useCases: [
+      { title: "Translate creator videos", copy: "Bring tutorials, commentary and clips to new audiences in minutes.", icon: WandSparkles },
+      { title: "Keep speaker identity", copy: "Automatically sample the original speaker's timbre for natural dubbed continuity.", icon: Cloud },
+      { title: "Deliver clean mixes", copy: "Duck original ambience during dialogue and export synced MP4 + SRT files.", icon: FileStack },
+    ],
+  },
 };
 
 export function generateStaticParams() {
@@ -99,7 +110,9 @@ export default async function CategoryPage({ params }: CategoryParams) {
             <span className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-rail">
               <Icon size={17} strokeWidth={1.55} aria-hidden />
             </span>
-            <span className="text-micro font-medium text-faint">{categoryTools.length} focused workspaces</span>
+            <span className="text-micro font-medium text-faint">
+              {categoryTools.length} focused {categoryTools.length === 1 ? "workspace" : "workspaces"}
+            </span>
           </div>
           <h1 className="mt-4 font-display text-[32px] font-semibold tracking-[-0.035em]">
             {category.title}

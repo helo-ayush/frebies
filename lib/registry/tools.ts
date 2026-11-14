@@ -14,10 +14,11 @@ import {
   Scissors,
   Sparkles,
   Type,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 
-export type CategorySlug = "image" | "document" | "audio";
+export type CategorySlug = "image" | "document" | "audio" | "video";
 export type ToolTier = "free" | "credits";
 export type ToolStatus = "live" | "soon";
 export type ToolEngine = "browser" | "api" | "worker";
@@ -160,6 +161,35 @@ export const categories: Category[] = [
       {
         q: "Can I use the tools on my phone?",
         a: "Yes. The workbench works on mobile browsers, though very large audio files may hit your device's memory limits.",
+      },
+    ],
+  },
+  {
+    slug: "video",
+    name: "Video",
+    singular: "Video",
+    title: "Video tools",
+    description: "Translate spoken dialogue and dub videos in natural voices.",
+    metaTitle: "AI Video Dubbing & Voice Translation Tools",
+    metaDescription:
+      "Translate and dub spoken videos with voice cloning, scene-timed pacing and ducked background ambience.",
+    intro: [
+      "Built for creators, educators and teams publishing across languages. Speech extraction and final video muxing happen locally in your browser so large MP4 files stay fast and private.",
+      "Dialogue translation and neural dubbing run on cloud AI with transparent credit pricing, letting you review and refine every timestamped line before exporting.",
+    ],
+    icon: Video,
+    faq: [
+      {
+        q: "Which video formats are supported?",
+        a: "MP4, MOV, WebM and MKV files up to 150 MB and 10 minutes are supported in the dubbing workspace.",
+      },
+      {
+        q: "Can AI dubbing keep the original speaker's voice?",
+        a: "Yes. Enable Match Original Speaker to automatically clone a clean speech sample from your video, or pick any curated studio voice instead.",
+      },
+      {
+        q: "Does the original background music stay intact?",
+        a: "Yes. Smart background ducking automatically lowers the original audio beneath dubbed lines while keeping music and ambience audible in between.",
       },
     ],
   },
@@ -1080,6 +1110,69 @@ export const tools: Tool[] = [
         },
       ],
       related: ["trim", "convert", "speech-to-text"],
+    },
+  },
+  {
+    slug: "dubbing",
+    category: "video",
+    path: "/video/dubbing",
+    name: "Video Dubbing",
+    shortName: "Video dubbing",
+    h1: "Video Dubbing",
+    tagline: "Translate dialogue and dub videos with matching speaker voice, pacing and background ambience.",
+    description: "Transcribe scenes on-device, translate with timing fit, and render dubbed MP4s with voice cloning or studio voices.",
+    keywords: [
+      "video dubbing",
+      "ai video translator",
+      "translate video audio",
+      "dub video another language",
+      "voice clone video dubbing",
+    ],
+    icon: Video,
+    tier: "credits",
+    creditCost: 5,
+    engine: "worker",
+    status: "live",
+    featured: true,
+    limits: { maxSizeMB: 150, formats: ["MP4", "MOV", "WebM", "MKV"], maxDurationMin: 10 },
+    resumeBehavior: "confirm",
+    seo: {
+      title: "AI Video Dubbing — Translate & Dub Videos Online",
+      metaDescription:
+        "Dub spoken videos into Hindi, Spanish, French, German, Japanese, English and more. Clone the speaker's voice or choose a studio voice while keeping background music intact.",
+      howItWorks: [
+        "Drop an MP4, MOV, WebM or MKV video and transcribe dialogue or import SRT subtitles.",
+        "Translate lines into your target language with scene-duration pacing and fine-tune any phrase.",
+        "Sign in to synthesize dubbed speech using the speaker's cloned timbre or a studio voice, then export the remuxed MP4.",
+      ],
+      benefits: [
+        "Matches original speaker timbre automatically from the cleanest speech segment, or lets you choose from 23 preset voices.",
+        "Time-aligned segment pacing keeps dubbed dialogue synchronized with video scenes.",
+        "Mixes dubbed speech cleanly over ducked background ambience and exports synced SRT captions.",
+      ],
+      faq: [
+        {
+          q: "How much does video dubbing cost?",
+          a: "5 credits per started minute of video, shown upfront before you run cloud dubbing. Local browser transcription and timeline editing are free before synthesis.",
+        },
+        {
+          q: "Which target languages are supported?",
+          a: "You can translate and dub between English, Hindi, Spanish, French, German, Japanese, Korean, Chinese, Portuguese, Italian, Arabic and Russian.",
+        },
+        {
+          q: "Can I edit the transcript or translation before dubbing?",
+          a: "Yes. Every detected timestamped segment can be edited in place, split, adjusted, or imported from an SRT/VTT file before generating the final voice track.",
+        },
+        {
+          q: "How does background music preservation work?",
+          a: "Smart background ducking extracts the original audio bed, lowers volume gently under active speech windows, and mixes your dubbed voice cleanly back onto the video.",
+        },
+        {
+          q: "What happens if I don't sign in first?",
+          a: "You can inspect your video, transcribe scenes locally, and prepare edits without signing in. Sign in when you are ready to run cloud translation, synthesis, and 24-hour vault storage.",
+        },
+      ],
+      related: [],
     },
   },
 ];

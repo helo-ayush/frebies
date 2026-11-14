@@ -18,6 +18,7 @@ import { AudioTrimmerStudio } from "@/components/tool/audio/trim/AudioTrimmerStu
 import { TextToSpeechStudio } from "@/components/tool/audio/tts/TextToSpeechStudio";
 import { SpeechToTextStudio } from "@/components/tool/audio/stt/SpeechToTextStudio";
 import { VocalRemoverStudio } from "@/components/tool/audio/vocal/VocalRemoverStudio";
+import { VideoDubbingStudio } from "@/components/tool/video/dub/VideoDubbingStudio";
 import { ToolHeader } from "@/components/tool/ToolHeader";
 import { ToolWorkspace } from "@/components/tool/ToolWorkspace";
 import { getCategory, getTool, tools } from "@/lib/registry/tools";
@@ -225,6 +226,17 @@ export default async function ToolPage({ params }: ToolParams) {
         <ToolHeader tool={tool} category={category} />
         <section className="mt-5">
           <VocalRemoverStudio maxSizeMB={tool.limits.maxSizeMB ?? 50} />
+        </section>
+      </>
+    );
+  }
+
+  if (tool.path === "/video/dubbing") {
+    workspace = (
+      <>
+        <ToolHeader tool={tool} category={category} showTierBadge={false} showEngineBadge={false} />
+        <section className="mt-5">
+          <VideoDubbingStudio maxSizeMB={tool.limits.maxSizeMB ?? 150} />
         </section>
       </>
     );

@@ -61,7 +61,14 @@ export function Dropzone({
   checkerboard?: boolean;
 }) {
   const Icon = tool.icon;
-  const noun = tool.category === "audio" ? "audio file" : tool.category === "document" ? "file" : "image";
+  const noun =
+    tool.category === "audio"
+      ? "audio file"
+      : tool.category === "video"
+        ? "video"
+        : tool.category === "document"
+          ? "file"
+          : "image";
   const limits = [
     tool.limits.formats.join(", "),
     tool.limits.maxSizeMB ? `up to ${tool.limits.maxSizeMB} MB` : null,
