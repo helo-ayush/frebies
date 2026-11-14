@@ -522,11 +522,36 @@ class UpscaleManagerCore {
         ...buildGpuStudioAuthHeaders(),
       };
 
+      // Keep request JSON safely under ModelScope API gateway's 32 MB body limit
+      let gpuInputBuffer = sourceBuffer;
+      if (gpuInputBuffer.length > 18 * 1024 * 1024) {
+        const ffmpeg = resolveFfmpegPath();
+        if (ffmpeg) {
+          const cmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), "frebies-upscale-cmp-"));
+          const cmpIn = path.join(cmpDir, "in.bin");
+          const cmpOut = path.join(cmpDir, "out.jpg");
+          try {
+            await fsp.writeFile(cmpIn, gpuInputBuffer);
+            await execFileAsync(ffmpeg, ["-y", "-hide_banner", "-loglevel", "error", "-i", cmpIn, "-q:v", "2", cmpOut], {
+              timeout: 60_000,
+            });
+            const compact = await fsp.readFile(cmpOut);
+            if (compact.length > 128 && compact.length < gpuInputBuffer.length) {
+              gpuInputBuffer = compact;
+            }
+          } catch {
+            // Keep original buffer if pre-compression fails
+          } finally {
+            await fsp.rm(cmpDir, { recursive: true, force: true }).catch(() => {});
+          }
+        }
+      }
+
       const targetResolution =
         job.input.targetPreset !== "exact" ? job.input.targetPreset : null;
 
       const payload = JSON.stringify({
-        image_base64: sourceBuffer.toString("base64"),
+        image_base64: gpuInputBuffer.toString("base64"),
         model: job.input.engineModel,
         scale: job.input.factor,
         target_resolution: targetResolution,

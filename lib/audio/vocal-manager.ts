@@ -566,7 +566,13 @@ class VocalManagerCore {
         throw new Error(gpuSnap.lastError || "GPU Vocal Separation Studio did not become ready in time.");
       }
 
-      const chunkBytes = Math.max(bytesPerSec, CHUNK_SECONDS * bytesPerSec);
+      // Cap each WAV chunk so request AND dual-stem JSON payloads stay safely under
+      // ModelScope API gateway's 32 MB (33,554,432 byte) body limit even at 48 kHz Stereo.
+      const frameAlign = Math.max(2, parsed.numChannels * 2);
+      const maxRawChunkBytes =
+        job.input.stems === "both" ? 8 * 1024 * 1024 : 14 * 1024 * 1024;
+      const rawChunkBytes = Math.min(CHUNK_SECONDS * bytesPerSec, maxRawChunkBytes);
+      const chunkBytes = Math.max(frameAlign, Math.floor(rawChunkBytes / frameAlign) * frameAlign);
       const totalChunks = Math.max(1, Math.ceil(parsed.pcmData.length / chunkBytes));
       job.chunkCount = totalChunks;
 
