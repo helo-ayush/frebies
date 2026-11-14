@@ -160,6 +160,7 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
   const [pool, setPool] = useState<PoolStatusSnapshot | null>(null);
   const [jobs, setJobs] = useState<DubJobSnapshot[]>([]);
   const [storage, setStorage] = useState<GenerationStorageStats | null>(null);
+  const [workerAuth, setWorkerAuth] = useState<{ url: string; token: string; expiresAt: number } | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [gateOpen, setGateOpen] = useState(false);
   const [gateAction, setGateAction] = useState("run AI dubbing");
@@ -186,10 +187,14 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
       pool: PoolStatusSnapshot;
       jobs: DubJobSnapshot[];
       storage: GenerationStorageStats | null;
+      workerAuth?: { url: string; token: string; expiresAt: number } | null;
     };
     setPool(data.pool);
     setJobs(data.jobs);
     setStorage(data.storage);
+    if (data.workerAuth !== undefined) {
+      setWorkerAuth(data.workerAuth);
+    }
   }, []);
 
   useEffect(() => {
@@ -198,6 +203,7 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
       prevOwnerRef.current = ownerUserId;
       setJobs([]);
       setStorage(null);
+      setWorkerAuth(null);
       setActiveDubJobId(null);
       setActiveCloneId(null);
       setSavedClones(loadSavedClonedVoices(ownerUserId));
@@ -435,10 +441,27 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
         form.append("tripOffsetSec", String(trip.startSec));
         form.append("skipVad", capturedSpeakerRef ? "true" : "false");
 
-        const res = await fetch("/api/video/dub/transcribe", {
-          method: "POST",
-          body: form,
-        });
+        let res: Response | null = null;
+        if (workerAuth && workerAuth.expiresAt > Date.now() + 60_000) {
+          try {
+            const direct = await fetch(`${workerAuth.url}/api/video/dub/transcribe`, {
+              method: "POST",
+              headers: { "x-worker-token": workerAuth.token },
+              body: form,
+            });
+            if (direct.status < 500) {
+              res = direct;
+            }
+          } catch {
+            // Fall back to Next.js proxy
+          }
+        }
+        if (!res) {
+          res = await fetch("/api/video/dub/transcribe", {
+            method: "POST",
+            body: form,
+          });
+        }
 
         const data = (await res.json()) as {
           ok?: boolean;
@@ -629,10 +652,27 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
         const form = new FormData();
         form.append("payload", JSON.stringify(payload));
         form.append("sourceAudio", normalized.uploadBlob, normalized.uploadFileName);
-        res = await fetch("/api/video/dub/jobs", {
-          method: "POST",
-          body: form,
-        });
+        let directRes: Response | null = null;
+        if (workerAuth && workerAuth.expiresAt > Date.now() + 60_000) {
+          try {
+            const direct = await fetch(`${workerAuth.url}/api/video/dub/jobs`, {
+              method: "POST",
+              headers: { "x-worker-token": workerAuth.token },
+              body: form,
+            });
+            if (direct.status < 500) {
+              directRes = direct;
+            }
+          } catch {
+            // Fall back to Next.js proxy
+          }
+        }
+        res =
+          directRes ??
+          (await fetch("/api/video/dub/jobs", {
+            method: "POST",
+            body: form,
+          }));
       } else {
         res = await fetch("/api/video/dub/jobs", {
           method: "POST",
@@ -1577,6 +1617,7 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
       <BindVideoModal
         job={bindModalJob}
         loadedVideoFile={media?.kind === "video" ? media.file : null}
+        workerAuth={workerAuth}
         onClose={() => setBindModalJob(null)}
         onDownloadText={downloadTextBlob}
         onSavedToVault={(updated) => {

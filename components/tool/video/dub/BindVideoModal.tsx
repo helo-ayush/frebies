@@ -32,6 +32,7 @@ import {
 export type BindVideoModalProps = {
   job: DubJobSnapshot | null;
   loadedVideoFile: File | null;
+  workerAuth?: { url: string; token: string; expiresAt: number } | null;
   onClose: () => void;
   onDownloadText: (content: string, fileName: string) => void;
   onSavedToVault?: (updatedJob: DubJobSnapshot) => void;
@@ -76,6 +77,7 @@ const SUBTITLE_MODE_OPTIONS: {
 export function BindVideoModal({
   job,
   loadedVideoFile,
+  workerAuth,
   onClose,
   onDownloadText,
   onSavedToVault,
@@ -195,10 +197,27 @@ export function BindVideoModal({
       const form = new FormData();
       form.append("file", boundResult.blob, boundResult.fileName);
       form.append("fileName", boundResult.fileName);
-      const res = await fetch(`/api/video/dub/jobs/${currentJob.id}`, {
-        method: "POST",
-        body: form,
-      });
+      let res: Response | null = null;
+      if (workerAuth && workerAuth.expiresAt > Date.now() + 60_000) {
+        try {
+          const direct = await fetch(`${workerAuth.url}/api/video/dub/jobs/${currentJob.id}`, {
+            method: "POST",
+            headers: { "x-worker-token": workerAuth.token },
+            body: form,
+          });
+          if (direct.status < 500) {
+            res = direct;
+          }
+        } catch {
+          // Fall back to Next.js API proxy
+        }
+      }
+      if (!res) {
+        res = await fetch(`/api/video/dub/jobs/${currentJob.id}`, {
+          method: "POST",
+          body: form,
+        });
+      }
       const data = (await res.json()) as { job?: DubJobSnapshot; error?: string };
       if (!res.ok || !data.job) {
         throw new Error(data.error || "Could not upload bound MP4 to vault.");
