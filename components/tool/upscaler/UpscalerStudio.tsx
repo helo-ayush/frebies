@@ -1,368 +1,1043 @@
 "use client";
 
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
-  Cloud,
-  ImagePlus,
-  ShieldCheck,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Columns2,
+  Cpu,
+  Download,
+  Eye,
+  Image as ImageIcon,
+  Loader2,
+  RefreshCw,
+  RotateCcw,
+  Rows2,
+  Search,
   Sparkles,
-  TriangleAlert,
+  Trash2,
+  Upload,
   X,
+  Zap,
 } from "lucide-react";
-import { ArrowRightGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
+import { useAuthSession } from "@/components/auth/AuthContext";
+import { ImageCompare } from "@/components/arc/image-compare/image-compare";
+import {
+  GenerationExpiryBadge,
+  GenerationStorageNotice,
+} from "@/components/tool/GenerationRetentionBadge";
 import { CreditGate } from "@/components/tool/paid/CreditGate";
-import { PaidRail } from "@/components/tool/paid/PaidRail";
-import { PaidRunCard } from "@/components/tool/paid/PaidRunCard";
+import type { StudioImage } from "@/components/tool/studio/types";
 import { useImageQueue } from "@/components/tool/studio/useImageQueue";
-import { UpscalerControls } from "./UpscalerControls";
 import {
   DEFAULT_UPSCALE_SETTINGS,
-  UPSCALE_COST,
+  SAMPLE_UPSCALE_IMAGES,
   formatBytes,
+  formatElapsedClock,
+  upscaleCredits,
   upscaleTarget,
+  type SampleUpscalePreset,
+  type UpscaleJobSnapshot,
   type UpscaleSettings,
 } from "./model";
+import { UpscalerControls } from "./UpscalerControls";
 
-type Loupe = {
-  left: number;
-  top: number;
-  size: number;
-  backgroundSize: string;
-  backgroundPosition: string;
+type GpuStatusPayload = {
+  state: "ready" | "booting" | "sleeping" | "error";
+  warmupState: "ready" | "loading" | "error";
+  proUpscalerReady: boolean;
+  proUpscalerStep: string;
+  modelsLoaded: string[];
+  vocalModelsLoaded: string[];
+  hardware: {
+    device: string;
+    total_gb: number;
+    used_gb: number;
+    free_gb: number;
+  } | null;
+  bootElapsedMs: number;
+  lastError: string | null;
 };
 
-export function UpscalerStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
-  const {
-    activeItem,
-    error,
-    dragging,
-    inputRef,
-    openPicker,
-    onPick,
-    onDragOver,
-    onDragLeave,
-    onDrop,
-    removeItem,
-  } = useImageQueue({ maxFiles: 1, maxSizeMB, noun: "image" });
+type CompareViewMode = "split-h" | "split-v" | "loupe" | "result";
+
+const ACTIVE_STATUSES = new Set([
+  "queued",
+  "waiting_for_server",
+  "upscaling",
+  "post_processing",
+]);
+const ITEMS_PER_PAGE = 5;
+
+async function buildSampleImageFile(preset: SampleUpscalePreset): Promise<StudioImage> {
+  const canvas = document.createElement("canvas");
+  canvas.width = preset.width;
+  canvas.height = preset.height;
+  const ctx = canvas.getContext("2d");
+
+  if (ctx) {
+    if (preset.id === "portrait-photo") {
+      const sky = ctx.createLinearGradient(0, 0, preset.width, preset.height);
+      sky.addColorStop(0, "#f5d0a9");
+      sky.addColorStop(0.55, "#e09f7d");
+      sky.addColorStop(1, "#3b2f4a");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, preset.width, preset.height);
+
+      ctx.fillStyle = "rgba(255, 224, 178, 0.35)";
+      ctx.beginPath();
+      ctx.arc(preset.width * 0.72, preset.height * 0.25, 42, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#2b2233";
+      ctx.beginPath();
+      ctx.arc(preset.width * 0.45, preset.height * 0.42, 40, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(preset.width * 0.45, preset.height * 0.88, 72, 54, 0, Math.PI, 0);
+      ctx.fill();
+
+      ctx.fillStyle = "#d99b78";
+      ctx.beginPath();
+      ctx.arc(preset.width * 0.45, preset.height * 0.44, 28, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (preset.id === "vector-poster") {
+      ctx.fillStyle = "#fbfaf6";
+      ctx.fillRect(0, 0, preset.width, preset.height);
+      ctx.fillStyle = "#141416";
+      ctx.fillRect(18, 18, preset.width - 36, 6);
+      ctx.fillStyle = "#d95d39";
+      ctx.beginPath();
+      ctx.arc(preset.width * 0.5, preset.height * 0.5, 62, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fbfaf6";
+      ctx.beginPath();
+      ctx.arc(preset.width * 0.56, preset.height * 0.46, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#141416";
+      ctx.font = "bold 22px system-ui, sans-serif";
+      ctx.fillText("STUDIO 04", 20, 56);
+      ctx.font = "12px monospace";
+      ctx.fillText("4X VECTOR RESTORE", 20, preset.height - 24);
+    } else {
+      const bg = ctx.createRadialGradient(
+        preset.width * 0.5,
+        preset.height * 0.45,
+        12,
+        preset.width * 0.5,
+        preset.height * 0.5,
+        170,
+      );
+      bg.addColorStop(0, "#ffffff");
+      bg.addColorStop(1, "#e7e2d8");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, preset.width, preset.height);
+
+      ctx.fillStyle = "#1f2421";
+      ctx.fillRect(preset.width * 0.42, 34, preset.width * 0.16, 26);
+      ctx.fillStyle = "#2b6e5c";
+      ctx.beginPath();
+      ctx.roundRect(preset.width * 0.34, 62, preset.width * 0.32, 134, 18);
+      ctx.fill();
+      ctx.fillStyle = "#faf8f3";
+      ctx.fillRect(preset.width * 0.37, 96, preset.width * 0.26, 64);
+      ctx.fillStyle = "#1f2421";
+      ctx.font = "bold 11px sans-serif";
+      ctx.fillText("SERUM 4X", preset.width * 0.39, 124);
+      ctx.font = "9px monospace";
+      ctx.fillText("NET 50 ML", preset.width * 0.39, 144);
+    }
+  }
+
+  const mimeType = preset.fileName.endsWith(".jpg") ? "image/jpeg" : "image/png";
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("Canvas sample generation failed."))),
+      mimeType,
+      0.72,
+    );
+  });
+
+  const file = new File([blob], preset.fileName, { type: mimeType });
+  return {
+    id: `sample_${preset.id}_${Date.now()}`,
+    file,
+    preview: URL.createObjectURL(blob),
+    width: preset.width,
+    height: preset.height,
+  };
+}
+
+export function UpscalerStudio({ maxSizeMB }: { maxSizeMB: number }) {
+  const { isSignedIn } = useAuthSession();
+  const queue = useImageQueue({
+    maxFiles: 1,
+    maxSizeMB,
+    formatHint: "JPG, PNG, WebP, AVIF, or HEIC",
+    noun: "image",
+  });
 
   const [settings, setSettings] = useState<UpscaleSettings>(DEFAULT_UPSCALE_SETTINGS);
-  const [gateOpen, setGateOpen] = useState(false);
-  const [loupe, setLoupe] = useState<Loupe | null>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+  const [sampleItem, setSampleItem] = useState<StudioImage | null>(null);
+  const samplePreviewRef = useRef<string | null>(null);
 
-  const sourceWidth = activeItem?.width ?? 0;
-  const sourceHeight = activeItem?.height ?? 0;
-  const target = upscaleTarget(sourceWidth, sourceHeight, settings.factor);
+  const [gpuStatus, setGpuStatus] = useState<GpuStatusPayload | null>(null);
+  const [jobs, setJobs] = useState<UpscaleJobSnapshot[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [wakingGpu, setWakingGpu] = useState(false);
+  const [submitBanner, setSubmitBanner] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showCreditGate, setShowCreditGate] = useState(false);
 
-  function patch(next: Partial<UpscaleSettings>) {
-    setSettings((current) => ({ ...current, ...next }));
+  const [compareJobId, setCompareJobId] = useState<string | null>(null);
+  const [compareView, setCompareView] = useState<CompareViewMode>("split-h");
+  const [loupePos, setLoupePos] = useState<{ x: number; y: number; active: boolean }>({
+    x: 50,
+    y: 50,
+    active: false,
+  });
+  const [page, setPage] = useState(1);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  const stagedSource = queue.activeItem ?? sampleItem;
+
+  useEffect(() => {
+    return () => {
+      if (samplePreviewRef.current) {
+        URL.revokeObjectURL(samplePreviewRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (queue.activeItem && samplePreviewRef.current) {
+      URL.revokeObjectURL(samplePreviewRef.current);
+      samplePreviewRef.current = null;
+      setSampleItem(null);
+    }
+  }, [queue.activeItem]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const hasActiveJobs = useMemo(
+    () => jobs.some((job) => ACTIVE_STATUSES.has(job.status)),
+    [jobs],
+  );
+
+  const fetchStatus = useCallback(async (force = false) => {
+    try {
+      const res = await fetch(`/api/image/upscale/status${force ? "?force=1" : ""}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { status?: GpuStatusPayload };
+      if (data.status) setGpuStatus(data.status);
+    } catch {
+      // Ignore transient status polling error
+    }
+  }, []);
+
+  const fetchJobs = useCallback(async () => {
+    if (!isSignedIn) {
+      setJobs([]);
+      return;
+    }
+    try {
+      const res = await fetch("/api/image/upscale/jobs", { cache: "no-store" });
+      if (res.status === 401) return;
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        jobs?: UpscaleJobSnapshot[];
+        status?: GpuStatusPayload;
+      };
+      if (Array.isArray(data.jobs)) {
+        setJobs(data.jobs);
+      }
+      if (data.status) setGpuStatus(data.status);
+    } catch {
+      // Ignore transient polling error
+    }
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    void fetchStatus(false);
+    if (isSignedIn) {
+      setLoadingJobs(true);
+      void fetchJobs().finally(() => setLoadingJobs(false));
+    } else {
+      setJobs([]);
+    }
+  }, [fetchStatus, fetchJobs, isSignedIn]);
+
+  useEffect(() => {
+    const shouldFastPoll =
+      hasActiveJobs || gpuStatus?.state === "booting" || Boolean(jobs.length && !gpuStatus);
+    const intervalMs = hasActiveJobs ? 2500 : gpuStatus?.state === "booting" ? 4000 : 25000;
+    if (!shouldFastPoll && !isSignedIn) return;
+    const timer = window.setInterval(() => {
+      if (isSignedIn) {
+        void fetchJobs();
+      } else {
+        void fetchStatus(false);
+      }
+    }, intervalMs);
+    return () => window.clearInterval(timer);
+  }, [fetchJobs, fetchStatus, gpuStatus, hasActiveJobs, isSignedIn, jobs.length]);
+
+  const compareJob = useMemo(() => {
+    if (!compareJobId) return null;
+    return jobs.find((j) => j.id === compareJobId && j.status === "completed") ?? null;
+  }, [compareJobId, jobs]);
+
+  const totalPages = Math.max(1, Math.ceil(jobs.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(page, totalPages);
+  const pagedJobs = jobs.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
+
+  function handlePatch(patch: Partial<UpscaleSettings>) {
+    setSettings((cur) => ({ ...cur, ...patch }));
   }
 
-  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    const stage = stageRef.current;
-    const image = imageRef.current;
-    if (!stage || !image || !activeItem) {
-      setLoupe(null);
+  function handleQueueFileChange(event: ChangeEvent<HTMLInputElement>) {
+    setCompareJobId(null);
+    setErrorMsg(null);
+    queue.onPick(event);
+  }
+
+  async function handleSelectSample(preset: SampleUpscalePreset) {
+    setCompareJobId(null);
+    setErrorMsg(null);
+    queue.clearAll();
+    try {
+      const sample = await buildSampleImageFile(preset);
+      if (samplePreviewRef.current) {
+        URL.revokeObjectURL(samplePreviewRef.current);
+      }
+      samplePreviewRef.current = sample.preview;
+      setSampleItem(sample);
+      setSettings((cur) => ({
+        ...cur,
+        tier: preset.suggestedTier,
+        engineModel: preset.suggestedModel,
+        profile: preset.suggestedProfile,
+      }));
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Could not generate sample image.");
+    }
+  }
+
+  async function handleWakeGpu() {
+    if (!isSignedIn) {
+      setShowCreditGate(true);
       return;
     }
-    if (event.pointerType !== "mouse") {
-      setLoupe(null);
+    setWakingGpu(true);
+    try {
+      const res = await fetch("/api/image/upscale/status", { method: "POST" });
+      if (res.status === 401) {
+        setShowCreditGate(true);
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as { status?: GpuStatusPayload } | null;
+      if (data?.status) setGpuStatus(data.status);
+    } finally {
+      setWakingGpu(false);
+    }
+  }
+
+  async function handleSubmitJob() {
+    if (!stagedSource) return;
+    if (!isSignedIn) {
+      setShowCreditGate(true);
       return;
     }
 
-    const stageRect = stage.getBoundingClientRect();
-    const imageRect = image.getBoundingClientRect();
-    const localX = event.clientX - imageRect.left;
-    const localY = event.clientY - imageRect.top;
+    setErrorMsg(null);
+    setSubmitBanner(null);
+    setSubmitting(true);
 
-    if (localX < 0 || localY < 0 || localX > imageRect.width || localY > imageRect.height) {
-      setLoupe(null);
+    try {
+      const form = new FormData();
+      form.append("file", stagedSource.file);
+      form.append("originalWidth", String(stagedSource.width ?? 0));
+      form.append("originalHeight", String(stagedSource.height ?? 0));
+      form.append("settings", JSON.stringify(settings));
+
+      const res = await fetch("/api/image/upscale/jobs", {
+        method: "POST",
+        body: form,
+      });
+
+      if (res.status === 401) {
+        setShowCreditGate(true);
+        return;
+      }
+
+      const data = (await res.json().catch(() => null)) as {
+        job?: UpscaleJobSnapshot;
+        error?: string;
+      } | null;
+
+      if (!res.ok || !data?.job) {
+        throw new Error(data?.error || `Upscale submission failed (HTTP ${res.status}).`);
+      }
+
+      setJobs((prev) => [data.job!, ...prev.filter((item) => item.id !== data.job!.id)]);
+      setPage(1);
+      setSubmitBanner(
+        `Queued ${stagedSource.file.name} (${settings.factor}×). Saved for 24h in your vault — feel free to queue another image.`,
+      );
+      void fetchJobs();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Could not submit upscale job.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRetryJob(id: string) {
+    if (!isSignedIn) {
+      setShowCreditGate(true);
       return;
     }
-
-    const size = 136;
-    const zoom = settings.factor === 4 ? 4 : 3;
-    const left = Math.min(
-      Math.max(event.clientX - stageRect.left - size / 2, 12),
-      stageRect.width - size - 12,
-    );
-    const top = Math.min(
-      Math.max(event.clientY - stageRect.top - size / 2, 12),
-      stageRect.height - size - 12,
-    );
-
-    setLoupe({
-      left,
-      top,
-      size,
-      backgroundSize: `${imageRect.width * zoom}px ${imageRect.height * zoom}px`,
-      backgroundPosition: `${-(localX * zoom - size / 2)}px ${-(localY * zoom - size / 2)}px`,
+    setErrorMsg(null);
+    const res = await fetch(`/api/image/upscale/jobs/${encodeURIComponent(id)}`, {
+      method: "POST",
     });
+    const data = (await res.json().catch(() => null)) as {
+      job?: UpscaleJobSnapshot;
+      error?: string;
+    } | null;
+    if (!res.ok || !data?.job) {
+      setErrorMsg(data?.error || "Could not retry this upscale job.");
+      return;
+    }
+    setJobs((prev) => [data.job!, ...prev]);
+    setPage(1);
   }
+
+  async function handleDeleteJob(id: string) {
+    const res = await fetch(`/api/image/upscale/jobs/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      setErrorMsg(data?.error || "Cannot delete job right now.");
+      return;
+    }
+    if (compareJobId === id) setCompareJobId(null);
+    setJobs((prev) => prev.filter((j) => j.id !== id));
+  }
+
+  const targetDims = upscaleTarget(
+    stagedSource?.width ?? 0,
+    stagedSource?.height ?? 0,
+    settings.factor,
+    settings.targetPreset,
+  );
+  const creditCost = upscaleCredits(settings.tier, settings.factor);
 
   return (
-    <section
-      id="upscaler"
-      aria-label="AI upscale studio"
-      className="scroll-mt-20 overflow-hidden rounded-[26px] border border-line bg-white"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-[#fdfdfc] px-4 py-3.5 sm:px-5">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-white text-ink">
-            <ToolGlyph path="/image/upscaler" size={18} />
-          </span>
-          <div>
-            <h2 className="text-[14px] font-medium text-ink">Upscale lab</h2>
-            <p className="mt-0.5 text-micro text-faint">
-              2× or 4× detail recovery.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/[0.06] px-2.5 py-1 text-[10px] font-medium text-[#a8432c]">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-            {UPSCALE_COST} credits
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] font-medium text-muted">
-            <Cloud size={10} aria-hidden />
-            Cloud AI
-          </span>
-          <span className="flex items-center gap-1.5 rounded-full border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-1 text-[10px] font-medium text-[#786344]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" aria-hidden />
-            Interface preview
-          </span>
-        </div>
-      </div>
-
-      <div className="grid lg:h-[780px] lg:grid-cols-[minmax(0,1fr)_396px]">
-        <div className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5">
-          {!activeItem ? (
-            <div
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-              className={`relative flex min-h-[430px] flex-1 flex-col items-center justify-center overflow-hidden rounded-[16px] border px-5 py-10 text-center transition-colors ${
-                dragging
-                  ? "border-accent/60 bg-[#17110f]"
-                  : "border-dashed border-[#35353a] bg-[#111113]"
-              }`}
-            >
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 opacity-[0.13]"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)",
-                  backgroundSize: "40px 40px",
-                }}
+    <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* Left: Workspace Stage & Async Queue */}
+        <div className="space-y-4">
+          {/* GPU Status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-white px-4 py-2.5 shadow-[0_1px_2px_rgba(15,15,16,0.03)]">
+            <div className="flex items-center gap-2 text-[12px]">
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  gpuStatus?.state === "ready"
+                    ? "bg-emerald-500"
+                    : gpuStatus?.state === "booting"
+                      ? "animate-pulse bg-amber-500"
+                      : gpuStatus?.state === "error"
+                        ? "bg-rose-500"
+                        : "bg-zinc-400"
+                }`}
               />
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(229,94,64,0.36),transparent_68%)] blur-2xl"
-              />
-
-              <span className="relative inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[9.5px] font-medium uppercase tracking-[0.12em] text-white/55">
-                <Sparkles size={10} aria-hidden />
-                AI upscale lab
+              <Cpu size={13} className="text-muted" aria-hidden />
+              <span className="font-medium text-ink">
+                {gpuStatus?.state === "ready"
+                  ? `${gpuStatus.hardware?.device || "NVIDIA L20"} Ready`
+                  : gpuStatus?.state === "booting"
+                    ? `Starting L20 GPU engine (${formatElapsedClock(gpuStatus.bootElapsedMs)})`
+                    : "GPU worker in sleep mode (auto-wakes on submit)"}
               </span>
-              <p className="relative mt-4 font-display text-[26px] font-semibold tracking-[-0.03em] text-white">
-                Drop an image to enhance
-              </p>
-              <p className="relative mt-2 max-w-sm text-ui leading-relaxed text-white/55">
-                2× or 4× with detail and face restoration. The upload starts only when
-                you run it.
-              </p>
+              {gpuStatus?.state === "ready" ? (
+                <span className="hidden rounded-full bg-[#f3f3f1] px-2 py-0.5 text-[10.5px] font-medium text-muted sm:inline-flex">
+                  {gpuStatus.proUpscalerReady
+                    ? "Free FP16 + Pro SeedVR2-3B FP8 loaded"
+                    : "Free FP16 loaded · Pro SeedVR2-3B warming"}
+                </span>
+              ) : null}
+            </div>
+
+            {gpuStatus && gpuStatus.state !== "ready" ? (
               <button
                 type="button"
-                onClick={() => openPicker()}
-                className="relative mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white px-5 text-ui font-medium text-ink transition-colors hover:bg-white/90"
+                onClick={handleWakeGpu}
+                disabled={wakingGpu}
+                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-line bg-[#fafaf8] px-2.5 text-[11px] font-medium text-ink transition hover:border-ink/30"
               >
-                Choose an image
-                <ArrowRightGlyph size={13} />
+                {wakingGpu ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
+                Wake GPU now
               </button>
-              <p className="relative mt-4 text-[10px] text-white/35">
-                JPG, PNG or WebP · up to {maxSizeMB} MB
-              </p>
-              <div className="relative mt-5 flex flex-wrap justify-center gap-1.5">
-                {["2× and 4×", "Face restore", "2 credits"].map((label) => (
-                  <span
-                    key={label}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[9.5px] text-white/50"
+            ) : (
+              <button
+                type="button"
+                onClick={() => void fetchStatus(true)}
+                className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-medium text-muted transition hover:bg-rail hover:text-ink"
+              >
+                <RefreshCw size={11} />
+                Refresh
+              </button>
+            )}
+          </div>
+
+          <input
+            ref={queue.inputRef}
+            type="file"
+            accept="image/*,.heic,.heif"
+            className="hidden"
+            onChange={handleQueueFileChange}
+          />
+
+          {/* Interactive Compare Mode vs Staged Input Dropzone */}
+          {compareJob && compareJob.outputUrl ? (
+            <div className="rounded-2xl border border-line bg-white p-4 shadow-[0_1px_3px_rgba(15,15,16,0.04)]">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[13px] font-semibold text-ink">
+                      {compareJob.sourceFileName}
+                    </span>
+                    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10.5px] font-semibold text-accent">
+                      {compareJob.modelLabel} · {compareJob.precision}
+                    </span>
+                    <span className="text-[11px] font-medium text-muted tabular-nums">
+                      {compareJob.originalWidth}×{compareJob.originalHeight} → {compareJob.width}×
+                      {compareJob.height}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="inline-flex rounded-lg border border-line bg-[#f7f7f5] p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setCompareView("split-h")}
+                      className={`inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium ${
+                        compareView === "split-h" ? "bg-white text-ink shadow-sm" : "text-muted"
+                      }`}
+                    >
+                      <Columns2 size={12} /> Split
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompareView("split-v")}
+                      className={`inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium ${
+                        compareView === "split-v" ? "bg-white text-ink shadow-sm" : "text-muted"
+                      }`}
+                    >
+                      <Rows2 size={12} /> Stack
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompareView("loupe")}
+                      className={`inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium ${
+                        compareView === "loupe" ? "bg-white text-ink shadow-sm" : "text-muted"
+                      }`}
+                    >
+                      <Search size={12} /> 3× Loupe
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompareView("result")}
+                      className={`inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium ${
+                        compareView === "result" ? "bg-white text-ink shadow-sm" : "text-muted"
+                      }`}
+                    >
+                      <Eye size={12} /> Result
+                    </button>
+                  </div>
+
+                  {compareJob.downloadUrl ? (
+                    <a
+                      href={compareJob.downloadUrl}
+                      download={compareJob.fileName}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-ink px-3 text-[11.5px] font-medium text-white transition hover:bg-ink/90"
+                    >
+                      <Download size={12} />
+                      Download
+                    </a>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => setCompareJobId(null)}
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-white px-2.5 text-[11.5px] font-medium text-ink hover:bg-rail"
                   >
-                    {label}
-                  </span>
-                ))}
+                    <X size={12} />
+                    New upload
+                  </button>
+                </div>
               </div>
+
+              {compareView === "split-h" || compareView === "split-v" ? (
+                <div className="overflow-hidden rounded-xl border border-line bg-[#f3f3f1]">
+                  <ImageCompare
+                    orientation={compareView === "split-v" ? "vertical" : "horizontal"}
+                    aspectRatio={
+                      compareJob.width && compareJob.height
+                        ? `${Math.max(compareJob.width, 1)} / ${Math.max(compareJob.height, 1)}`
+                        : "16 / 10"
+                    }
+                    className="max-h-[460px] w-full"
+                    labels={["Original", `${compareJob.factor}× ${compareJob.modelLabel}`]}
+                    before={
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={compareJob.sourceUrl ?? compareJob.outputUrl}
+                        alt="Original"
+                        className="h-full w-full bg-[#f3f3f1] object-contain"
+                      />
+                    }
+                    after={
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={compareJob.outputUrl}
+                        alt="Upscaled"
+                        className="h-full w-full bg-[#f3f3f1] object-contain"
+                      />
+                    }
+                  />
+                </div>
+              ) : compareView === "loupe" ? (
+                <div
+                  className="relative flex max-h-[460px] cursor-crosshair items-center justify-center overflow-hidden rounded-xl border border-line bg-[#f3f3f1]"
+                  onMouseMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+                    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+                    setLoupePos({ x, y, active: true });
+                  }}
+                  onMouseLeave={() => setLoupePos((p) => ({ ...p, active: false }))}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={compareJob.outputUrl}
+                    alt="Upscaled 3x loupe inspect"
+                    className="max-h-[460px] w-full object-contain"
+                  />
+                  {loupePos.active ? (
+                    <div
+                      className="pointer-events-none absolute h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
+                      style={{
+                        left: `${loupePos.x}%`,
+                        top: `${loupePos.y}%`,
+                        backgroundImage: `url(${compareJob.outputUrl})`,
+                        backgroundSize: "300%",
+                        backgroundPosition: `${loupePos.x}% ${loupePos.y}%`,
+                      }}
+                    />
+                  ) : null}
+                  <span className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-ink/80 px-2.5 py-1 text-[10.5px] font-medium text-white">
+                    Move cursor across image to inspect 3× fine detail
+                  </span>
+                </div>
+              ) : (
+                <div className="flex max-h-[460px] items-center justify-center overflow-hidden rounded-xl border border-line bg-[#f3f3f1] p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={compareJob.outputUrl}
+                    alt={compareJob.fileName}
+                    className="max-h-[440px] w-auto object-contain"
+                  />
+                </div>
+              )}
             </div>
           ) : (
             <div
-              ref={stageRef}
-              onPointerMove={handlePointerMove}
-              onPointerLeave={() => setLoupe(null)}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-              className={`relative flex min-h-[430px] flex-1 items-center justify-center overflow-hidden rounded-[16px] border p-5 transition-colors ${
-                dragging ? "border-accent/60 bg-[#17110f]" : "border-[#2a2a2e] bg-[#111113]"
+              onDragOver={queue.onDragOver}
+              onDragLeave={queue.onDragLeave}
+              onDrop={queue.onDrop}
+              className={`rounded-2xl border bg-white p-5 transition ${
+                queue.dragging ? "border-accent bg-accent-soft/20" : "border-line"
               }`}
             >
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 opacity-[0.13]"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)",
-                  backgroundSize: "40px 40px",
-                }}
-              />
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(229,94,64,0.22),transparent_70%)] blur-2xl"
-              />
+              {!stagedSource ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f3f3f1] text-ink">
+                    <Upload size={20} />
+                  </div>
+                  <p className="text-[14px] font-semibold text-ink">
+                    Drop an image to upscale on NVIDIA L20 GPU
+                  </p>
+                  <p className="mt-1 max-w-md text-[12px] text-muted">
+                    Choose Free FP16 models (UltraSharpV2 Lite, OmniSR, HAT, Real-ESRGAN) or switch
+                    to Pro SeedVR2-3B FP8 diffusion. Up to {maxSizeMB} MB per file.
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => queue.openPicker()}
+                      className="inline-flex h-9 items-center gap-2 rounded-xl bg-ink px-4 text-[12.5px] font-medium text-white shadow-sm transition hover:bg-ink/90"
+                    >
+                      <ImageIcon size={14} />
+                      Select image
+                    </button>
+                  </div>
 
-              <span className="absolute left-4 top-4 z-20 rounded-md border border-white/10 bg-black/35 px-2 py-1 text-[9px] font-medium tabular-nums text-white/65 backdrop-blur">
-                Source · {sourceWidth} × {sourceHeight}
-              </span>
-              <span className="absolute right-4 top-4 z-20 rounded-md border border-accent/30 bg-accent/10 px-2 py-1 text-[9px] font-medium tabular-nums text-[#ffb7a6] backdrop-blur">
-                Target {settings.factor}× · {target.width} × {target.height}
-              </span>
+                  <div className="mt-6 w-full border-t border-line pt-4">
+                    <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
+                      Or test immediately with a built-in sample
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {SAMPLE_UPSCALE_IMAGES.map((sample) => (
+                        <button
+                          key={sample.id}
+                          type="button"
+                          onClick={() => void handleSelectSample(sample)}
+                          className="rounded-xl border border-line bg-[#fafaf8] px-3 py-2 text-left transition hover:border-ink/35 hover:bg-white"
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[12px] font-semibold text-ink">{sample.label}</span>
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${
+                                sample.suggestedTier === "pro"
+                                  ? "bg-accent-soft text-accent"
+                                  : "bg-[#eeeeea] text-muted"
+                              }`}
+                            >
+                              {sample.suggestedTier === "pro" ? "Pro 3B" : "Free FP16"}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[10.5px] text-faint">{sample.subtitle}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-[13px] font-semibold text-ink">
+                        {stagedSource.file.name}
+                      </span>
+                      <span className="rounded-full bg-[#f3f3f1] px-2 py-0.5 text-[11px] font-medium text-muted tabular-nums">
+                        {stagedSource.width ?? "?"}×{stagedSource.height ?? "?"} →{" "}
+                        {targetDims.width || "?"}×{targetDims.height || "?"}
+                      </span>
+                      <span className="text-[11px] text-faint">
+                        {formatBytes(stagedSource.file.size)}
+                      </span>
+                    </div>
 
-              <img
-                ref={imageRef}
-                src={activeItem.preview}
-                alt={`Source for ${activeItem.file.name}`}
-                draggable={false}
-                className="relative z-10 max-h-full max-w-full select-none rounded-[10px] object-contain shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
-              />
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => queue.openPicker()}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-[11.5px] font-medium text-ink hover:bg-rail"
+                      >
+                        Replace
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          queue.clearAll();
+                          setSampleItem(null);
+                        }}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-[11.5px] font-medium text-muted hover:text-ink"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
 
-              {loupe && (
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute z-30 overflow-hidden rounded-full border-2 border-white/85 shadow-[0_14px_34px_rgba(0,0,0,0.55)]"
-                  style={{
-                    left: loupe.left,
-                    top: loupe.top,
-                    width: loupe.size,
-                    height: loupe.size,
-                    backgroundImage: `url("${activeItem.preview}")`,
-                    backgroundSize: loupe.backgroundSize,
-                    backgroundPosition: loupe.backgroundPosition,
-                    backgroundRepeat: "no-repeat",
-                    backgroundColor: "#111113",
-                  }}
-                >
-                  <span className="absolute inset-x-0 bottom-0 bg-ink/70 py-0.5 text-center text-[8px] font-medium uppercase tracking-[0.1em] text-white/70">
-                    Source detail
-                  </span>
+                  <div className="flex max-h-[340px] items-center justify-center overflow-hidden rounded-xl border border-line bg-[#f3f3f1] p-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={stagedSource.preview}
+                      alt={stagedSource.file.name}
+                      className="max-h-[310px] w-auto rounded object-contain shadow-sm"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <p className="text-[11.5px] text-muted">
+                      Jobs run in the background and remain saved for{" "}
+                      <strong className="font-medium text-ink">24 hours</strong> — submit and queue
+                      another right away.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => void handleSubmitJob()}
+                      className="inline-flex h-10 items-center gap-2 rounded-xl bg-ink px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-ink/90 disabled:opacity-60"
+                    >
+                      {submitting ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={14} className="text-accent" />
+                      )}
+                      {submitting ? "Submitting..." : `Submit Upscale (${settings.factor}×)`}
+                      <span className="rounded-md bg-white/15 px-1.5 py-0.5 text-[10.5px] font-medium">
+                        {creditCost} cr
+                      </span>
+                    </button>
+                  </div>
                 </div>
               )}
 
-              <span className="absolute bottom-4 left-4 z-20 hidden items-center gap-1.5 rounded-md border border-white/10 bg-black/35 px-2 py-1 text-[9px] text-white/50 backdrop-blur sm:inline-flex">
-                <Sparkles size={9} aria-hidden />
-                Hover to inspect · {settings.factor}× loupe
-              </span>
-              <span className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-black/35 px-2 py-1 text-[9px] font-medium text-white/65 backdrop-blur">
-                <ShieldCheck size={9} aria-hidden />
-                Cloud run · deleted in 1h
-              </span>
-            </div>
-          )}
-
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-            tabIndex={-1}
-            aria-label="Choose an image to upscale"
-            className="sr-only"
-            onChange={onPick}
-          />
-
-          <span aria-hidden className="hidden" data-error={error} />
-
-          {error && (
-            <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
-              <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
-              {error}
-            </p>
-          )}
-
-          {activeItem && (
-            <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-[11px] border border-line bg-white px-2.5 py-2">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[#f5f2ec] text-muted">
-                <ToolGlyph path="/image/upscaler" size={15} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-ui font-medium text-ink">{activeItem.file.name}</p>
-                <p className="mt-0.5 text-micro text-faint">
-                  {formatBytes(activeItem.file.size)}
-                  {sourceWidth ? ` · ${sourceWidth} × ${sourceHeight}px` : ""}
+              {queue.error ? (
+                <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
+                  {queue.error}
                 </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => openPicker(activeItem.id)}
-                aria-label="Replace image"
-                className="flex h-7 items-center gap-1 rounded-lg px-2 text-[10.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-              >
-                <ImagePlus size={11} aria-hidden />
-                <span className="hidden sm:inline">Replace</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  removeItem(activeItem.id);
-                  setLoupe(null);
-                }}
-                aria-label={`Remove ${activeItem.file.name}`}
-                data-slot="image-remove"
-                className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
-              >
-                <X size={13} aria-hidden />
-              </button>
+              ) : null}
+              {errorMsg ? (
+                <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
+                  {errorMsg}
+                </p>
+              ) : null}
+              {submitBanner ? (
+                <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] text-emerald-800">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="shrink-0" />
+                    {submitBanner}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSubmitBanner(null)}
+                    className="text-emerald-700 hover:text-emerald-950"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
 
-          <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line-soft pt-4">
-            <p className="flex items-center gap-1.5 text-micro text-faint">
-              <Cloud size={12} aria-hidden />
-              Cloud processed · deleted within 1 hour
-            </p>
-            <p className="flex items-center gap-1.5 text-[10.5px] text-faint">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-              {UPSCALE_COST} credits per image · no watermark
-            </p>
+          {/* 24h Cloud Vault History */}
+          <div className="space-y-3 rounded-2xl border border-line bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-[14px] font-semibold text-ink">24-hour Upscale Vault</h2>
+                <span className="rounded-full bg-[#f3f3f1] px-2 py-0.5 text-[11px] font-medium text-muted tabular-nums">
+                  {jobs.length}
+                </span>
+              </div>
+              {jobs.length > ITEMS_PER_PAGE ? (
+                <div className="flex items-center gap-1 text-[11.5px] text-muted">
+                  <button
+                    type="button"
+                    disabled={safePage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="rounded-md border border-line p-1 disabled:opacity-40"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                  <span className="px-1.5 tabular-nums">
+                    {safePage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={safePage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="rounded-md border border-line p-1 disabled:opacity-40"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            <GenerationStorageNotice noun="Upscaled images" />
+
+            {!isSignedIn ? (
+              <div className="rounded-xl border border-dashed border-line bg-[#fafaf8] px-4 py-6 text-center text-[12px] text-muted">
+                Sign in to submit GPU upscaling jobs and access your saved 24-hour image vault
+                across sessions.
+              </div>
+            ) : loadingJobs && jobs.length === 0 ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-[12px] text-muted">
+                <Loader2 size={15} className="animate-spin" /> Loading 24-hour vault...
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-line bg-[#fafaf8] px-4 py-6 text-center text-[12px] text-muted">
+                No upscaled images yet. Upload or pick a sample above to start your first GPU job.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {pagedJobs.map((job) => {
+                  const isRunning = ACTIVE_STATUSES.has(job.status);
+                  const isFailed = job.status === "failed";
+                  const elapsed = isRunning ? nowMs - job.createdAt : job.elapsedMs;
+
+                  return (
+                    <div
+                      key={job.id}
+                      className="rounded-xl border border-line bg-[#fafaf8] p-3 transition hover:border-ink/20"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                          {job.outputUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={job.outputUrl}
+                              alt={job.fileName}
+                              className="h-14 w-14 shrink-0 rounded-lg border border-line bg-white object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-muted">
+                              {isRunning ? (
+                                <Loader2 size={18} className="animate-spin text-accent" />
+                              ) : (
+                                <ImageIcon size={18} />
+                              )}
+                            </div>
+                          )}
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="truncate text-[12.5px] font-semibold text-ink">
+                                {job.sourceFileName}
+                              </span>
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                  job.tier === "pro"
+                                    ? "bg-accent-soft text-accent"
+                                    : "bg-white text-ink border border-line"
+                                }`}
+                              >
+                                {job.modelLabel} · {job.precision}
+                              </span>
+                              {job.status === "completed" ? (
+                                <GenerationExpiryBadge expiresAt={job.expiresAt} nowMs={nowMs} />
+                              ) : null}
+                            </div>
+
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted">
+                              <span className="tabular-nums">
+                                {job.originalWidth || "?"}×{job.originalHeight || "?"} →{" "}
+                                {job.width || "?"}×{job.height || "?"} ({job.factor}×)
+                              </span>
+                              <span>·</span>
+                              <span className="uppercase">{job.format}</span>
+                              {job.byteLength ? (
+                                <>
+                                  <span>·</span>
+                                  <span>{formatBytes(job.byteLength)}</span>
+                                </>
+                              ) : null}
+                              <span>·</span>
+                              <span className="inline-flex items-center gap-1 tabular-nums">
+                                <Clock size={10} /> {formatElapsedClock(elapsed)}
+                              </span>
+                            </div>
+
+                            {isRunning ? (
+                              <div className="mt-2 space-y-1">
+                                <div className="flex items-center justify-between text-[11px] text-muted">
+                                  <span>{job.stageLabel}</span>
+                                  <span className="tabular-nums">{job.progress}%</span>
+                                </div>
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e6e4dc]">
+                                  <div
+                                    className="h-full rounded-full bg-accent transition-all duration-300"
+                                    style={{ width: `${Math.max(6, job.progress)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ) : isFailed ? (
+                              <p className="mt-1 text-[11px] text-rose-600">
+                                {job.error || "Upscale failed."}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {job.status === "completed" && job.outputUrl ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setCompareJobId(job.id)}
+                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-white px-2.5 text-[11.5px] font-medium text-ink hover:border-ink/35"
+                              >
+                                <Columns2 size={12} /> Compare
+                              </button>
+                              {job.downloadUrl ? (
+                                <a
+                                  href={job.downloadUrl}
+                                  download={job.fileName}
+                                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-ink px-2.5 text-[11.5px] font-medium text-white hover:bg-ink/90"
+                                >
+                                  <Download size={12} /> Save
+                                </a>
+                              ) : null}
+                            </>
+                          ) : null}
+
+                          {!isRunning ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => void handleRetryJob(job.id)}
+                                title="Re-run upscale with same image"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-muted hover:text-ink"
+                              >
+                                <RotateCcw size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteJob(job.id)}
+                                title="Delete from vault"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-muted hover:text-rose-600"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
-        <PaidRail
-          label="Upscale settings"
-          action={
-            <PaidRunCard
-              cost={UPSCALE_COST}
-              verb="upscale"
-              ready={Boolean(activeItem)}
-              onRun={() => setGateOpen(true)}
-            />
-          }
-        >
+        {/* Right: 3-Tab Customization Rail */}
+        <div className="rounded-2xl border border-line bg-white p-4 shadow-[0_1px_3px_rgba(15,15,16,0.04)] lg:sticky lg:top-20 lg:self-start">
           <UpscalerControls
             settings={settings}
-            onPatch={patch}
-            sourceWidth={sourceWidth}
-            sourceHeight={sourceHeight}
-            hasImage={Boolean(activeItem)}
+            onPatch={handlePatch}
+            onReset={() => setSettings(DEFAULT_UPSCALE_SETTINGS)}
+            sourceWidth={stagedSource?.width ?? 0}
+            sourceHeight={stagedSource?.height ?? 0}
+            hasImage={Boolean(stagedSource)}
+            proUpscalerReady={Boolean(gpuStatus?.proUpscalerReady)}
+            disabled={submitting}
           />
-        </PaidRail>
+        </div>
       </div>
 
       <CreditGate
-        open={gateOpen}
-        onClose={() => setGateOpen(false)}
-        action="upscale this image"
-        cost={UPSCALE_COST}
+        open={showCreditGate}
+        onClose={() => setShowCreditGate(false)}
+        action="Run AI Image Upscaler"
+        cost={creditCost}
       />
-    </section>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authRequiredResponse, requireAuthenticatedOwner } from "@/lib/auth/owner";
 import { getGenerationStore } from "@/lib/storage/generation-store";
+import { proxyToHfWorker } from "@/lib/worker/hf-proxy";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -29,7 +30,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const asset = await store.readArtifact(id, owner.ownerId);
   if (!asset) {
-    return NextResponse.json({ error: "Generated file not found, evicted, or expired." }, { status: 404 });
+    return proxyToHfWorker(request, {
+      path: `/api/generations/${encodeURIComponent(id)}/file`,
+      ownerId: owner.ownerId,
+      isAuthenticated: true,
+      timeoutMs: 45_000,
+    });
   }
 
   const remainingSeconds = Math.max(0, Math.floor((asset.record.expiresAt - Date.now()) / 1000));

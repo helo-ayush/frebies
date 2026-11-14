@@ -589,7 +589,22 @@ export class GenerationStore {
     ownerId?: string,
   ): Promise<StoredGenerationRecord<TMeta> | null> {
     await this.ensureInitialized();
-    const rec = this.records.get(id);
+    let rec = this.records.get(id);
+    if (!rec && this.currentProvider() === "r2") {
+      const metaKey = `meta/${sanitizeSegment(id, "gen")}.json`;
+      try {
+        const text = await r2GetObjectText(metaKey);
+        if (text) {
+          const parsed = JSON.parse(text) as StoredGenerationRecord;
+          if (parsed?.id && parsed.storageKey && parsed.expiresAt > Date.now()) {
+            rec = { ...parsed, storageProvider: "r2" };
+            this.records.set(rec.id, rec);
+          }
+        }
+      } catch {
+        // Ignore missing/invalid remote meta
+      }
+    }
     if (!rec) return null;
     if (ownerId !== undefined && rec.ownerId !== ownerId) return null;
     if (rec.expiresAt <= Date.now()) {

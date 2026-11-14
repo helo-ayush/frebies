@@ -157,7 +157,7 @@ export default async function ToolPage({ params }: ToolParams) {
   if (tool.path === "/image/upscaler") {
     workspace = (
       <>
-        <ToolHeader tool={tool} category={category} />
+        <ToolHeader tool={tool} category={category} showTierBadge={false} showEngineBadge={false} />
         <section className="mt-5">
           <UpscalerStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
         </section>
@@ -223,7 +223,7 @@ export default async function ToolPage({ params }: ToolParams) {
   if (tool.path === "/audio/vocal-remover") {
     workspace = (
       <>
-        <ToolHeader tool={tool} category={category} />
+        <ToolHeader tool={tool} category={category} showTierBadge={false} showEngineBadge={false} />
         <section className="mt-5">
           <VocalRemoverStudio maxSizeMB={tool.limits.maxSizeMB ?? 50} />
         </section>

@@ -38,12 +38,19 @@ export function GenerationExpiryBadge({
   );
 }
 
-export function GenerationStorageNotice({ ttlHours = 24 }: { ttlHours?: number }) {
+export function GenerationStorageNotice({
+  ttlHours = 24,
+  noun = "Generated audio",
+}: {
+  ttlHours?: number;
+  noun?: string;
+}) {
+  const stayVerb = noun.trim().toLowerCase().endsWith("s") ? "stay" : "stays";
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white/80 px-3 py-2 text-[11px] text-muted">
       <span className="inline-flex items-center gap-1.5">
         <Clock size={12} className="shrink-0 text-faint" aria-hidden />
-        Generated audio stays saved for{" "}
+        {noun} {stayVerb} saved for{" "}
         <strong className="font-medium text-ink">{ttlHours} hours</strong>
       </span>
       <span className="text-[10.5px] text-faint">
