@@ -354,14 +354,15 @@ async function callChunkAndTranslateWindow(
   const systemPrompt = [
     "You are an expert AI video dubbing script director and semantic segmenter.",
     "You receive word-by-word ASR timestamps (`w`: word, `s`: start seconds, `e`: end seconds, `spk`: speaker id).",
-    "Task 1 — Semantic & Pause-Based Chunking:",
-    "- Group consecutive words into clean, natural dubbing sentence/phrase segments using timestamp gaps (pauses >= 0.25s), speaker switches, punctuation, and semantic completeness.",
-    "- Ideal chunk length is roughly 2.0s to 8.5s (1–2 natural spoken clauses). Never split in the middle of an idiom or verb phrase unless there is a very long pause.",
+    "Task 1 — Tight Semantic & Pause-Based Clause Chunking:",
+    "- Group consecutive words into natural dubbing sentence/clause segments using timestamp gaps (pauses >= 0.22s), speaker switches, punctuation, and grammatical clause boundaries.",
+    "- Ideal chunk duration is roughly 1.8s to 6.2s (1–2 natural spoken clauses). Avoid lumping long multi-sentence thoughts into an 8–9s megachunk where translated English finishes 2s early. Never split in the middle of an idiom or core verb phrase unless there is a clear pause.",
     "- Every word in the input must belong cleanly to exactly one chunk in strict chronological order, using `s` of the chunk's first word for `startSec` and `e` of the chunk's last word for `endSec`.",
     autoTranslate
       ? [
-          `Task 2 — Spoken Dubbing Translation (${sourceLabel} -> ${targetLabel}) + Drama 3 Expression Tags:`,
-          `- Translate each chunk into fluent, natural spoken ${targetLabel} sized carefully to fit its speaking window (~${cps} chars/sec * durationSec).`,
+          `Task 2 — Isochronous Spoken Dubbing Translation (${sourceLabel} -> ${targetLabel}) + Drama 3 Expression Tags:`,
+          `- Each chunk occupies a speaking window of durationSec = (endSec - startSec), with targetChars = round(durationSec * ${cps}). Write ISOCHRONOUS spoken ${targetLabel} dialogue that fills ~85% to 105% of targetChars (minChars = round(targetChars * 0.85), maxChars = round(targetChars * 1.10)).`,
+          `- ANTI-SILENCE RULE: When translating from syllable-dense or longer-spoken languages (e.g., Hindi, Spanish, French, Japanese, Arabic) into compact English, NEVER write overly compressed or terse summary phrases that finish 1–2 seconds early and leave awkward dead air. Instead, match the original spoken cadence by naturally expanding phrasing using idiomatic conversational ${targetLabel}, natural spoken connectors (e.g., "you see,", "right now,", "in fact,", "honestly,"), clear emphatic wording, and natural clause punctuation (\`,\`, \`—\`, \`...\`) so the voice actor speaks smoothly across the full time slot without changing facts or adding off-topic filler.`,
           `- ${toneInstruction(input.tone)}`,
           DRAMA3_TAG_PROMPT,
         ].join("\n")
@@ -574,8 +575,9 @@ async function translateBatch(
     `Translate spoken dialogue lines from ${sourceLabel} into natural spoken ${targetLabel}.`,
     toneInstruction(input.tone),
     DRAMA3_TAG_PROMPT,
-    "Timing-sync rules:",
-    "- Keep each translated line concise so a voice actor can speak it smoothly inside its scene time window (`targetChars`).",
+    "Isochronous Timing-Sync Rules:",
+    "- Match each translated line's character budget (`minChars` to `maxChars`, aiming right around `targetChars`) so the voice actor fills the full scene window (`durationSec`) without rushing or finishing 1–2 seconds early.",
+    "- When translating from syllable-heavy/longer-spoken source languages into compact English, avoid overly terse literal phrasing that ends prematurely and creates awkward silence gaps. Naturally expand phrasing with idiomatic conversational wording, subtle spoken connectors, and mid-sentence clause punctuation (`,`, `—`, `...`) so the delivery matches `durationSec` cleanly while keeping exact meaning.",
     "- Preserve numbers, proper nouns, and conversational flow.",
     "- Never output translator notes or markdown outside the JSON object.",
     "- If source is already in target language, refine punctuation and add appropriate Drama 3 delivery tags cleanly.",
@@ -590,10 +592,13 @@ async function translateBatch(
     targetLanguage: targetLabel,
     segments: batch.map((seg) => {
       const durationSec = Math.max(0.6, Number((seg.endSec - seg.startSec).toFixed(2)));
+      const targetChars = Math.max(12, Math.round(durationSec * cps));
       return {
         id: seg.id,
         durationSec,
-        targetChars: Math.max(12, Math.round(durationSec * cps)),
+        minChars: Math.max(8, Math.round(targetChars * 0.85)),
+        targetChars,
+        maxChars: Math.max(16, Math.round(targetChars * 1.12)),
         text: seg.sourceText.trim(),
       };
     }),

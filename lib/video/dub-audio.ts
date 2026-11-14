@@ -118,6 +118,126 @@ function applySoftEdgeFades(pcm16: Buffer, sampleRate: number): void {
   }
 }
 
+/**
+ * Layer 2 (Prosodic Pause Expansion): detect brief internal low-energy clause breaks (60–420ms)
+ * inside a synthesized sentence and gently lengthen them instead of leaving a dead gap after the sentence.
+ */
+function expandInternalClausePauses(
+  pcm16Mono: Buffer,
+  sampleRate: number,
+  targetExtraSec: number,
+): Buffer {
+  const totalSamples = Math.floor(pcm16Mono.length / 2);
+  if (
+    targetExtraSec <= 0.06 ||
+    sampleRate <= 0 ||
+    totalSamples < Math.floor(sampleRate * 0.55)
+  ) {
+    return pcm16Mono;
+  }
+
+  const windowSamples = Math.max(1, Math.floor(sampleRate * 0.02)); // 20ms windows
+  const numWins = Math.floor(totalSamples / windowSamples);
+  const startGuardWin = Math.ceil(0.18 / 0.02); // skip first 180ms
+  const endGuardWin = numWins - Math.ceil(0.2 / 0.02); // skip last 200ms
+  if (endGuardWin - startGuardWin < 6) {
+    return pcm16Mono;
+  }
+
+  const winRms = new Float32Array(numWins);
+  let peakWinRms = 0;
+  for (let w = 0; w < numWins; w += 1) {
+    const startSample = w * windowSamples;
+    const endSample = startSample + windowSamples;
+    let sumSq = 0;
+    for (let s = startSample; s < endSample; s += 1) {
+      const val = pcm16Mono.readInt16LE(s * 2);
+      sumSq += val * val;
+    }
+    const rms = Math.sqrt(sumSq / windowSamples);
+    winRms[w] = rms;
+    if (rms > peakWinRms) peakWinRms = rms;
+  }
+
+  // Adaptive low-energy threshold catches clause breaths without ever splitting voiced phones
+  const pauseRmsThreshold = Math.min(360, Math.max(120, peakWinRms * 0.035));
+  const rawRuns: { startWin: number; endWin: number }[] = [];
+
+  let w = startGuardWin;
+  while (w < endGuardWin) {
+    if (winRms[w] < pauseRmsThreshold) {
+      const runStart = w;
+      while (w < endGuardWin && winRms[w] < pauseRmsThreshold) {
+        w += 1;
+      }
+      const runWins = w - runStart;
+      // Only expand genuine clause pauses between 60ms (3 wins) and 420ms (21 wins)
+      if (runWins >= 3 && runWins <= 21) {
+        rawRuns.push({ startWin: runStart, endWin: w });
+      }
+    } else {
+      w += 1;
+    }
+  }
+
+  if (rawRuns.length === 0) {
+    return pcm16Mono;
+  }
+
+  const maxInsertSec = Math.min(targetExtraSec * 0.65, rawRuns.length * 0.18, 0.48);
+  const minPerRunSamples = Math.floor(sampleRate * 0.035);
+  let activeRuns = rawRuns;
+  let insertSamplesPerRun = Math.floor((maxInsertSec * sampleRate) / activeRuns.length);
+
+  // If distributing across too many tiny pauses makes each insert trivial, focus on the longest pauses
+  if (insertSamplesPerRun < minPerRunSamples && activeRuns.length > 1) {
+    const maxCount = Math.max(1, Math.floor((maxInsertSec * sampleRate) / minPerRunSamples));
+    activeRuns = [...rawRuns]
+      .sort((a, b) => (b.endWin - b.startWin) - (a.endWin - a.startWin))
+      .slice(0, maxCount)
+      .sort((a, b) => a.startWin - b.startWin);
+    insertSamplesPerRun = Math.floor((maxInsertSec * sampleRate) / activeRuns.length);
+  }
+
+  if (insertSamplesPerRun < minPerRunSamples) {
+    return pcm16Mono;
+  }
+
+  const fadeSamples = Math.min(Math.floor(sampleRate * 0.008), Math.floor(windowSamples / 2));
+  const chunks: Buffer[] = [];
+  let cursorSample = 0;
+
+  for (const run of activeRuns) {
+    const midSample = Math.floor(((run.startWin + run.endWin) / 2) * windowSamples);
+    if (midSample <= cursorSample) continue;
+
+    const leftPart = Buffer.from(pcm16Mono.subarray(cursorSample * 2, midSample * 2));
+    const leftSamples = Math.floor(leftPart.length / 2);
+    const leftFade = Math.min(fadeSamples, leftSamples);
+    for (let i = 0; i < leftFade; i += 1) {
+      const idx = (leftSamples - 1 - i) * 2;
+      const gain = i / Math.max(1, leftFade);
+      leftPart.writeInt16LE(Math.round(leftPart.readInt16LE(idx) * gain), idx);
+    }
+
+    chunks.push(leftPart);
+    chunks.push(Buffer.alloc(insertSamplesPerRun * 2));
+    cursorSample = midSample;
+  }
+
+  const tailPart = Buffer.from(pcm16Mono.subarray(cursorSample * 2));
+  const tailSamples = Math.floor(tailPart.length / 2);
+  const rightFade = Math.min(fadeSamples, tailSamples);
+  for (let i = 0; i < rightFade; i += 1) {
+    const idx = i * 2;
+    const gain = i / Math.max(1, rightFade);
+    tailPart.writeInt16LE(Math.round(tailPart.readInt16LE(idx) * gain), idx);
+  }
+  chunks.push(tailPart);
+
+  return Buffer.concat(chunks);
+}
+
 function buildWavHeader(pcmDataBytes: number, sampleRate: number, numChannels = 1, bitsPerSample = 16): Buffer {
   const blockAlign = (numChannels * bitsPerSample) / 8;
   const byteRate = sampleRate * blockAlign;
@@ -259,6 +379,7 @@ export async function assembleDubbedSpeechTrack(options: {
 
   for (let i = 0; i < segments.length; i += 1) {
     const seg = segments[i];
+    const prevSeg = i > 0 ? segments[i - 1] : null;
     const nextSeg = segments[i + 1];
     const initialParsed = parseWav(rawWavs[i]);
     const cleaned = trimChunkSilence(
@@ -270,22 +391,73 @@ export async function assembleDubbedSpeechTrack(options: {
     const spokenSec =
       cleaned.length / ((initialParsed.bitsPerSample / 8) * initialParsed.numChannels) / initialParsed.sampleRate;
 
+    const originalSlotSec = Math.max(0.45, seg.endSec - seg.startSec);
+    const sameSpeaker = prevSeg ? (seg.speaker ?? 0) === (prevSeg.speaker ?? 0) : false;
+    const originalInterGapSec = prevSeg ? Math.max(0, seg.startSec - prevSeg.endSec) : seg.startSec;
+
+    // Layer 4a (Elastic Pull-Forward): when continuous speech finishes early, pull the next
+    // segment gently closer (bounded <= 0.72s from its anchor) so natural pauses stay 0.25–0.45s
+    // instead of turning into 1.5–2s dead air.
+    let targetStartSec = Math.max(0, seg.startSec);
+    if (syncToTimeline && i > 0 && cursorSec < seg.startSec) {
+      const rawGapSec = seg.startSec - cursorSec;
+      const naturalPauseFloor = sameSpeaker
+        ? Math.min(0.45, Math.max(0.24, originalInterGapSec + 0.12))
+        : Math.min(0.65, Math.max(0.38, originalInterGapSec + 0.18));
+      if (rawGapSec > naturalPauseFloor + 0.12 && originalInterGapSec < 0.85) {
+        const pullBackSec = Math.min(
+          sameSpeaker ? 0.72 : 0.35,
+          (rawGapSec - naturalPauseFloor) * (sameSpeaker ? 0.65 : 0.4),
+        );
+        targetStartSec = Math.max(cursorSec + 0.04, seg.startSec - pullBackSec);
+      }
+    }
+    const wasPulledEarly = targetStartSec < seg.startSec - 0.02;
+
     const slotEndLimit = nextSeg
       ? Math.max(seg.endSec, Math.min(seg.endSec + 0.65, nextSeg.startSec - 0.04))
       : Math.max(seg.endSec + 1.2, options.totalDurationSec);
-    const availableWindowSec = Math.max(0.55, slotEndLimit - seg.startSec);
+    const availableWindowSec = Math.max(0.55, slotEndLimit - Math.min(seg.startSec, targetStartSec));
 
+    // Layer 3 (Bi-Directional Tempo Fit): gently speed up overflowing lines (<= 1.32x) OR
+    // gently relax fast lines down to 0.88x so compact English fills its visual slot naturally.
     let desiredTempo = 1;
-    if (syncToTimeline && spokenSec > availableWindowSec * 1.04) {
+    if (syncToTimeline && spokenSec > availableWindowSec * 1.03) {
       desiredTempo = Math.min(MAX_ATEMPO, spokenSec / availableWindowSec);
+    } else if (syncToTimeline && spokenSec < originalSlotSec * 0.93) {
+      desiredTempo = Math.max(0.88, spokenSec / (originalSlotSec * 0.96));
     }
 
     const fitted = await normalizeAndFitWav(rawWavs[i], OUTPUT_SAMPLE_RATE, desiredTempo);
-    const copyPcm = Buffer.from(fitted.pcm16Mono);
+
+    // Layer 2 (Prosodic Clause Pause Expansion): if a short segment still leaves dead air
+    // after tempo fitting, absorb up to 0.48s inside its internal comma/clause pauses.
+    let copyPcm = Buffer.from(fitted.pcm16Mono);
+    if (syncToTimeline && originalSlotSec - fitted.durationSec > 0.18) {
+      copyPcm = Buffer.from(
+        expandInternalClausePauses(copyPcm, OUTPUT_SAMPLE_RATE, originalSlotSec - fitted.durationSec),
+      );
+    }
     applySoftEdgeFades(copyPcm, OUTPUT_SAMPLE_RATE);
 
-    const startSec = Math.max(cursorSec + (cursorSec > 0 ? 0.03 : 0), Math.max(0, seg.startSec));
-    const alignedEndSec = startSec + fitted.durationSec;
+    const segmentDurationSec = copyPcm.length / 2 / OUTPUT_SAMPLE_RATE;
+
+    // Layer 4b (Subtle Slot Centering): center slightly short phrases inside their visual
+    // mouth-movement window rather than front-loading at millisecond zero.
+    if (syncToTimeline && !wasPulledEarly && segmentDurationSec < originalSlotSec - 0.18) {
+      const leadHeadroom = Math.max(0, slotEndLimit - (targetStartSec + segmentDurationSec) - 0.05);
+      const leadCenterSec = Math.min(
+        0.14,
+        (originalSlotSec - segmentDurationSec) * 0.22,
+        leadHeadroom,
+      );
+      if (leadCenterSec > 0.02) {
+        targetStartSec += leadCenterSec;
+      }
+    }
+
+    const startSec = Math.max(cursorSec + (cursorSec > 0 ? 0.03 : 0), targetStartSec);
+    const alignedEndSec = startSec + segmentDurationSec;
     cursorSec = alignedEndSec;
     canvasEndSec = Math.max(canvasEndSec, alignedEndSec + 0.15);
 
@@ -298,7 +470,7 @@ export async function assembleDubbedSpeechTrack(options: {
       ...seg,
       alignedStartSec: Number(startSec.toFixed(2)),
       alignedEndSec: Number(alignedEndSec.toFixed(2)),
-      spokenDurationSec: Number(fitted.durationSec.toFixed(2)),
+      spokenDurationSec: Number(segmentDurationSec.toFixed(2)),
       speedApplied: Number(Math.max(MIN_ATEMPO, Math.min(MAX_ATEMPO, desiredTempo)).toFixed(2)),
     });
   }
