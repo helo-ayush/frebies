@@ -20,7 +20,7 @@ Implemented:
 - Every tool page opens straight into its studio: a one-row header, then a studio that fills the viewport
 - Shared studio kit in `components/tool/kit/` (frame, stage, dropzone, primary action, result card); the primary action sits at the top of the settings rail and docks to the bottom of the screen on phones
 - Dashboard: quick-launch row, searchable tool grid with category and Free / AI filters
-- Landing page: three.js hero (`components/landing/HeroScene.tsx`), tool search, a pinned scroll story, category bento, isometric privacy section, pricing and FAQ
+- Landing page (`components/landing/site/`, styles scoped in `app/(marketing)/landing.css`): pinned sideways hero with a three.js machine and stripe wipe, isometric tool launcher, box-to-card walkthrough, pricing, FAQ
 - Richer category hubs, sign-in preview and custom 404
 - Guest-only credit locks, credit cost badges, disabled processing actions
 - `robots.txt`, `sitemap.xml` with every canonical tool URL, JSON-LD, custom 404
