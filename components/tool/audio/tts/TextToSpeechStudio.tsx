@@ -7,7 +7,6 @@ import {
   Download,
   Loader2,
   Lock,
-  Pause,
   Play,
   RotateCcw,
   Trash2,
@@ -22,8 +21,6 @@ import {
   DownloadAction,
   Note,
   PrimaryAction,
-  ResultButton,
-  ResultCard,
   STUDIO_GRID,
   STUDIO_HEIGHT,
   StageBar,
@@ -652,6 +649,8 @@ export function TextToSpeechStudio() {
           {/* Scroll target: the newest clip and any error show up right here. */}
           <div ref={resultsRef} aria-hidden className="h-0 scroll-mt-24" />
 
+          {/* Drives the finished / problem sounds */}
+          <span aria-hidden className="hidden" data-success={finishedJob?.id} data-error={submitError ?? undefined} />
           {pool && !pool.configured && (
             <Note tone="error" className="m-3 shrink-0">
               Voice generation is temporarily unavailable. Please try again shortly.
@@ -671,7 +670,7 @@ export function TextToSpeechStudio() {
             </Note>
           )}
 
-          {latestJob && (
+          {latestJob && (latestJob.status !== "completed" || latestJob.id === lastRun?.id) && (
             <LatestJob
               job={latestJob}
               elapsedMs={
@@ -801,15 +800,6 @@ export function TextToSpeechStudio() {
                     title={`Say it again for ${credits} ${credits === 1 ? "credit" : "credits"}`}
                   >
                     Another take
-                  </SecondaryAction>
-                  <SecondaryAction
-                    onClick={() => {
-                      setText("");
-                      setSubmitError(null);
-                    }}
-                    icon={<RotateCcw size={14} aria-hidden />}
-                  >
-                    New script
                   </SecondaryAction>
                 </ActionRow>
               </>
@@ -1037,52 +1027,6 @@ export function TextToSpeechStudio() {
 /* ------------------------------------------------------------------ */
 
 /** Play / pause for the newest clip, without opening the full player. */
-function ClipPlayButton({ src }: { src: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-
-  useEffect(() => {
-    setPlaying(false);
-  }, [src]);
-
-  function toggle() {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (audio.paused) {
-      void audio.play().catch(() => setPlaying(false));
-    } else {
-      audio.pause();
-    }
-  }
-
-  return (
-    <>
-      <audio
-        ref={audioRef}
-        src={src}
-        preload="none"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
-        className="hidden"
-      />
-      <ResultButton
-        onClick={toggle}
-        label={playing ? "Pause the newest clip" : "Play the newest clip"}
-        icon={
-          playing ? (
-            <Pause size={16} fill="currentColor" aria-hidden />
-          ) : (
-            <Play size={16} fill="currentColor" aria-hidden />
-          )
-        }
-      >
-        {playing ? "Pause" : "Play"}
-      </ResultButton>
-    </>
-  );
-}
-
 function FailedNote({
   message,
   retrying,
@@ -1112,7 +1056,7 @@ function FailedNote({
   );
 }
 
-/** The newest job, pinned above the script: progress, then play + download. */
+/** The newest job, pinned above the script: progress, then the clip itself. */
 function LatestJob({
   job,
   elapsedMs,
@@ -1137,25 +1081,17 @@ function LatestJob({
 
   if (job.status === "completed") {
     if (!job.audioUrl) return null;
-    const format = job.format.toUpperCase();
-    const meta = [
-      job.voiceName,
-      job.durationSeconds ? formatTime(job.durationSeconds) : null,
-      format,
-      job.byteLength ? formatBytes(job.byteLength) : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-
     return (
-      <ResultCard title="Audio ready" meta={meta}>
-        <ClipPlayButton src={job.audioUrl} />
-        {job.downloadUrl && (
-          <ResultButton loud href={job.downloadUrl} filename={job.fileName} icon={<Download size={16} aria-hidden />}>
-            {format}
-          </ResultButton>
-        )}
-      </ResultCard>
+      <AudioPlayer
+        src={job.audioUrl}
+        duration={Math.max(1, job.durationSeconds ?? 1)}
+        peaks={job.peaks}
+        fileName={job.fileName}
+        formatLabel={job.voiceName}
+        compact
+        tone="light"
+        className="shrink-0 !border-x-0 !border-t-0"
+      />
     );
   }
 

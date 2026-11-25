@@ -12,10 +12,8 @@ import {
   OptionCard,
   PrimaryAction,
   ResultButton,
-  ResultCard,
   SecondaryAction,
   StageBar,
-  StartOverAction,
   StudioFrame,
   StudioStage,
   ToolIcon,
@@ -265,22 +263,6 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               onRemove={reset}
             />
 
-            {outputs ? (
-              <ResultCard
-                title={outputs.length === 1 ? "PDF ready" : `${outputs.length} PDFs ready`}
-                meta={`${outputs.length === 1 ? `${outputs[0].name} · ` : ""}${formatBytes(totalBytes)} · made on your device`}
-              >
-                {outputs.length === 1 ? (
-                  <ResultButton onClick={() => setOpenOutput(outputs[0])} icon={<Eye size={16} aria-hidden />}>
-                    Read
-                  </ResultButton>
-                ) : null}
-                <ResultButton loud onClick={downloadAll} icon={<Download size={16} aria-hidden />}>
-                  {outputs.length === 1 ? "Download" : "Download ZIP"}
-                </ResultButton>
-              </ResultCard>
-            ) : null}
-
             {outputs && outputs.length > 1 ? (
               <ul className="studio-main max-h-[156px] shrink-0 overflow-y-auto border-b border-line bg-panel">
                 {outputs.map((output, index) => (
@@ -393,6 +375,8 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           onChange={onPick}
         />
 
+        {/* Drives the finished / problem sounds */}
+        <span aria-hidden className="hidden" data-success={outputs ? `split-${outputs.length}` : undefined} data-error={error ?? undefined} />
         {error ? <Note tone="error" className="m-3 shrink-0">{error}</Note> : null}
 
         <PdfLightbox
@@ -433,13 +417,17 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               <DownloadAction
                 label={outputs.length === 1 ? "Download PDF" : `Download ${outputs.length} PDFs (ZIP)`}
                 onClick={downloadAll}
-                hint={`${formatBytes(totalBytes)} · no watermark`}
+                hint={`${outputs.length === 1 ? `${outputs[0].name} · ` : ""}${formatBytes(totalBytes)}`}
               />
               <ActionRow>
+                {outputs.length === 1 ? (
+                  <SecondaryAction onClick={() => setOpenOutput(outputs[0])} icon={<Eye size={14} aria-hidden />}>
+                    Read it
+                  </SecondaryAction>
+                ) : null}
                 <SecondaryAction onClick={touch} icon={<Scissors size={13} aria-hidden />}>
                   Split again
                 </SecondaryAction>
-                <StartOverAction onClick={reset} label="New PDF" />
               </ActionRow>
             </>
           ) : (

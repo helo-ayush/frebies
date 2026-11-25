@@ -2,15 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Reorder, motion } from "motion/react";
-import { ArrowDownUp, Download, Eye, FilePlus2, Layers3, X } from "lucide-react";
+import { ArrowDownUp, Download, FilePlus2, Layers3, X } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import {
   ActionRow,
   DownloadAction,
   Note,
   PrimaryAction,
-  ResultButton,
-  ResultCard,
   SecondaryAction,
   StageBar,
   StartOverAction,
@@ -257,7 +255,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                         disabled={busy || fileCount >= MAX_MERGE_FILES}
                         icon={<FilePlus2 size={14} aria-hidden />}
                       >
-                        Add
+                        Add PDFs
                       </ToolText>
                       <ToolText
                         onClick={() => queue.reverse()}
@@ -266,9 +264,11 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       >
                         Reverse
                       </ToolText>
-                      <ToolText onClick={clearAll} disabled={busy}>
-                        Clear
-                      </ToolText>
+                      {fresh ? null : (
+                        <ToolText onClick={clearAll} disabled={busy}>
+                          Clear
+                        </ToolText>
+                      )}
                     </>
                   )
                 }
@@ -279,13 +279,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 </span>
               </StageBar>
 
-              {fresh ? (
-                <ResultCard title="Merged" meta={`${fresh.name} · ${plural(fresh.pageCount, "page")} · ${formatBytes(fresh.size)}`}>
-                  <ResultButton loud href={fresh.url} filename={fresh.name} icon={<Download size={16} aria-hidden />}>
-                    Download
-                  </ResultButton>
-                </ResultCard>
-              ) : result ? (
+              {result && !fresh ? (
                 <Note tone="warn" className="shrink-0 border-x-0 border-t-0">
                   The order or settings changed after the last merge. Merge again to update the file, or{" "}
                   <a href={result.url} download={result.name} className="font-semibold underline underline-offset-2">
@@ -319,18 +313,6 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                       />
                     ))}
                   </Reorder.Group>
-
-                  {fileCount < MAX_MERGE_FILES && (
-                    <button
-                      type="button"
-                      onClick={() => queue.openPicker()}
-                      disabled={busy}
-                      className="fb-hatch flex h-[76px] w-full items-center justify-center gap-3 border-b border-line text-[13px] font-semibold uppercase transition-colors hover:bg-ink hover:text-white disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      <FilePlus2 size={18} aria-hidden />
-                      Add another PDF
-                    </button>
-                  )}
                 </motion.div>
               )}
 
@@ -381,12 +363,6 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                   hint={`${plural(fresh.pageCount, "page")} · ${formatBytes(fresh.size)} · no watermark`}
                 />
                 <ActionRow>
-                  <SecondaryAction
-                    onClick={() => setView(showMerged ? "files" : "merged")}
-                    icon={showMerged ? <ArrowDownUp size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
-                  >
-                    {showMerged ? "Change order" : "Preview"}
-                  </SecondaryAction>
                   <StartOverAction onClick={clearAll} />
                 </ActionRow>
               </>

@@ -328,7 +328,11 @@ export function PrimaryAction({
           {busy && percent !== null ? <span className="fb-num pl-3">{percent}%</span> : null}
         </span>
       </button>
-      {hint ? <p className={HINT}>{hint}</p> : null}
+      {hint ? (
+        <p role={tone === "success" ? "status" : undefined} className={HINT}>
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -367,7 +371,11 @@ export function DownloadAction({
           </span>
           <span className="fb-run-label">{label}</span>
         </a>
-        {hint ? <p className={HINT}>{hint}</p> : null}
+        {hint ? (
+          <p role="status" className={HINT}>
+            {hint}
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -394,12 +402,14 @@ export function SecondaryAction({
   disabled,
   icon,
   title,
+  sound,
 }: {
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   icon?: ReactNode;
   title?: string;
+  sound?: string;
 }) {
   return (
     <button
@@ -407,6 +417,7 @@ export function SecondaryAction({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      data-sound={sound}
       className={buttonClasses("secondary", "md", "!h-11 px-3 !text-[13px]")}
     >
       {icon}
@@ -417,7 +428,7 @@ export function SecondaryAction({
 
 export function StartOverAction({ onClick, label = "Start over" }: { onClick: () => void; label?: string }) {
   return (
-    <SecondaryAction onClick={onClick} icon={<RotateCcw size={14} aria-hidden />}>
+    <SecondaryAction onClick={onClick} icon={<RotateCcw size={14} aria-hidden />} sound="clear">
       {label}
     </SecondaryAction>
   );
@@ -430,7 +441,6 @@ export function ResultCard({
   children,
   className = "",
   busy = false,
-  stack = false,
 }: {
   title: ReactNode;
   meta?: ReactNode;
@@ -439,13 +449,10 @@ export function ResultCard({
   className?: string;
   /** Swap the check for a spinner while the result is being remade. */
   busy?: boolean;
-  /** Several downloads: in a narrow band the buttons take a row of their own and keep their words. */
-  stack?: boolean;
 }) {
   return (
     <div
       role="status"
-      data-stack={stack || undefined}
       className={`fb-result fb-unfold shrink-0 bg-ink text-white ${className}`}
     >
       <div className="flex flex-wrap items-stretch">

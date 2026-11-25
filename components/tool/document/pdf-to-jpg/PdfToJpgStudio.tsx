@@ -14,11 +14,9 @@ import {
   PrimaryAction,
   QuickPick,
   ResultButton,
-  ResultCard,
   SecondaryAction,
   Segmented,
   StageBar,
-  StartOverAction,
   StudioFrame,
   StudioStage,
   ToolIcon,
@@ -260,16 +258,7 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               onRemove={reset}
             />
 
-            {images ? (
-              <ResultCard
-                title={`${images.length} ${format} image${images.length === 1 ? "" : "s"}`}
-                meta={`${formatBytes(totalBytes)} · ${images[0]?.width} × ${images[0]?.height} px`}
-              >
-                <ResultButton loud onClick={downloadAll} icon={<Download size={16} aria-hidden />}>
-                  {images.length === 1 ? "Download" : "Download ZIP"}
-                </ResultButton>
-              </ResultCard>
-            ) : (
+            {images ? null : (
               <StageBar
                 end={
                   view === "pages" ? (
@@ -374,6 +363,8 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           onChange={onPick}
         />
 
+        {/* Drives the finished / problem sounds */}
+        <span aria-hidden className="hidden" data-success={images ? `images-${images.length}` : undefined} data-error={error ?? undefined} />
         {error ? <Note tone="error" className="m-3 shrink-0">{error}</Note> : null}
 
         <PdfLightbox
@@ -421,13 +412,12 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               <DownloadAction
                 label={images.length === 1 ? `Download ${format}` : `Download ${images.length} images (ZIP)`}
                 onClick={downloadAll}
-                hint={`${formatBytes(totalBytes)} · no watermark`}
+                hint={`${images[0]?.width} × ${images[0]?.height} px · ${formatBytes(totalBytes)}`}
               />
               <ActionRow>
                 <SecondaryAction onClick={touch} icon={<Pencil size={13} aria-hidden />}>
                   Adjust
                 </SecondaryAction>
-                <StartOverAction onClick={reset} label="New PDF" />
               </ActionRow>
             </>
           ) : (

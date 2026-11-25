@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRightLeft, Download, RefreshCw, Settings2, X } from "lucide-react";
+import { ArrowRightLeft, Download, Settings2, X } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { RailSection } from "@/components/tool/studio/RailSection";
 import {
@@ -11,11 +11,8 @@ import {
   Note,
   PrimaryAction,
   QuickPick,
-  ResultButton,
-  ResultCard,
   SecondaryAction,
   Segmented,
-  StartOverAction,
   StudioFrame,
   StudioStage,
   ToolTabs,
@@ -254,12 +251,6 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
     }
   }
 
-  function discardResult() {
-    revokeResult();
-    setPhase("idle");
-    setStale(false);
-  }
-
   function startOver() {
     clear();
     setRunError(null);
@@ -341,28 +332,6 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
 
             {notices("p-3")}
 
-            {result ? (
-              <ResultCard
-                title={`${result.format.toUpperCase()}, ${formatBytes(result.size)}`}
-                meta={
-                  stale
-                    ? "Settings changed since. Convert again to apply them."
-                    : `${resultDelta === "—" ? "" : `${resultDelta} than the original · `}${settingsSummary(settings, vbrOn)}`
-                }
-              >
-                <ResultButton onClick={discardResult} label="Discard converted file" icon={<X size={17} aria-hidden />} />
-                <ResultButton
-                  loud
-                  href={result.url}
-                  filename={downloadName}
-                  label={`Download ${result.format.toUpperCase()}`}
-                  icon={<Download size={16} aria-hidden />}
-                >
-                  Download
-                </ResultButton>
-              </ResultCard>
-            ) : null}
-
             <AudioPlayer
               src={result && listen === "after" ? result.url : item.url}
               duration={result && listen === "after" ? result.duration : item.duration}
@@ -401,16 +370,6 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
                 label={`Download ${result.format.toUpperCase()}`}
                 hint={`${formatBytes(result.size)}${resultDelta === "—" ? "" : ` · ${resultDelta} than the original`}`}
               />
-              <ActionRow>
-                <SecondaryAction
-                  onClick={() => void runConversion()}
-                  disabled={!canRun}
-                  icon={<RefreshCw size={13} aria-hidden />}
-                >
-                  Convert again
-                </SecondaryAction>
-                <StartOverAction onClick={startOver} label="New file" />
-              </ActionRow>
             </>
           ) : (
             <>
@@ -433,7 +392,9 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
                     ? "Add an audio file to get started"
                     : decodeFailed
                       ? "This file can't be read. Try another one."
-                      : (estimateLine ?? "Reading audio…")
+                      : stale
+                        ? "Settings changed. Convert again to apply them."
+                        : (estimateLine ?? "Reading audio…")
                 }
               />
               {busy ? (

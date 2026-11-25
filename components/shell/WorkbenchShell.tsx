@@ -99,7 +99,7 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
   return (
     <div
       className="min-h-dvh bg-canvas text-ink"
-      style={{ "--fb-side": collapsed ? COLLAPSED_WIDTH : "248px" } as CSSProperties}
+      style={{ "--fb-side": collapsed ? COLLAPSED_WIDTH : "264px" } as CSSProperties}
     >
       <Topbar
         navOpen={navOpen}

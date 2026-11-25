@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { BlockStage } from "@/components/site/blocks";
-import { Arrow, MaskLines, Sq } from "@/components/site/kit";
+import { BlockStage, IsoBlock } from "@/components/site/blocks";
+import { Arrow, MaskLines, useMedia } from "@/components/site/kit";
 import { ToolSearch } from "@/components/site/ToolSearch";
 import { ToolGlyph } from "@/components/icons/NavGlyph";
-import { Seam, seamLabel } from "@/components/ui/Seam";
+import { seamColor, seamLabel } from "@/components/ui/Seam";
 import { categories, tools, toolsForCategory, type CategorySlug, type Tool } from "@/lib/registry/tools";
 
 type Filter = "all" | "free" | "ai";
@@ -20,111 +20,181 @@ const FILTERS: { value: Filter; label: string; count: number }[] = [
 const matches = (tool: Tool, filter: Filter) =>
   filter === "all" || (filter === "free" ? tool.tier === "free" : tool.tier === "credits");
 
+/** What each card says. Short enough to fit without being cut. */
+const LINE: Record<string, string> = {
+  "/image/convert": "JPG, PNG, WebP, HEIC and more",
+  "/image/compress": "Hit an exact file size",
+  "/image/resize": "Exact pixels, or crop to a shape",
+  "/image/to-pdf": "Photos into one clean PDF",
+  "/image/upscaler": "2× or 4× larger, still sharp",
+  "/image/remove-background": "Lift the subject off the photo",
+  "/document/merge-pdf": "Several PDFs into one",
+  "/document/split-pdf": "Pull out pages or ranges",
+  "/document/pdf-to-jpg": "Pages as JPG, PNG or WebP",
+  "/document/ocr": "Scans into text you can copy",
+  "/document/ai-editor": "Describe the edit you want",
+  "/audio/convert": "MP3, WAV, M4A and OGG",
+  "/audio/trim": "Cut to the exact moment",
+  "/audio/text-to-speech": "Natural voices from your script",
+  "/audio/speech-to-text": "Recordings into a transcript",
+  "/audio/vocal-remover": "Vocals and music, pulled apart",
+  "/video/dubbing": "Your video in a new language",
+};
+
+/** Three shelves of six: video has one tool, so it stands with audio. */
+const SHELVES: CategorySlug[][] = [["image"], ["document"], ["audio", "video"]];
+
 /**
- * The whole toolbox on one screen: type the job, or pick from the index. The
- * blocks on the right follow whatever row you are on.
+ * The whole toolbox on one screen: type the job, or take a card. The block on
+ * the right follows whatever card you are on.
  */
 export function DashboardIndex() {
   const [slug, setSlug] = useState<CategorySlug>("image");
   const [hovered, setHovered] = useState<Tool | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  // Short windows give the height to the cards and keep one block as the picture.
+  const tall = useMedia("(min-height: 900px)");
+
+  const hover = (tool: Tool | null) => {
+    setHovered(tool);
+    if (tool) setSlug(tool.category);
+  };
 
   return (
     <div className="flex min-h-[calc(100dvh-var(--fb-bar))] flex-col">
-      <section className="grid border-b border-line lg:grid-cols-[minmax(0,1fr)_34%]">
-        <div className="relative z-10 flex flex-col justify-between gap-7 px-[var(--fb-pad)] pt-[clamp(26px,4.4vh,52px)] max-lg:pb-7 lg:pb-0 lg:pr-0">
+      <section className="grid border-b border-line lg:grid-cols-[minmax(0,1fr)_clamp(220px,25%,400px)]">
+        <div className="relative z-10 flex flex-col justify-center gap-[clamp(18px,2.7vh,32px)] px-[var(--fb-pad)] py-[clamp(24px,3.6vh,52px)]">
           <h1 className="sr-only">All tools</h1>
           <div aria-hidden>
             <MaskLines
               immediate
-              className="fb-wide text-[clamp(34px,min(5.6vw,9vh),82px)]"
+              className="fb-wide text-[clamp(36px,10.4vw,60px)] sm:hidden"
               lines={["What needs", "doing?"]}
             />
+            <MaskLines
+              immediate
+              className="fb-wide text-[clamp(32px,min(3.4vw,7.4vh),76px)] max-sm:hidden"
+              lines={["What needs doing?"]}
+            />
           </div>
-          <ToolSearch drop="down" label="Search 17 tools" className="w-full max-w-[720px] border border-line-strong" />
-          <span aria-hidden className="hidden lg:block lg:h-[clamp(10px,3vh,34px)]" />
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3.5">
+            <ToolSearch
+              drop="down"
+              label={`Search ${tools.length} tools`}
+              className="w-full border border-line-strong sm:max-w-[560px] sm:flex-1 sm:basis-[400px]"
+            />
+            <div role="group" aria-label="Show" className="-mx-3 flex flex-wrap gap-x-1 xl:mx-0">
+              {FILTERS.map((option) => {
+                const on = filter === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setFilter(option.value)}
+                    className={`relative flex h-11 items-center gap-2 px-3 text-[14px] transition-colors ${
+                      on ? "font-semibold" : "text-muted hover:text-ink"
+                    }`}
+                  >
+                    {option.label}
+                    <span className="fb-num text-[13px] font-normal text-faint">{option.count}</span>
+                    <span
+                      aria-hidden
+                      className={`absolute inset-x-3 bottom-1 h-[2px] origin-left bg-accent transition-transform duration-200 ${
+                        on ? "" : "scale-x-0"
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
-        <div className="fb-stage fb-corners relative hidden min-h-[clamp(240px,36vh,360px)] border-l border-line lg:block">
-          <div className="absolute inset-0 p-5">
-            <BlockStage slug={slug} hovered={hovered} onHover={setHovered} />
-          </div>
+        <div className={`fb-stage relative hidden border-l border-line lg:block ${tall ? "min-h-[300px]" : ""}`}>
+          {tall ? (
+            <div className="absolute inset-0 p-5">
+              <BlockStage slug={slug} hovered={hovered} onHover={hover} />
+            </div>
+          ) : (
+            <div className="absolute inset-0 grid place-items-center p-4">
+              <IsoBlock
+                path={(hovered ?? tools[0]).path}
+                seam={seamColor(hovered ?? tools[0])}
+                open={Boolean(hovered)}
+                className="h-full max-h-[170px] w-auto"
+              />
+            </div>
+          )}
         </div>
       </section>
 
-      <section id="tools" className="flex flex-1 scroll-mt-[var(--fb-bar)] flex-col">
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-line px-[var(--fb-pad)] py-3">
-          <p className="flex items-center gap-3 text-[14px] uppercase text-muted">
-            <Sq />
-            {hovered ? hovered.tagline : "Pick a tool to open it"}
-          </p>
-          <div role="group" aria-label="Show" className="flex">
-            {FILTERS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={filter === option.value}
-                onClick={() => setFilter(option.value)}
-                className={`-ml-px flex h-9 items-center gap-2 border border-line-strong px-3.5 text-[13px] uppercase transition-colors first:ml-0 ${
-                  filter === option.value ? "relative z-[1] border-ink bg-ink text-white" : "hover:bg-hover"
-                }`}
-              >
-                {option.label}
-                <span className="opacity-55">{option.count}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid flex-1 sm:grid-cols-2 lg:grid-cols-4">
-          {categories.map((category, index) => (
-            <div
-              key={category.slug}
-              onPointerEnter={() => setSlug(category.slug)}
-              onFocus={() => setSlug(category.slug)}
-              className={`flex flex-col border-line max-lg:border-b sm:max-lg:odd:border-r lg:border-l lg:first:border-l-0 ${
-                index === 0 ? "bg-panel/60" : ""
-              }`}
-            >
-              <Link
-                href={`/${category.slug}`}
-                className="group flex items-center justify-between px-[clamp(14px,1.15vw,24px)] pb-3.5 pt-5 transition-colors hover:text-accent-deep"
-              >
-                <span className="fb-wide text-[21px] lg:max-xl:text-[18px]">{category.name}</span>
-                <span className="flex items-center gap-3 text-[13px] text-faint">
-                  <span className="lg:max-xl:sr-only">[0{index + 1}]</span>
-                  <Arrow />
-                </span>
-              </Link>
-              <ul>
-                {toolsForCategory(category.slug).map((tool) => {
-                  const dim = !matches(tool, filter);
+      <section
+        id="tools"
+        aria-label="Tools"
+        className="fb-shelves flex-1 scroll-mt-[var(--fb-bar)] px-[var(--fb-pad)] py-[clamp(20px,2.9vh,40px)]"
+      >
+        <div className="fb-shelf-list">
+          {SHELVES.map((slugs) => (
+            <div key={slugs.join()} className="fb-shelf">
+              <div className="fb-shelf-name">
+                {slugs.map((name) => {
+                  const at = categories.findIndex((item) => item.slug === name);
                   return (
-                    <li key={tool.path} className="border-t border-line last:border-b">
-                      <Link
-                        href={tool.path}
-                        onPointerEnter={() => setHovered(tool)}
-                        onPointerLeave={() => setHovered(null)}
-                        onFocus={() => setHovered(tool)}
-                        onBlur={() => setHovered(null)}
-                        className={`group flex h-[52px] items-center gap-3 px-[clamp(14px,1.15vw,24px)] lg:[@media(max-height:800px)]:h-[43px] text-[14.5px] 2xl:text-[15.5px] transition-colors hover:bg-ink hover:text-white focus-visible:bg-ink focus-visible:text-white ${
-                          dim ? "opacity-30" : ""
-                        }`}
-                      >
-                        <ToolGlyph path={tool.path} size={20} className="shrink-0 text-muted group-hover:text-accent group-focus-visible:text-accent lg:max-xl:hidden" />
-                        <span className="min-w-0 flex-1 truncate">{tool.name}</span>
-                        <span className="flex shrink-0 items-center gap-2 text-[12px] uppercase text-faint group-hover:text-white/65 group-focus-visible:text-white/65">
-                          <span className="lg:max-xl:sr-only">{seamLabel(tool)}</span>
-                          <Seam tool={tool} className={tool.tier === "credits" ? "group-hover:!bg-white/70" : ""} />
+                    <Link
+                      key={name}
+                      href={`/${name}`}
+                      className="fb-shelf-title group transition-colors hover:text-accent-deep"
+                    >
+                      <span className="fb-num text-[12.5px] text-faint">0{at + 1}</span>
+                      <span className="flex items-center gap-2 text-[15px] font-semibold">
+                        {categories[at].name}
+                        <span className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 max-lg:opacity-100">
+                          <Arrow size={13} />
                         </span>
-                      </Link>
-                    </li>
+                      </span>
+                    </Link>
                   );
                 })}
+              </div>
+              <ul className="fb-shelf-cards">
+                {slugs.flatMap(toolsForCategory).map((tool) => (
+                  <li key={tool.path} className="min-w-0">
+                    <ToolCard tool={tool} dim={!matches(tool, filter)} onHover={hover} />
+                  </li>
+                ))}
               </ul>
             </div>
           ))}
         </div>
       </section>
     </div>
+  );
+}
+
+/** A tool as a file with its corner folded: the fold's colour is the price. */
+function ToolCard({ tool, dim, onHover }: { tool: Tool; dim: boolean; onHover: (tool: Tool | null) => void }) {
+  return (
+    <Link
+      href={tool.path}
+      onPointerEnter={() => onHover(tool)}
+      onPointerLeave={() => onHover(null)}
+      onFocus={() => onHover(tool)}
+      onBlur={() => onHover(null)}
+      className={`fb-card group ${dim ? "opacity-30" : ""}`}
+      style={{ ["--fold" as string]: seamColor(tool) }}
+    >
+      <span className="flex items-start justify-between gap-3">
+        <ToolGlyph path={tool.path} size={24} className="shrink-0 transition-colors group-hover:text-accent group-focus-visible:text-accent" />
+        <span className="pr-5 pt-0.5 text-[12.5px] text-faint transition-colors group-hover:text-white/60 group-focus-visible:text-white/60">
+          {seamLabel(tool)}
+        </span>
+      </span>
+      <span className="mt-auto block pt-3">
+        <span className="block text-[15px] font-semibold leading-tight">{tool.name}</span>
+        <span className="mt-1 line-clamp-2 min-h-[35px] text-[13px] leading-[1.35] text-muted transition-colors group-hover:text-white/65 group-focus-visible:text-white/65">
+          {LINE[tool.path] ?? tool.tagline}
+        </span>
+      </span>
+    </Link>
   );
 }

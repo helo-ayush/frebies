@@ -39,7 +39,6 @@ import {
   Note,
   PrimaryAction,
   ResultButton,
-  ResultCard,
   STUDIO_GRID,
   SecondaryAction,
   StudioFrame,
@@ -838,6 +837,8 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
             onChange={handlePickAudio}
           />
 
+          {/* Drives the finished / problem sounds */}
+          <span aria-hidden className="hidden" data-success={finishedJob?.id} data-error={errorMsg ?? audioFile.error ?? undefined} />
           {audioFile.error ? <Note tone="error" className="m-3 shrink-0">{audioFile.error}</Note> : null}
           {errorMsg ? <Note tone="error" className="m-3 shrink-0">{errorMsg}</Note> : null}
 
@@ -873,46 +874,6 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
                   </ToolText>
                 </span>
               </Note>
-            ) : latestJob.vocalsUrl || latestJob.instrumentalUrl ? (
-              <ResultCard
-                stack
-                title="Split"
-                meta={[
-                  latestJob.sourceFileName,
-                  latestJob.durationSec > 0 ? formatTime(latestJob.durationSec) : null,
-                  latestJob.format === "mp3" ? `MP3 ${latestJob.bitrate} kbps` : "WAV",
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              >
-                {mixerJobId !== latestJob.id ? (
-                  <ResultButton onClick={() => showMixer(latestJob)} icon={<Play size={15} fill="currentColor" aria-hidden />}>
-                    Mixer
-                  </ResultButton>
-                ) : null}
-                {latestJob.vocalsDownloadUrl ? (
-                  <ResultButton
-                    loud
-                    href={latestJob.vocalsDownloadUrl}
-                    filename={latestJob.vocalsFileName ?? undefined}
-                    label="Download vocals"
-                    icon={<Download size={16} aria-hidden />}
-                  >
-                    Vocals
-                  </ResultButton>
-                ) : null}
-                {latestJob.instrumentalDownloadUrl ? (
-                  <ResultButton
-                    loud
-                    href={latestJob.instrumentalDownloadUrl}
-                    filename={latestJob.instrumentalFileName ?? undefined}
-                    label="Download instrumental"
-                    icon={<Download size={16} aria-hidden />}
-                  >
-                    Instrumental
-                  </ResultButton>
-                ) : null}
-              </ResultCard>
             ) : null
           ) : null}
 
@@ -1103,10 +1064,7 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
             finishedJob ? (
               <StemDownloads
                 job={finishedJob}
-                onNew={() => {
-                  audioFile.clear();
-                  setDemoItem(null);
-                }}
+                onMixer={mixerJobId === finishedJob.id ? null : () => showMixer(finishedJob)}
               />
             ) : (
               <PrimaryAction
@@ -1308,7 +1266,7 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
 /* ------------------------------------------------------------------ */
 
 /** The run button once the loaded track is split: one key per stem. */
-function StemDownloads({ job, onNew }: { job: VocalJobSnapshot; onNew: () => void }) {
+function StemDownloads({ job, onMixer }: { job: VocalJobSnapshot; onMixer: (() => void) | null }) {
   const vocals = job.vocalsDownloadUrl
     ? { href: job.vocalsDownloadUrl, filename: job.vocalsFileName ?? undefined, bytes: job.vocalsByteLength }
     : null;
@@ -1336,9 +1294,11 @@ function StemDownloads({ job, onNew }: { job: VocalJobSnapshot; onNew: () => voi
             <span className="truncate">Instrumental</span>
           </a>
         ) : null}
-        <SecondaryAction onClick={onNew} icon={<RotateCcw size={14} aria-hidden />}>
-          New track
-        </SecondaryAction>
+        {onMixer ? (
+          <SecondaryAction onClick={onMixer} icon={<SlidersHorizontal size={14} aria-hidden />}>
+            Open mixer
+          </SecondaryAction>
+        ) : null}
       </ActionRow>
     </>
   );

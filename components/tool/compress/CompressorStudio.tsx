@@ -8,8 +8,6 @@ import {
   Note,
   PrimaryAction,
   QuickPick,
-  ResultButton,
-  ResultCard,
   SecondaryAction,
   StartOverAction,
   StudioFrame,
@@ -425,9 +423,12 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   const fileButtons = (
     <>
-      <SecondaryAction onClick={() => openPicker()} icon={<ImagePlus size={13} aria-hidden />}>
-        Add images
-      </SecondaryAction>
+      {/* A batch has its own add key at the end of the strip. */}
+      {isBatch ? null : (
+        <SecondaryAction onClick={() => openPicker()} icon={<ImagePlus size={13} aria-hidden />}>
+          Add images
+        </SecondaryAction>
+      )}
       <StartOverAction onClick={startOver} />
     </>
   );
@@ -463,8 +464,10 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           onClick={isBatch ? handleDownloadZip : handleCompressAll}
           hint={
             isBatch
-              ? `${formatBytes(totalInputBytes)} → ${formatBytes(totalOutputBytes)}`
-              : undefined
+              ? `${totalSavings > 0 ? `${totalSavings}% smaller · ` : ""}${formatBytes(totalInputBytes)} → ${formatBytes(totalOutputBytes)}`
+              : activeResult.keptOriginal
+                ? "Already as small as it gets, so this is the original"
+                : `${activeSavings > 0 ? `${activeSavings}% smaller · ` : ""}was ${formatBytes(activeResult.originalBytes)}`
           }
         />
         {fileActions}
@@ -560,43 +563,6 @@ export function CompressorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 </ToolText>
               ) : null}
             </FileRow>
-
-            {(ready && activeResult) || (!isBatch && shownResult) ? (
-              <ResultCard
-                busy={!activeResult || previewBusy}
-                title={
-                  !activeResult
-                    ? "Compressing"
-                    : isBatch
-                      ? totalSavings > 0
-                        ? `${totalSavings}% smaller`
-                        : `${count} ready`
-                      : activeResult.keptOriginal
-                        ? "Already as small as it gets"
-                        : activeSavings > 0
-                          ? `${activeSavings}% smaller`
-                          : "Compressed"
-                }
-                meta={
-                  !activeResult
-                    ? "Applying your settings"
-                    : isBatch
-                      ? `${count} images · ${formatBytes(totalInputBytes)} → ${formatBytes(totalOutputBytes)}`
-                      : activeResult.keptOriginal
-                        ? `Kept the original (${formatBytes(activeResult.bytes)}). Try a lower quality or a smaller target.`
-                        : `${formatBytes(activeResult.originalBytes)} → ${formatBytes(activeResult.bytes)} · ${activeResult.width} × ${activeResult.height} px`
-                }
-              >
-                <ResultButton
-                  loud
-                  onClick={isBatch ? handleDownloadZip : handleCompressAll}
-                  disabled={!activeResult || busy}
-                  icon={<Download size={16} aria-hidden />}
-                >
-                  {isBatch ? "Download ZIP" : "Download"}
-                </ResultButton>
-              </ResultCard>
-            ) : null}
 
             <ImageViewer
               title={activeItem.file.name}

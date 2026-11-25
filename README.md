@@ -12,7 +12,7 @@ A free-first online toolbox for images, documents and audio.
 
 Implemented:
 
-- Workbench shell: 248px tool index with a 64px collapsed rail (Ctrl B, remembered between visits), 60px topbar, full-screen phone menu, Ctrl K tool search
+- Workbench shell: 264px tool index with one foldable group per category and a 64px collapsed rail (Ctrl B), both remembered between visits, 60px topbar, full-screen phone menu, Ctrl K tool search
 - Custom icon set for shell navigation and all 17 tools
 - Scrollbars hidden across the product while every scroll region remains usable
 - Typed tool registry driving navigation, dashboard, hubs, metadata and sitemap
@@ -21,8 +21,9 @@ Implemented:
 - Shared studio kit in `components/tool/kit/` (frame, stage, dropzone, primary action, result band, history lists); the primary action sits at the top of the settings rail and docks to the bottom of the screen on phones
 - Shared viewers in `components/tool/viewer/` (image with zoom, rulers and a before / after wipe; PDF reader; video deck; lightboxes) and `components/tool/audio/` (audio deck and waveforms)
 - Files can be dropped anywhere on a tool page or pasted with Ctrl V (`components/tool/studio/useFileIntake.ts`)
-- Dashboard: one-screen index with search, isometric blocks and Free / AI filters
+- Dashboard: every tool as a card on one screen, with search and Free / AI filters
 - Landing page (`components/landing/site/`, styles scoped in `app/(marketing)/landing.css`): pinned sideways hero with a three.js machine and stripe wipe, isometric tool launcher, box-to-card walkthrough, pricing, FAQ
+- Interface sounds: 60 short CC0 recordings in `public/sounds/`, played by `lib/sound/player.ts`; each tool has its own run, drop and save sound
 - Category hubs, sign-in and sign-up (Clerk), 404 and error pages
 - Sign-in gate on credit tools; a guest's file and settings wait on the device for up to an hour (`lib/held-file.ts`)
 - `robots.txt`, `sitemap.xml` with every canonical tool URL, JSON-LD, custom 404

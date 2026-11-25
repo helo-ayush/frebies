@@ -21,11 +21,8 @@ import {
   DownloadAction,
   Note,
   PrimaryAction,
-  ResultButton,
-  ResultCard,
   SecondaryAction,
   StageBar,
-  StartOverAction,
   StudioFrame,
   StudioStage,
   ToolIcon,
@@ -448,18 +445,6 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               </span>
             </StageBar>
 
-            {result ? (
-              <ResultCard title={result.name} meta={`${items.length} ${pageWord} · ${formatBytes(result.bytes)}`}>
-                <ResultButton
-                  loud
-                  onClick={() => downloadBlob(result.blob, result.name)}
-                  icon={<Download size={16} aria-hidden />}
-                >
-                  Download
-                </ResultButton>
-              </ResultCard>
-            ) : null}
-
             {/* The light table: page order, or one page at full size */}
             <div
               ref={setStageEl}
@@ -746,7 +731,7 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               <DownloadAction
                 label="Download PDF"
                 onClick={() => downloadBlob(result.blob, result.name)}
-                hint={`${result.name} · ${formatBytes(result.bytes)}`}
+                hint={`${result.name} · ${items.length} ${pageWord} · ${formatBytes(result.bytes)}`}
               />
               <ActionRow>
                 <SecondaryAction
@@ -758,7 +743,6 @@ export function ImageToPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 >
                   Keep editing
                 </SecondaryAction>
-                <StartOverAction onClick={startOver} label="New PDF" />
               </ActionRow>
             </>
           ) : (

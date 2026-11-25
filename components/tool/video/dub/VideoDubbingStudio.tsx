@@ -29,8 +29,6 @@ import {
   FileRow,
   Note,
   PrimaryAction,
-  ResultButton,
-  ResultCard,
   STUDIO_GRID,
   SecondaryAction,
   StageBar,
@@ -976,6 +974,8 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
 
           {!media ? (
             <>
+              {/* Drives the finished / problem sounds */}
+              <span aria-hidden className="hidden" data-success={resultJob?.id} data-error={failedJob?.id ?? loadError ?? statusError ?? undefined} />
               <StageNotes
                 failed={failedJob ? `${failedJob.error || "The dub failed."} You can try again.` : null}
                 loadError={loadError}
@@ -1058,29 +1058,6 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
                   />
                 ) : null}
               </FileRow>
-
-              {resultJob ? (
-                <ResultCard
-                  title={`${getDubLanguageLabel(resultJob.targetLanguage)} dub`}
-                  meta={`${resultJob.sourceVideoName} · MP3${
-                    resultJob.byteLength ? ` · ${formatBytes(resultJob.byteLength)}` : ""
-                  }`}
-                >
-                  <ResultButton onClick={() => setBindModalJob(resultJob)} icon={<Film size={16} aria-hidden />}>
-                    Add to video
-                  </ResultButton>
-                  {resultJob.downloadUrl ? (
-                    <ResultButton
-                      loud
-                      href={resultJob.downloadUrl}
-                      filename={resultJob.fileName}
-                      icon={<Download size={16} aria-hidden />}
-                    >
-                      Audio
-                    </ResultButton>
-                  ) : null}
-                </ResultCard>
-              ) : null}
 
               <StageNotes
                 failed={failedJob ? `${failedJob.error || "The dub failed."} You can try again.` : null}

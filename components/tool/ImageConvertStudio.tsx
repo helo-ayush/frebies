@@ -10,8 +10,6 @@ import {
   Note,
   PrimaryAction,
   QuickPick,
-  ResultButton,
-  ResultCard,
   STUDIO_HEIGHT,
   SecondaryAction,
   StartOverAction,
@@ -588,9 +586,12 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
 
   const fileButtons = (
     <>
-      <SecondaryAction onClick={() => openPicker()} icon={<ImagePlus size={13} aria-hidden />}>
-        Add images
-      </SecondaryAction>
+      {/* A batch has its own add key at the end of the strip. */}
+      {isBatch ? null : (
+        <SecondaryAction onClick={() => openPicker()} icon={<ImagePlus size={13} aria-hidden />}>
+          Add images
+        </SecondaryAction>
+      )}
       <StartOverAction onClick={startOver} />
     </>
   );
@@ -621,7 +622,11 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
               : `Download ${FORMAT_LABEL[activeResult.format]} · ${formatBytes(activeResult.bytes)}`
           }
           onClick={isBatch ? handleDownloadZip : handleConvertAll}
-          hint={isBatch ? `One ZIP · ${formatBytes(totalOutputBytes)}` : undefined}
+          hint={
+            isBatch
+              ? `${count} converted · ${formatBytes(totalInputBytes)} → ${formatBytes(totalOutputBytes)}`
+              : `Was ${formatBytes(activeResult.originalBytes)} · ${sizeChange(activeResult.originalBytes, activeResult.bytes)}`
+          }
         />
         {fileActions}
       </>
@@ -712,35 +717,6 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
                 </ToolText>
               ) : null}
             </FileRow>
-
-            {(ready && activeResult) || (!isBatch && shownResult) ? (
-              <ResultCard
-                busy={!activeResult || previewBusy}
-                title={
-                  !activeResult
-                    ? `Converting to ${formatLabel}`
-                    : isBatch
-                      ? `${count} images converted`
-                      : `Converted to ${FORMAT_LABEL[activeResult.format]}`
-                }
-                meta={
-                  !activeResult
-                    ? "Applying your settings"
-                    : isBatch
-                      ? `${formatBytes(totalInputBytes)} → ${formatBytes(totalOutputBytes)}`
-                      : `${formatBytes(activeResult.originalBytes)} → ${formatBytes(activeResult.bytes)} · ${sizeChange(activeResult.originalBytes, activeResult.bytes)}`
-                }
-              >
-                <ResultButton
-                  loud
-                  onClick={isBatch ? handleDownloadZip : handleConvertAll}
-                  disabled={!activeResult || busy}
-                  icon={<Download size={16} aria-hidden />}
-                >
-                  {isBatch ? "Download ZIP" : "Download"}
-                </ResultButton>
-              </ResultCard>
-            ) : null}
 
             <ImageViewer
               title={activeItem.file.name}

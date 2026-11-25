@@ -21,8 +21,6 @@ import {
   FileRow,
   Note,
   PrimaryAction,
-  ResultButton,
-  ResultCard,
   STUDIO_GRID,
   STUDIO_HEIGHT,
   SecondaryAction,
@@ -572,24 +570,6 @@ export function UpscalerStudio({ maxSizeMB }: { maxSizeMB: number }) {
                 ) : null}
               </FileRow>
 
-              <ResultCard
-                title="Ready"
-                meta={`${resultJob.width} × ${resultJob.height} · ${resultJob.format.toUpperCase()}${
-                  resultJob.byteLength ? ` · ${formatBytes(resultJob.byteLength)}` : ""
-                }`}
-              >
-                {resultJob.downloadUrl ? (
-                  <ResultButton
-                    loud
-                    href={resultJob.downloadUrl}
-                    filename={resultJob.fileName}
-                    icon={<Download size={16} aria-hidden />}
-                  >
-                    Download
-                  </ResultButton>
-                ) : null}
-              </ResultCard>
-
               <ImageViewer
                 title={resultJob.sourceFileName}
                 before={{
@@ -697,6 +677,8 @@ export function UpscalerStudio({ maxSizeMB }: { maxSizeMB: number }) {
             onChange={handleQueueFileChange}
           />
 
+          {/* Drives the finished / problem sounds */}
+          <span aria-hidden className="hidden" data-success={finishedFeatured?.id} data-error={errorMsg ?? queue.error ?? undefined} />
           {queue.error ? <Note tone="error" className="m-3 shrink-0">{queue.error}</Note> : null}
           {errorMsg ? <Note tone="error" className="m-3 shrink-0">{errorMsg}</Note> : null}
         </StudioStage>

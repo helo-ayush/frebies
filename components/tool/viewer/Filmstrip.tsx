@@ -43,8 +43,8 @@ export function Filmstrip({
     const list = listRef.current;
     const node = list?.querySelector<HTMLElement>('[data-active="true"]');
     if (!list || !node) return;
-    const start = node.offsetLeft;
-    const end = start + node.offsetWidth;
+    const start = node.offsetLeft - 16;
+    const end = node.offsetLeft + node.offsetWidth + 16;
     if (start < list.scrollLeft) list.scrollTo({ left: start, behavior: "smooth" });
     else if (end > list.scrollLeft + list.clientWidth) {
       list.scrollTo({ left: end - list.clientWidth, behavior: "smooth" });
@@ -64,22 +64,17 @@ export function Filmstrip({
   }
 
   return (
-    <div className={`flex shrink-0 border-t border-line bg-panel ${className}`}>
+    <div className={`flex shrink-0 items-stretch border-t border-line bg-panel ${className}`}>
       <ul
         ref={listRef}
         aria-label={label}
         onKeyDown={onKeyDown}
-        className="relative flex min-w-0 flex-1 overflow-x-auto"
+        className="relative flex min-w-0 flex-1 gap-3 overflow-x-auto px-3 pb-2 pt-3 sm:gap-3.5 sm:px-4"
       >
         {items.map((item) => {
           const active = item.id === activeId;
           return (
-            <li
-              key={item.id}
-              data-frame={item.id}
-              data-active={active}
-              className="group relative h-[84px] w-[108px] shrink-0 border-r border-line"
-            >
+            <li key={item.id} data-frame={item.id} data-active={active} className="group relative w-[84px] shrink-0 sm:w-[96px]">
               <button
                 type="button"
                 onClick={() => onSelect(item.id)}
@@ -87,33 +82,29 @@ export function Filmstrip({
                 aria-current={active ? "true" : undefined}
                 aria-label={`Show ${item.name}`}
                 title={item.title ?? item.name}
-                className="fb-checker relative block h-full w-full overflow-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                className="block w-full focus-visible:outline-none"
               >
-                {item.src ? (
-                  <img
-                    src={item.src}
-                    alt=""
-                    draggable={false}
-                    className={`h-full w-full object-cover transition-opacity ${
-                      active ? "" : "opacity-70 group-hover:opacity-100"
-                    }`}
-                  />
-                ) : (
-                  <span className="grid h-full w-full place-items-center text-faint">{item.placeholder}</span>
-                )}
-                {active ? (
-                  <span aria-hidden className="absolute inset-0 shadow-[inset_0_0_0_2px_#1d1c1f,inset_0_6px_0_#f2552c]" />
-                ) : null}
-                {item.badge ? (
-                  <span className="fb-num absolute bottom-0 left-0 bg-ink px-1.5 py-[4px] text-[11px] font-semibold uppercase leading-none text-white">
-                    {item.badge}
-                  </span>
-                ) : null}
-                {item.done ? (
-                  <span className="absolute bottom-0 right-0 grid h-[19px] w-[19px] place-items-center bg-accent-deep text-white">
-                    <Check size={11} strokeWidth={3.2} aria-hidden />
-                  </span>
-                ) : null}
+                <span
+                  className={`fb-checker relative block h-[56px] w-full overflow-hidden transition-shadow group-focus-within:ring-2 group-focus-within:ring-accent group-focus-within:ring-offset-2 group-focus-within:ring-offset-panel ${
+                    active
+                      ? "shadow-[0_0_0_2px_#f4f4f1,0_0_0_4px_#1d1c1f]"
+                      : "shadow-[0_0_0_1px_#cfcfcb] group-hover:shadow-[0_0_0_1px_#1d1c1f]"
+                  }`}
+                >
+                  {item.src ? (
+                    <img src={item.src} alt="" draggable={false} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="grid h-full w-full place-items-center text-faint">{item.placeholder}</span>
+                  )}
+                </span>
+                <span
+                  className={`fb-num mt-2 flex h-4 items-center gap-1.5 text-[12px] leading-none ${
+                    active ? "font-semibold text-ink" : "text-faint"
+                  }`}
+                >
+                  <span className="truncate">{item.badge}</span>
+                  {item.done ? <Check size={12} strokeWidth={2.6} className="ml-auto shrink-0 text-accent-deep" aria-label="Done" /> : null}
+                </span>
               </button>
               {onRemove ? (
                 <button
@@ -121,9 +112,9 @@ export function Filmstrip({
                   onClick={() => onRemove(item.id)}
                   aria-label={`Remove ${item.name}`}
                   data-slot="queue-remove"
-                  className="absolute right-0 top-0 grid h-7 w-7 place-items-center bg-ink text-white opacity-0 transition hover:bg-accent-deep focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                  className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center bg-ink text-white opacity-0 transition hover:bg-accent-deep focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                 >
-                  <X size={13} aria-hidden />
+                  <X size={12} aria-hidden />
                 </button>
               ) : null}
             </li>
@@ -131,15 +122,17 @@ export function Filmstrip({
         })}
       </ul>
       {onAdd ? (
-        <button
-          type="button"
-          onClick={onAdd}
-          aria-label={addLabel}
-          title={addLabel}
-          className="grid h-[84px] w-[84px] shrink-0 place-items-center border-l border-line bg-panel transition-colors hover:bg-ink hover:text-white"
-        >
-          <Plus size={20} aria-hidden />
-        </button>
+        <div className="shrink-0 border-l border-line px-3 pt-3 sm:px-4">
+          <button
+            type="button"
+            onClick={onAdd}
+            aria-label={addLabel}
+            title={addLabel}
+            className="grid h-[56px] w-[56px] place-items-center border border-dashed border-line-strong text-muted transition-colors hover:border-solid hover:border-ink hover:bg-ink hover:text-white sm:w-[72px]"
+          >
+            <Plus size={19} aria-hidden />
+          </button>
+        </div>
       ) : null}
     </div>
   );

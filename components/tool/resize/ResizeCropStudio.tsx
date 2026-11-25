@@ -10,8 +10,6 @@ import {
   FileRow,
   Note,
   PrimaryAction,
-  ResultButton,
-  ResultCard,
   SecondaryAction,
   StartOverAction,
   StudioFrame,
@@ -624,6 +622,15 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                     Add<span className="max-sm:sr-only"> more</span>
                   </span>
                 </ToolText>
+              ) : outputReady && activeResult ? (
+                <ToolText
+                  onClick={() => downloadBlob(activeResult.blob, activeResult.name)}
+                  title={`Download ${activeResult.name} (${formatBytes(activeResult.bytes)})`}
+                  icon={<Download size={14} aria-hidden />}
+                  compact
+                >
+                  Save this one
+                </ToolText>
               ) : (
                 <ToolText onClick={handleClearAll}>Clear all</ToolText>
               )}
@@ -631,36 +638,6 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 <ViewTabs mode={viewMode} onChange={setViewMode} afterLabel="Resized" />
               ) : null}
             </FileRow>
-
-            {outputReady && firstResult ? (
-              <ResultCard
-                title={
-                  readyResults.length === 1
-                    ? `${firstResult.width} × ${firstResult.height}`
-                    : `${readyResults.length} ready`
-                }
-                meta={
-                  readyResults.length === 1
-                    ? `${firstResult.name} · ${formatBytes(firstResult.bytes)}${
-                        firstResult.originalBytes > firstResult.bytes
-                          ? ` · ${Math.round(
-                              ((firstResult.originalBytes - firstResult.bytes) / firstResult.originalBytes) * 100,
-                            )}% smaller`
-                          : ""
-                      }`
-                    : `${formatBytes(totalOutputBytes)} in total · was ${formatBytes(totalInputBytes)}`
-                }
-              >
-                {readyResults.length > 1 && activeResult ? (
-                  <ResultButton onClick={() => downloadBlob(activeResult.blob, activeResult.name)}>
-                    This image
-                  </ResultButton>
-                ) : null}
-                <ResultButton loud onClick={downloadOutput} icon={<Download size={16} aria-hidden />}>
-                  {readyResults.length === 1 ? "Download" : "Download ZIP"}
-                </ResultButton>
-              </ResultCard>
-            ) : null}
 
             {isCrop ? (
               <div className="grid min-h-[max(320px,50svh)] flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] sm:grid-cols-[22px_minmax(0,1fr)] sm:grid-rows-[22px_minmax(0,1fr)] lg:min-h-0">
@@ -817,17 +794,14 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 hint={
                   readyResults.length === 1
                     ? `${firstResult.width} × ${firstResult.height} px · ${formatBytes(firstResult.bytes)}`
-                    : `${formatBytes(totalOutputBytes)} in total`
+                    : `${formatBytes(totalInputBytes)} → ${formatBytes(totalOutputBytes)}`
                 }
               />
               <ActionRow>
                 <SecondaryAction onClick={() => setDone(false)} icon={<Pencil size={13} aria-hidden />}>
                   Keep editing
                 </SecondaryAction>
-                <StartOverAction
-                  onClick={handleClearAll}
-                  label={readyResults.length === 1 ? "New image" : "Start over"}
-                />
+                {readyResults.length > 1 ? <StartOverAction onClick={handleClearAll} /> : null}
               </ActionRow>
             </>
           ) : (

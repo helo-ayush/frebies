@@ -1,286 +1,27 @@
 'use client'
 
-import type { SoundPatch } from '@web-kits/audio'
-import { SoundProvider, usePatch } from '@web-kits/audio/react'
+import { usePathname } from 'next/navigation'
 import { useEffect, useId, useRef, useSyncExternalStore } from 'react'
 
+import {
+  dropSound,
+  isSoundName,
+  playSound,
+  preloadSounds,
+  runSound,
+  saveSound,
+  setSoundOutput,
+  type SoundName,
+} from '@/lib/sound/player'
 import { cn } from '@/lib/utils'
 
 const STORAGE_KEY = 'kobra-sound-muted'
 const VOLUME_KEY = 'kobra-sound-volume'
 const DEFAULT_VOLUME = 0.5
 
-const PATCH = {
-  name: 'kobra-ui',
-  sounds: {
-
-    tap: {
-      source: { type: 'sine', frequency: 1300, fm: { ratio: 0.5, depth: 100 } },
-      envelope: { attack: 0, decay: 0.015, sustain: 0, release: 0.005 },
-      gain: 0.2,
-    },
-    select: {
-      source: { type: 'triangle', frequency: { start: 900, end: 780 } },
-      envelope: { attack: 0.001, decay: 0.055 },
-      gain: 0.26,
-    },
-    toggleOn: {
-      source: { type: 'sine', frequency: { start: 520, end: 880 } },
-      envelope: { attack: 0.002, decay: 0.085 },
-      gain: 0.3,
-    },
-    toggleOff: {
-      source: { type: 'sine', frequency: { start: 780, end: 420 } },
-      envelope: { attack: 0.002, decay: 0.085 },
-      gain: 0.28,
-    },
-
-    open: {
-      source: { type: 'triangle', frequency: { start: 320, end: 620 } },
-      filter: { type: 'lowpass', frequency: 2600 },
-      envelope: { attack: 0.006, decay: 0.13 },
-      gain: 0.24,
-    },
-    close: {
-      source: { type: 'triangle', frequency: { start: 560, end: 300 } },
-      filter: { type: 'lowpass', frequency: 2200 },
-      envelope: { attack: 0.004, decay: 0.11 },
-      gain: 0.22,
-    },
-    tick: {
-      source: { type: 'square', frequency: 1400 },
-      filter: { type: 'lowpass', frequency: 3000 },
-      envelope: { decay: 0.014 },
-      gain: 0.1,
-    },
-
-    sliderTick: {
-      layers: [
-        {
-          source: { type: 'noise', color: 'white' },
-          filter: { type: 'bandpass', frequency: 3000, resonance: 4 },
-          envelope: { attack: 0, decay: 0.02, sustain: 0, release: 0.006 },
-          gain: 0.19,
-        },
-        {
-          source: { type: 'sine', frequency: 700 },
-          envelope: { attack: 0, decay: 0.012, sustain: 0, release: 0.004 },
-          gain: 0.09,
-        },
-      ],
-    },
-    destructive: {
-      layers: [
-        {
-          source: { type: 'triangle', frequency: { start: 300, end: 170 } },
-          filter: { type: 'lowpass', frequency: 1400 },
-          envelope: { attack: 0.002, decay: 0.12 },
-          gain: 0.32,
-        },
-        {
-          source: { type: 'noise', color: 'brown' },
-          filter: { type: 'bandpass', frequency: 700, resonance: 1.1 },
-          envelope: { decay: 0.05 },
-          gain: 0.06,
-        },
-      ],
-    },
-    key: {
-      layers: [
-        {
-          source: { type: 'sine', frequency: { start: 1000, end: 900 } },
-          envelope: { attack: 0.001, decay: 0.028 },
-          gain: 0.14,
-        },
-        {
-          source: { type: 'noise', color: 'white' },
-          filter: { type: 'bandpass', frequency: 3200, resonance: 2 },
-          envelope: { decay: 0.01 },
-          gain: 0.035,
-        },
-      ],
-    },
-
-    success: {
-      layers: [
-        {
-          source: { type: 'triangle', frequency: 784 },
-          envelope: { attack: 0.004, decay: 0.16 },
-          gain: 0.22,
-        },
-        {
-          source: { type: 'triangle', frequency: 1175 },
-          envelope: { attack: 0.004, decay: 0.22 },
-          gain: 0.18,
-          delay: 0.075,
-        },
-      ],
-    },
-    error: {
-      layers: [
-        {
-          source: { type: 'triangle', frequency: 300 },
-          filter: { type: 'lowpass', frequency: 1200 },
-          envelope: { attack: 0.003, decay: 0.13 },
-          gain: 0.26,
-        },
-        {
-          source: { type: 'triangle', frequency: 224 },
-          filter: { type: 'lowpass', frequency: 1000 },
-          envelope: { attack: 0.003, decay: 0.2 },
-          gain: 0.24,
-          delay: 0.09,
-        },
-      ],
-    },
-
-    warning: {
-      layers: [
-        {
-          source: { type: 'triangle', frequency: 622 },
-          filter: { type: 'lowpass', frequency: 2800 },
-          envelope: { attack: 0.003, decay: 0.14 },
-          gain: 0.2,
-        },
-        {
-          source: { type: 'triangle', frequency: 622 },
-          filter: { type: 'lowpass', frequency: 2800 },
-          envelope: { attack: 0.003, decay: 0.18 },
-          gain: 0.17,
-          delay: 0.085,
-        },
-      ],
-    },
-
-    copy: {
-      layers: [
-        {
-          source: { type: 'sine', frequency: 1200 },
-          envelope: { attack: 0, decay: 0.015, sustain: 0, release: 0.006 },
-          gain: 0.16,
-        },
-        {
-          source: { type: 'sine', frequency: 1400 },
-          envelope: { attack: 0, decay: 0.015, sustain: 0, release: 0.006 },
-          delay: 0.04,
-          gain: 0.14,
-        },
-      ],
-    },
-
-    notification: {
-      layers: [
-        {
-          source: { type: 'triangle', frequency: 523 },
-          envelope: { attack: 0.008, decay: 0.3, sustain: 0.03, release: 0.12 },
-          gain: 0.14,
-        },
-        {
-          source: { type: 'triangle', frequency: 784 },
-          envelope: { attack: 0.008, decay: 0.25, sustain: 0.02, release: 0.1 },
-          delay: 0.12,
-          gain: 0.12,
-        },
-      ],
-    },
-
-    swoosh: {
-      source: { type: 'sine', frequency: { start: 300, end: 2000 } },
-      envelope: { attack: 0.008, decay: 0.12, sustain: 0, release: 0.04 },
-      gain: 0.12,
-    },
-
-    chirp: {
-      source: { type: 'sine', frequency: { start: 1200, end: 1500 } },
-      envelope: { attack: 0, decay: 0.03, sustain: 0, release: 0.01 },
-      gain: 0.08,
-    },
-
-    command: {
-      layers: [
-        {
-          source: { type: 'triangle', frequency: { start: 1046, end: 784 } },
-          envelope: { attack: 0.001, decay: 0.075 },
-          gain: 0.2,
-        },
-        {
-          source: { type: 'sine', frequency: 1568 },
-          envelope: { attack: 0.001, decay: 0.045 },
-          gain: 0.06,
-          delay: 0.018,
-        },
-      ],
-    },
-
-    blocked: {
-      source: { type: 'sine', frequency: 180 },
-      filter: { type: 'lowpass', frequency: 700 },
-      envelope: { attack: 0.004, decay: 0.06 },
-      gain: 0.16,
-    },
-  },
-} as const satisfies SoundPatch
-
-export type SoundName = keyof (typeof PATCH)['sounds']
-
 type Cue = { sound: SoundName; detune?: number; velocity?: number }
 
-const JITTER: Record<SoundName, number> = {
-  tap: 26,
-  select: 22,
-  toggleOn: 14,
-  toggleOff: 14,
-  open: 10,
-  close: 10,
-  tick: 18,
-  sliderTick: 10,
-  key: 20,
-  destructive: 12,
-  blocked: 30,
-  chirp: 24,
-  command: 8,
-
-  copy: 6,
-
-  notification: 3,
-  swoosh: 14,
-
-  success: 5,
-  error: 5,
-  warning: 5,
-}
-
-function jitter(cents: number) {
-  return (Math.random() * 2 - 1) * cents
-}
-
-type Patch = { play: (name: string, opts?: object) => unknown }
-
-let audioWarm = false
-
-function play(patch: Patch, cue: Cue) {
-  const sound = () =>
-    patch.play(cue.sound, {
-      detune: (cue.detune ?? 0) + jitter(JITTER[cue.sound]),
-
-      velocity: (cue.velocity ?? 1) * (0.9 + Math.random() * 0.1),
-    })
-  if (audioWarm) {
-    sound()
-    return
-  }
-  audioWarm = true
-
-  requestAnimationFrame(() => {
-    window.setTimeout(sound, 0)
-  })
-}
-
-function warm(patch: Patch) {
-  if (audioWarm || !navigator.userActivation?.hasBeenActive) return
-  audioWarm = true
-  patch.play('tap', { volume: 0.0001 })
-}
+const play = (cue: Cue) => playSound(cue.sound, cue)
 
 const TOGGLE_SLOTS = new Set([
   'switch',
@@ -312,37 +53,57 @@ function isOn(el: Element) {
   )
 }
 
+/** A key that gives you a file: a download link, or a button with the download mark. */
+function takesFile(el: HTMLElement) {
+  return el.matches('a[download]') || el.querySelector('svg.lucide-download') !== null
+}
+
 function classify(el: HTMLElement): Cue | null {
   const slot = el.dataset.slot ?? ''
 
   const named = el.dataset.sound
-  if (named && named in PATCH.sounds) return { sound: named as SoundName }
+  if (named && isSoundName(named)) return { sound: named }
+
+  // The big key says which job it starts; once there is a result, it hands it over.
+  if (slot === 'primary-action') return { sound: el.dataset.tone === 'done' ? saveSound() : runSound() }
+  if (el.matches('button, a[href]') && takesFile(el)) return { sound: saveSound() }
+
+  if (slot === 'queue-item') return { sound: 'strip', detune: rowPitch(el.closest('li') ?? el) }
+  if (slot.endsWith('-remove') || slot.endsWith('-clear')) return { sound: 'remove' }
+  if (slot.endsWith('-close')) return { sound: 'close' }
+  if (slot === 'viewer-open') return { sound: window.location.pathname.startsWith('/document') ? 'page' : 'open' }
+  if (el.closest('[aria-label="Zoom"]') && el.matches('button')) return { sound: 'zoom' }
+
+  // A page of a PDF, picked or put back.
+  if (el.matches('button[aria-label^="Page "]')) return { sound: 'page' }
+  if (el.matches('[aria-label*="previous page" i], [aria-label*="next page" i]')) return { sound: 'page' }
+
+  // One of a row: a choice, not a switch.
+  if (el.matches('[role="radio"], [role="tab"]') || el.closest('[role="radiogroup"]')) {
+    return { sound: 'select', detune: rowPitch(el) }
+  }
+  if (el.matches('[aria-pressed]') && el.closest('[role="group"]')) return { sound: 'select', detune: rowPitch(el) }
 
   if (
     TOGGLE_SLOTS.has(slot) ||
     el.matches(
-
-      'input[type="checkbox"], input[type="radio"], [aria-pressed], [role="menuitemcheckbox"], [role="menuitemradio"]',
+      '[role="switch"], input[type="checkbox"], input[type="radio"], [aria-pressed], [role="menuitemcheckbox"], [role="menuitemradio"]',
     )
   ) {
-
-    return { sound: isOn(el) ? 'toggleOff' : 'toggleOn' }
+    return { sound: isOn(el) ? 'off' : 'on' }
   }
 
-  if (el.dataset.variant === 'destructive') return { sound: 'destructive' }
-  if (slot.endsWith('-close')) return { sound: 'close' }
-
-  if (slot.endsWith('-clear') || slot.endsWith('-remove')) return { sound: 'chirp' }
-  if (slot.endsWith('-trigger')) {
-
+  if (el.dataset.variant === 'destructive') return { sound: 'clear' }
+  if (slot.endsWith('-trigger') || el.matches('button[aria-expanded]')) {
     const expanded = el.getAttribute('aria-expanded')
     if (expanded === null) return { sound: 'select' }
     return { sound: expanded === 'true' ? 'close' : 'open' }
   }
-  if (slot.endsWith('-item') || slot.endsWith('-link') || slot.endsWith('-option')) {
+  if (el.matches('[role="option"], [role="menuitem"]') || slot.endsWith('-item') || slot.endsWith('-option')) {
     return { sound: 'select', detune: rowPitch(el) }
   }
   if (slot === 'slider-thumb' || slot === 'slider-track') return { sound: 'tick' }
+  if (el.matches('a[href^="/"], a[href^="#"]') || slot.endsWith('-link')) return { sound: 'nav' }
   if (slot === 'button' || el.matches('button, a[href], [role="button"]')) {
     const soft = el.dataset.variant === 'ghost' || el.dataset.variant === 'link'
     return { sound: 'tap', velocity: soft ? 0.78 : 1 }
@@ -350,22 +111,15 @@ function classify(el: HTMLElement): Cue | null {
   return null
 }
 
+/** A small step up along a row, as on a real instrument. */
 function rowPitch(el: HTMLElement) {
   const siblings = el.parentElement?.children
   if (!siblings) return 0
-  return Math.min([...siblings].indexOf(el), 7) * 55
+  return Math.min([...siblings].indexOf(el), 7) * 28
 }
 
-function soundFor(target: Element, keyed = false): Cue | null {
+function soundFor(target: Element): Cue | null {
   if (target.closest('[data-sound="none"]')) return null
-
-  if (target.closest('.command-overlay')) {
-
-    const pointed = keyed ? target.getAttribute('aria-activedescendant') : null
-    const row = pointed ? document.getElementById(pointed) : target.closest('.command-option')
-    if (!row) return null
-    return { sound: row.querySelector('.command-option-more') ? 'chirp' : 'command' }
-  }
 
   const labeled = target.closest('label')?.control ?? target
 
@@ -403,19 +157,40 @@ function sliderRange(el: HTMLElement) {
   return { min: read('aria-valuemin', 0), max: read('aria-valuemax', 100), step: 1 }
 }
 
+/** Everything a page is likely to need first. */
+const EVERYWHERE: SoundName[] = ['tap', 'select', 'on', 'off', 'nav', 'open', 'close', 'blocked', 'success', 'error']
+
 function SoundEffectListener() {
-  const patch = usePatch(PATCH)
   const muted = useSoundMuted()
+  const volume = useSoundVolume()
+  const pathname = usePathname()
+
+  useEffect(() => {
+    setSoundOutput({ muted, volume })
+  }, [muted, volume])
 
   const wasMuted = useRef(muted)
   useEffect(() => {
     const cameBack = wasMuted.current && !muted
     wasMuted.current = muted
-    if (cameBack) play(patch, { sound: 'swoosh' })
-  }, [muted, patch])
+    if (cameBack) play({ sound: 'mute' })
+  }, [muted])
+
+  // Fetched once the page has settled, so the first key already answers.
+  useEffect(() => {
+    if (muted) return
+    const handle = window.setTimeout(() => {
+      const tool = pathname.split('/').filter(Boolean).length > 1
+      preloadSounds(
+        tool
+          ? [...EVERYWHERE, runSound(), dropSound(), saveSound(), 'strip', 'remove', 'clear', 'zoom', 'tick', 'page']
+          : [...EVERYWHERE, 'hover', 'key'],
+      )
+    }, 900)
+    return () => window.clearTimeout(handle)
+  }, [pathname, muted])
 
   useEffect(() => {
-    if (!patch.ready) return
 
     const TICK_GAP_MS = 28
     const TICK_LAG_MS = 60
@@ -436,14 +211,14 @@ function SoundEffectListener() {
       if (nextTickAt - now > TICK_LAG_MS) return false
       const wait = nextTickAt - now
       nextTickAt += TICK_GAP_MS
-      const cue = { sound: 'sliderTick', detune } as const
+      const cue = { sound: 'tick', detune } as const
       if (wait <= 0) {
-        play(patch, cue)
+        play(cue)
         return true
       }
       const timer = setTimeout(() => {
         queued.delete(timer)
-        play(patch, cue)
+        play(cue)
       }, wait)
       queued.add(timer)
       return true
@@ -461,7 +236,7 @@ function SoundEffectListener() {
       for (let i = 1; i <= crossed; i++) {
 
         const value = from + direction * step * i
-        if (!tick(span(min, max, value) * 900, now)) break
+        if (!tick(span(min, max, value) * 260, now)) break
       }
     }
 
@@ -473,7 +248,7 @@ function SoundEffectListener() {
       const cue = soundFor(event.target)
       if (!cue) return
       if (cue.sound === 'tick') grab = { x: event.clientX, y: event.clientY, dragged: false }
-      play(patch, cue)
+      play(cue)
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -495,10 +270,9 @@ function SoundEffectListener() {
       if (event.repeat) return
       const typing = event.target.matches(TEXT_ENTRY)
 
-      const driving = event.key === 'Enter' && event.target.closest('.command-overlay')
-      if (typing && !driving) return
-      const cue = soundFor(event.target, true)
-      if (cue) play(patch, cue)
+      if (typing) return
+      const cue = soundFor(event.target)
+      if (cue) play(cue)
     }
 
     const onPointerMove = (event: PointerEvent) => {
@@ -517,7 +291,34 @@ function SoundEffectListener() {
       interactingSlider = null
     }
 
-    const onContextMenu = () => play(patch, { sound: 'open' })
+    const onContextMenu = () => play({ sound: 'open' })
+
+    // Cards whisper as the pointer crosses them, never faster than this.
+    let hoveredAt = 0
+    const onPointerOver = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse' || !(event.target instanceof Element)) return
+      const card = event.target.closest('.fb-card')
+      if (!card || (event.relatedTarget instanceof Node && card.contains(event.relatedTarget))) return
+      const now = performance.now()
+      if (now - hoveredAt < 70) return
+      hoveredAt = now
+      play({ sound: 'hover' })
+    }
+
+    // Files arriving, whichever way: chosen, dropped or pasted.
+    const landed = () => play({ sound: dropSound() })
+    const onFileChosen = (event: Event) => {
+      const el = event.target
+      if (el instanceof HTMLInputElement && el.type === 'file' && el.files?.length) landed()
+    }
+    const onFileDropped = (event: DragEvent) => {
+      if (event.dataTransfer?.files.length) landed()
+    }
+    const onFilePasted = (event: ClipboardEvent) => {
+      if (event.clipboardData?.files.length) landed()
+    }
+    // Something dragged into a new place.
+    const onDragEnd = () => play({ sound: 'place' })
 
     const onInput = (event: Event) => {
 
@@ -525,7 +326,7 @@ function SoundEffectListener() {
       const el = event.target
       if (!(el instanceof HTMLInputElement) || !el.closest('[data-slot="input-otp"]')) return
       const deleting = (event as InputEvent).inputType?.startsWith('delete') ?? false
-      play(patch, { sound: 'key', detune: el.value.length * 45 - (deleting ? 260 : 0) })
+      play({ sound: 'key', detune: deleting ? -200 : 0 })
     }
 
     const observer = new MutationObserver((records) => {
@@ -561,16 +362,16 @@ function SoundEffectListener() {
             const { min, max } = sliderRange(el)
             const now = performance.now()
             nextTickAt = Math.max(nextTickAt, now)
-            tick(span(min, max, Number(value)) * 900, now)
+            tick(span(min, max, Number(value)) * 260, now)
             break
           }
           case 'data-success': {
-            if (entered) play(patch, { sound: 'success' })
+            if (entered) play({ sound: 'success' })
             break
           }
           case 'aria-invalid':
           case 'data-error': {
-            if (entered) play(patch, { sound: 'error' })
+            if (entered) play({ sound: 'error' })
             break
           }
           default:
@@ -593,6 +394,11 @@ function SoundEffectListener() {
     document.addEventListener('blur', onBlur, true)
     document.addEventListener('keydown', onKeyDown, true)
     document.addEventListener('contextmenu', onContextMenu, true)
+    document.addEventListener('pointerover', onPointerOver, true)
+    document.addEventListener('change', onFileChosen, true)
+    document.addEventListener('drop', onFileDropped, true)
+    document.addEventListener('paste', onFilePasted, true)
+    document.addEventListener('dragend', onDragEnd, true)
     document.addEventListener('input', onInput, true)
     return () => {
       observer.disconnect()
@@ -604,19 +410,14 @@ function SoundEffectListener() {
       document.removeEventListener('blur', onBlur, true)
       document.removeEventListener('keydown', onKeyDown, true)
       document.removeEventListener('contextmenu', onContextMenu, true)
+      document.removeEventListener('pointerover', onPointerOver, true)
+      document.removeEventListener('change', onFileChosen, true)
+      document.removeEventListener('drop', onFileDropped, true)
+      document.removeEventListener('paste', onFilePasted, true)
+      document.removeEventListener('dragend', onDragEnd, true)
       document.removeEventListener('input', onInput, true)
     }
-  }, [patch])
-
-  useEffect(() => {
-    if (!patch.ready || muted) return
-    const handle = window.setTimeout(() => {
-      warm(patch)
-    }, 400)
-    return () => {
-      window.clearTimeout(handle)
-    }
-  }, [patch, muted])
+  }, [])
 
   return null
 }
@@ -667,14 +468,11 @@ export function useSoundVolume() {
 }
 
 export function SoundEffects({ children }: { children: React.ReactNode }) {
-  const muted = useSoundMuted()
-  const volume = useSoundVolume()
-
   return (
-    <SoundProvider enabled={!muted} volume={volume}>
+    <>
       <SoundEffectListener />
       {children}
-    </SoundProvider>
+    </>
   )
 }
 
@@ -699,7 +497,7 @@ export function SoundToggle({ className, onClick, ...props }: React.ComponentPro
         if (!event.defaultPrevented) setSoundMuted(!muted)
       }}
 
-      data-sound="swoosh"
+      data-sound="mute"
       {...props}
       className={cn(
         'flex size-7 cursor-pointer items-center justify-center rounded text-shell-fg-faint transition-[transform,box-shadow] duration-100 ease-out outline-none hover:bg-foreground/5 hover:text-shell-fg-muted focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.96] motion-reduce:transition-none',

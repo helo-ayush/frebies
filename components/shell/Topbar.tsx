@@ -74,7 +74,7 @@ export function Topbar({
           </button>
         ) : (
           <>
-            <span className="lg:pl-5">
+            <span className="lg:pl-6">
               <Wordmark href="/" size={24} />
             </span>
             <button

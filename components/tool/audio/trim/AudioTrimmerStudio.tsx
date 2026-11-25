@@ -11,11 +11,8 @@ import {
   Note,
   PrimaryAction,
   QuickPick,
-  ResultButton,
-  ResultCard,
   SecondaryAction,
   Segmented,
-  StartOverAction,
   StudioFrame,
   StudioStage,
   ToolText,
@@ -362,37 +359,28 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
             {notices("p-3")}
 
             {result ? (
-              <>
-                <ResultCard
-                  title={`${formatTime(result.duration, true)}, ${formatBytes(result.size)}`}
-                  meta={
-                    stale
-                      ? "Selection or settings changed. Trim again to update."
-                      : `${trimSummary(result)}${resultDelta === "—" ? "" : ` · ${resultDelta} than the original`}`
-                  }
+              <div className="flex shrink-0 items-stretch border-b border-line bg-panel">
+                  <AudioPlayer
+                    src={result.url}
+                    duration={result.duration}
+                    peaks={result.peaks}
+                    formatLabel={result.format.toUpperCase()}
+                    fileName="Trimmed audio"
+                    compact
+                    tone="light"
+                    className="min-w-0 flex-1 !border-0"
+                  />
+                <button
+                  type="button"
+                  onClick={discardResult}
+                  aria-label="Discard the trimmed file"
+                  title="Discard"
+                  data-slot="file-remove"
+                  className="grid w-12 shrink-0 place-items-center border-l border-line text-muted transition-colors hover:bg-ink hover:text-white"
                 >
-                  <ResultButton onClick={discardResult} label="Discard trimmed file" icon={<X size={17} aria-hidden />} />
-                  <ResultButton
-                    loud
-                    href={result.url}
-                    filename={downloadName}
-                    label={`Download ${result.format.toUpperCase()}`}
-                    icon={<Download size={16} aria-hidden />}
-                  >
-                    Download
-                  </ResultButton>
-                </ResultCard>
-                <AudioPlayer
-                  src={result.url}
-                  duration={result.duration}
-                  peaks={result.peaks}
-                  formatLabel={result.format.toUpperCase()}
-                  fileName="Trimmed audio"
-                  compact
-                  tone="light"
-                  className="shrink-0 !border-x-0 !border-t-0"
-                />
-              </>
+                  <X size={16} aria-hidden />
+                </button>
+              </div>
             ) : null}
 
             <AudioPlayer
@@ -466,18 +454,8 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
                 href={result.url}
                 filename={downloadName}
                 label={`Download ${result.format.toUpperCase()}`}
-                hint={`${formatTime(result.duration, true)} · ${formatBytes(result.size)}`}
+                hint={`${formatTime(result.duration, true)} · ${formatBytes(result.size)}${resultDelta === "—" ? "" : ` · ${resultDelta}`}`}
               />
-              <ActionRow>
-                <SecondaryAction
-                  onClick={() => void runTrim()}
-                  disabled={!canRun}
-                  icon={<Scissors size={13} aria-hidden />}
-                >
-                  Trim again
-                </SecondaryAction>
-                <StartOverAction onClick={startOver} label="New file" />
-              </ActionRow>
             </>
           ) : (
             <>
@@ -504,7 +482,9 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
                     ? "Add an audio file to get started"
                     : decodeFailed
                       ? "This file can't be read. Try another one."
-                      : (estimateLine ?? "Reading audio…")
+                      : stale
+                        ? "Selection or settings changed. Trim again to update."
+                        : (estimateLine ?? "Reading audio…")
                 }
               />
               {busy ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
@@ -8,18 +8,68 @@ import { useAuthSession } from "@/components/auth/AuthContext";
 import { HomeGlyph, SparkGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
 import { Arrow } from "@/components/site/kit";
 import { Seam, seamLabel } from "@/components/ui/Seam";
-import { categories, tools, toolsForCategory } from "@/lib/registry/tools";
+import { categories, tools, toolsForCategory, type CategorySlug, type Tool } from "@/lib/registry/tools";
 import { useAuthSuffix } from "./Topbar";
 
+const STORE = "frebies:index";
+type Choice = Partial<Record<CategorySlug, boolean>>;
+
 /**
- * The tool index. On desktop it is a fixed column under the top bar, styled
- * like the landing page's category tabs; on phones it is a full-screen sheet.
+ * Which groups are unfolded: the one you are in, plus whatever was opened by
+ * hand. Remembered between visits.
+ */
+function useGroups(current: CategorySlug | null) {
+  const [choice, setChoice] = useState<Choice>({});
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(STORE);
+      if (saved) setChoice(JSON.parse(saved) as Choice);
+    } catch {
+      // Storage can be blocked; the defaults are fine.
+    }
+  }, []);
+
+  const fallback = current ?? categories[0].slug;
+  const isOpen = (slug: CategorySlug) => choice[slug] ?? slug === fallback;
+
+  const toggle = useCallback(
+    (slug: CategorySlug) => {
+      setChoice((now) => {
+        const next = { ...now, [slug]: !(now[slug] ?? slug === fallback) };
+        try {
+          window.localStorage.setItem(STORE, JSON.stringify(next));
+        } catch {
+          // Ignore blocked storage.
+        }
+        return next;
+      });
+    },
+    [fallback],
+  );
+
+  // Arriving in a group always unfolds it.
+  useEffect(() => {
+    if (current) setChoice((now) => (now[current] === false ? { ...now, [current]: true } : now));
+  }, [current]);
+
+  return { isOpen, toggle };
+}
+
+/**
+ * The tool index. On desktop it is a fixed column under the top bar, one group
+ * per category; on phones it is a full-screen sheet.
  */
 export function Sidebar({ open, collapsed, onClose }: { open: boolean; collapsed: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const { isSignedIn, user, signOut } = useAuthSession();
   const authSuffix = useAuthSuffix();
   const listRef = useRef<HTMLDivElement | null>(null);
+  const baseId = useId();
+  const current =
+    categories.find((category) => pathname === `/${category.slug}` || pathname.startsWith(`/${category.slug}/`))?.slug ??
+    null;
+  const groups = useGroups(current);
 
   // Keep the current tool in view. Moves this list only, never the page.
   useEffect(() => {
@@ -32,6 +82,8 @@ export function Sidebar({ open, collapsed, onClose }: { open: boolean; collapsed
     else if (below > 0) list.scrollTop += below + 44;
   }, [pathname, collapsed]);
 
+  const home = pathname === "/dashboard";
+
   return (
     <>
       {/* ---------- Desktop index ---------- */}
@@ -41,12 +93,16 @@ export function Sidebar({ open, collapsed, onClose }: { open: boolean; collapsed
         className="fixed bottom-0 left-0 top-[var(--fb-bar)] z-40 hidden w-[var(--fb-side)] flex-col overflow-hidden border-r border-line bg-canvas transition-[width] duration-200 motion-reduce:transition-none lg:flex"
       >
         {collapsed ? (
-          <div ref={listRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <IconRow href="/dashboard" label="All tools" active={pathname === "/dashboard"}>
+          <div ref={listRef} className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto overscroll-contain py-4">
+            <IconRow href="/dashboard" label="All tools" active={home}>
               <HomeGlyph size={20} />
             </IconRow>
             {categories.map((category) => (
-              <nav key={category.slug} aria-label={category.name} className="border-t border-line py-1">
+              <nav
+                key={category.slug}
+                aria-label={category.name}
+                className="mt-3 flex w-10 flex-col gap-1 border-t border-line pt-3"
+              >
                 {toolsForCategory(category.slug).map((tool) => (
                   <IconRow
                     key={tool.path}
@@ -61,63 +117,74 @@ export function Sidebar({ open, collapsed, onClose }: { open: boolean; collapsed
             ))}
           </div>
         ) : (
-          <div ref={listRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+          <div
+            ref={listRef}
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-3 pb-8 pt-4 [mask-image:linear-gradient(#000_calc(100%-28px),transparent)]"
+          >
             <Link
               href="/dashboard"
-              aria-current={pathname === "/dashboard" ? "page" : undefined}
-              className={`relative flex h-11 shrink-0 items-center gap-3 pl-5 pr-4 text-[14.5px] transition-colors ${
-                pathname === "/dashboard" ? "bg-ink-2 text-white" : "hover:text-accent-deep"
+              aria-current={home ? "page" : undefined}
+              className={`group flex h-[52px] shrink-0 items-center gap-2.5 border pl-[9px] pr-3 text-[15px] font-semibold transition-colors ${
+                home ? "border-ink bg-ink text-white" : "border-line bg-panel hover:border-ink"
               }`}
             >
-              <HomeGlyph size={18} />
+              <span
+                className={`grid h-7 w-7 shrink-0 place-items-center ${
+                  home ? "bg-white/10 text-white" : "bg-canvas text-ink"
+                }`}
+              >
+                <HomeGlyph size={17} />
+              </span>
               <span className="flex-1">All tools</span>
-              <span className={`text-[13px] ${pathname === "/dashboard" ? "text-white/55" : "text-faint"}`}>{tools.length}</span>
+              <span className={`fb-num text-[13px] font-normal ${home ? "text-white/55" : "text-faint"}`}>
+                {tools.length}
+              </span>
             </Link>
 
-            {categories.map((category, index) => {
-              const here = pathname === `/${category.slug}`;
-              return (
-                <nav key={category.slug} aria-label={category.name} className="shrink-0 border-t border-line pb-1.5">
-                  <Link
-                    href={`/${category.slug}`}
-                    aria-current={here ? "page" : undefined}
-                    className={`flex h-[34px] items-center pl-5 pr-4 text-[13px] uppercase transition-colors hover:text-accent-deep ${
-                      here ? "text-accent-deep" : "text-faint"
-                    }`}
-                  >
-                    [0{index + 1} // {category.name}]
-                  </Link>
-                  {toolsForCategory(category.slug).map((tool) => {
-                    const on = pathname === tool.path;
-                    return (
-                      <Link
-                        key={tool.path}
-                        href={tool.path}
-                        aria-current={on ? "page" : undefined}
-                        title={`${tool.name} (${seamLabel(tool)})`}
-                        className={`group relative flex h-[34px] items-center gap-3 pl-5 pr-4 text-[14.5px] transition-colors ${
-                          on ? "bg-ink-2 text-white" : "hover:text-accent-deep"
-                        }`}
-                      >
-                        {on ? <span aria-hidden className="absolute inset-y-0 left-2 w-[2px] bg-accent" /> : null}
-                        <ToolGlyph
-                          path={tool.path}
-                          size={18}
-                          className={`shrink-0 ${on ? "" : "text-muted group-hover:text-accent-deep"}`}
-                        />
-                        <span className="min-w-0 flex-1 truncate">{tool.name}</span>
-                        <Seam tool={tool} className={on && tool.tier === "credits" ? "!bg-white/70" : ""} />
-                      </Link>
-                    );
-                  })}
-                </nav>
-              );
-            })}
+            <div className="mt-5 flex flex-col gap-1.5">
+              {categories.map((category, index) => {
+                const list = toolsForCategory(category.slug);
+                const unfolded = groups.isOpen(category.slug);
+                const panelId = `${baseId}-${category.slug}`;
+                const here = current === category.slug;
+                return (
+                  <nav key={category.slug} aria-label={category.name}>
+                    <button
+                      type="button"
+                      onClick={() => groups.toggle(category.slug)}
+                      aria-expanded={unfolded}
+                      aria-controls={panelId}
+                      className="group flex h-11 w-full items-center gap-3 px-3 text-left transition-colors hover:bg-hover"
+                    >
+                      <span className={`fb-num w-6 text-center text-[12.5px] ${here ? "text-accent-deep" : "text-faint"}`}>
+                        0{index + 1}
+                      </span>
+                      <span className="flex-1 text-[14.5px] font-semibold">{category.name}</span>
+                      <span className="fb-num text-[13px] text-faint">{list.length}</span>
+                      <PlusMinus open={unfolded} />
+                    </button>
+                    <div
+                      id={panelId}
+                      className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${
+                        unfolded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                      }`}
+                    >
+                      <ul className={`min-h-0 overflow-hidden ${unfolded ? "" : "invisible"}`}>
+                        {list.map((tool) => (
+                          <ToolRow key={tool.path} tool={tool} on={pathname === tool.path} />
+                        ))}
+                        <li aria-hidden className="h-3" />
+                      </ul>
+                    </div>
+                  </nav>
+                );
+              })}
+            </div>
           </div>
         )}
 
         {/* Account */}
-        <div className="shrink-0 border-t border-line">
+        <div className="shrink-0 p-3 pt-2">
           {isSignedIn && user ? (
             collapsed ? (
               <button
@@ -125,17 +192,13 @@ export function Sidebar({ open, collapsed, onClose }: { open: boolean; collapsed
                 onClick={() => signOut()}
                 aria-label="Sign out"
                 title={`Sign out ${user.email ?? ""}`}
-                className="grid h-14 w-full place-items-center transition-colors hover:bg-hover"
+                className="grid h-10 w-10 place-items-center transition-colors hover:bg-hover"
               >
-                <span className="fb-ear grid h-8 w-8 place-items-center bg-ink text-[12px] font-semibold text-white" style={{ ["--ear" as string]: "8px" }}>
-                  {user.initials}
-                </span>
+                <Initials>{user.initials}</Initials>
               </button>
             ) : (
-              <div className="flex items-center gap-3 py-3 pl-5 pr-2">
-                <span className="fb-ear grid h-8 w-8 shrink-0 place-items-center bg-ink text-[12px] font-semibold text-white" style={{ ["--ear" as string]: "8px" }}>
-                  {user.initials}
-                </span>
+              <div className="flex h-14 items-center gap-3 border border-line bg-panel pl-2.5 pr-1.5">
+                <Initials>{user.initials}</Initials>
                 <span className="min-w-0 flex-1 truncate text-[13.5px]">{user.email ?? user.fullName ?? "Signed in"}</span>
                 <button
                   type="button"
@@ -152,16 +215,18 @@ export function Sidebar({ open, collapsed, onClose }: { open: boolean; collapsed
             <Link
               href={`/sign-up${authSuffix}`}
               title="Create an account for 25 free AI credits"
-              className={`group flex h-14 items-center gap-3 bg-ink text-white transition-colors hover:bg-accent-deep ${
-                collapsed ? "justify-center" : "pl-5 pr-4"
+              className={`group flex items-center gap-3 border border-line bg-panel transition-colors hover:border-ink hover:bg-ink hover:text-white ${
+                collapsed ? "h-10 w-10 justify-center" : "h-14 pl-3.5 pr-4"
               }`}
             >
-              <SparkGlyph size={18} className="shrink-0 text-accent transition-colors group-hover:text-white" />
+              <SparkGlyph size={18} className="shrink-0 text-accent-deep transition-colors group-hover:text-accent" />
               {collapsed ? null : (
                 <>
-                  <span className="flex-1 text-[13.5px] leading-tight">
+                  <span className="flex-1 text-[13.5px] font-semibold leading-tight">
                     25 AI credits
-                    <span className="block text-white/60">when you sign up</span>
+                    <span className="block font-normal text-muted transition-colors group-hover:text-white/65">
+                      when you sign up
+                    </span>
                   </span>
                   <Arrow />
                 </>
@@ -272,12 +337,63 @@ function IconRow({
       title={label}
       aria-label={label}
       aria-current={active ? "page" : undefined}
-      className={`relative grid h-10 w-full place-items-center transition-colors ${
-        active ? "bg-ink-2 text-white" : "text-muted hover:text-accent-deep"
+      className={`relative grid h-10 w-10 shrink-0 place-items-center transition-colors ${
+        active ? "bg-ink text-white" : "text-muted hover:bg-hover hover:text-ink"
       }`}
     >
-      {active ? <span aria-hidden className="absolute inset-y-0 left-1.5 w-[2px] bg-accent" /> : null}
       {children}
     </Link>
+  );
+}
+
+function ToolRow({ tool, on }: { tool: Tool; on: boolean }) {
+  return (
+    <li>
+      <Link
+        href={tool.path}
+        aria-current={on ? "page" : undefined}
+        title={`${tool.name} (${seamLabel(tool)})`}
+        className={`group relative flex h-[38px] items-center gap-3 px-3 text-[14.5px] transition-colors ${
+          on
+            ? "bg-panel font-semibold"
+            : `hover:bg-hover hover:text-ink ${tool.status === "soon" ? "text-faint/75" : "text-muted"}`
+        }`}
+      >
+        {on ? <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-accent" /> : null}
+        <span className="grid w-6 shrink-0 place-items-center">
+          <ToolGlyph path={tool.path} size={18} />
+        </span>
+        <span className="min-w-0 flex-1 truncate">{tool.name}</span>
+        {tool.status === "soon" ? (
+          <span className="sr-only">(preview)</span>
+        ) : tool.tier === "credits" ? (
+          <span className="text-[12px] font-normal text-faint">AI</span>
+        ) : null}
+      </Link>
+    </li>
+  );
+}
+
+function Initials({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="fb-ear grid h-8 w-8 shrink-0 place-items-center bg-ink text-[12px] font-semibold text-white"
+      style={{ ["--ear" as string]: "8px" }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function PlusMinus({ open }: { open: boolean }) {
+  return (
+    <svg aria-hidden width="11" height="11" viewBox="0 0 11 11" stroke="currentColor" strokeWidth="1.5" className="shrink-0 text-faint">
+      <path d="M0 5.5h11" />
+      <path
+        d="M5.5 0v11"
+        className="origin-center transition-transform duration-200"
+        style={{ transform: open ? "scaleY(0)" : undefined }}
+      />
+    </svg>
   );
 }
