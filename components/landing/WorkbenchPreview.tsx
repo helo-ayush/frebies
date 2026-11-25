@@ -146,7 +146,7 @@ export function WorkbenchPreview() {
               workspace, with the controls, history and privacy notes where you expect them.
             </p>
             <MagneticButton className="mt-6">
-              <Btn href="/dashboard">Explore all 17 tools</Btn>
+              <Btn href="/dashboard">Explore all 18 tools</Btn>
             </MagneticButton>
           </div>
         }

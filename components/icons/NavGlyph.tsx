@@ -169,6 +169,15 @@ export function ToolGlyph({ path, ...props }: GlyphProps & { path: string }) {
           <path d="M12.4 21.2h8.1" />
         </Glyph>
       );
+    case "/document/edit-pdf":
+      return (
+        <Glyph {...props}>
+          <path d="M18.75 9.2V8.05L14.2 3.5H6.3a2 2 0 0 0-2 2v13.25a2 2 0 0 0 2 2h3.1" />
+          <path d="M14 3.75v4.55h4.5" />
+          <path d="M7.7 11.6h4.9M7.7 15.1h2.4" />
+          <path d="m12.55 20.85.6-2.95 5.35-5.35a1.45 1.45 0 0 1 2.05 0l.3.3a1.45 1.45 0 0 1 0 2.05l-5.35 5.35Z" />
+        </Glyph>
+      );
     case "/document/merge-pdf":
       return (
         <Glyph {...props}>

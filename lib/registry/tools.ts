@@ -111,27 +111,27 @@ export const categories: Category[] = [
     name: "Documents",
     singular: "Document",
     title: "Document tools",
-    description: "Merge, split and convert PDFs, with AI for the hard parts.",
-    metaTitle: "Free PDF Tools — Merge, Split, Convert & OCR Online",
+    description: "Edit, merge, split and convert PDFs, with AI for the hard parts.",
+    metaTitle: "Free PDF Tools — Edit, Merge, Split & Convert Online",
     metaDescription:
-      "Free online PDF tools to merge, split and convert documents. Browser tools keep files on your device; OCR and AI editing use credits.",
+      "Free online PDF tools to edit, merge, split and convert documents. Browser tools keep files on your device; OCR and AI editing use credits.",
     intro: [
-      "Everyday PDF jobs without the bloat. Merge, split and convert documents in your browser, with no account and no watermark.",
+      "Everyday PDF jobs without the bloat. Edit, merge, split and convert documents in your browser, with no account and no watermark.",
       "OCR and the AI PDF editor use credits because they need server processing. You always see the cost before a run.",
     ],
     icon: FileText,
     faq: [
       {
         q: "Are the PDF tools free?",
-        a: "Merging, splitting and converting are free. OCR and the AI PDF editor use credits because they run on our servers.",
+        a: "Editing, merging, splitting and converting are free. OCR and the AI PDF editor use credits because they run on our servers.",
       },
       {
         q: "Are my documents uploaded?",
-        a: "No. Merging, splitting and converting run on your device. OCR and the AI editor are previews for now and upload nothing.",
+        a: "No. Editing, merging, splitting and converting run on your device. OCR and the AI editor are previews for now and upload nothing.",
       },
       {
         q: "Is there a file size limit?",
-        a: "25 MB per PDF at launch. Individual tools may have lower page limits.",
+        a: "25 MB per PDF, and 50 MB in the PDF editor. Individual tools may have lower page limits.",
       },
     ],
   },
@@ -631,6 +631,66 @@ export const tools: Tool[] = [
         },
       ],
       related: ["upscaler", "compress", "convert"],
+    },
+  },
+  {
+    slug: "edit-pdf",
+    category: "document",
+    path: "/document/edit-pdf",
+    name: "Edit PDF",
+    shortName: "Edit",
+    h1: "Edit PDF",
+    tagline: "Change the text, pictures and pages.",
+    description: "Change the text, pictures and pages of a PDF, right on the page.",
+    keywords: ["edit pdf", "pdf editor", "change text in pdf", "sign pdf", "add image to pdf", "add pages to pdf", "delete pdf page"],
+    icon: FilePenLine,
+    tier: "free",
+    engine: "browser",
+    status: "live",
+    featured: true,
+    limits: { maxSizeMB: 50, formats: ["PDF"] },
+    resumeBehavior: "auto",
+    seo: {
+      title: "Edit PDF Online Free — Change Text, Images & Pages",
+      metaDescription:
+        "Free PDF editor in your browser. Click text to change it, move it and pick a font, add and resize images, sign, highlight, fill forms, and add, reorder or delete pages. No upload, no sign-up.",
+      howItWorks: [
+        "Drop a PDF on the page. It opens on your device, with every page ready to edit.",
+        "Click text to change it, drag things to move them, and add pictures, signatures, shapes, links or more pages.",
+        "Download the edited PDF. There is no watermark, and nothing was uploaded.",
+      ],
+      benefits: [
+        "Edits the real text of the page, in the document's own font where the font allows it.",
+        "Add blank pages, drop in other PDFs or photos, and reorder, rotate, duplicate or delete pages.",
+        "Text you delete is taken out of the file, not just covered.",
+      ],
+      faq: [
+        {
+          q: "Is the PDF editor free?",
+          a: "Yes. Every part of it is free, with no account and no watermark.",
+        },
+        {
+          q: "Are my files uploaded?",
+          a: "No. The PDF is opened, edited and saved inside your browser. Signatures you keep are stored in this browser only.",
+        },
+        {
+          q: "Which fonts can I use?",
+          a: "The fonts inside your PDF, nineteen open font families, or a TTF or OTF file of your own. If a PDF font is missing a letter you type, the closest match draws that letter.",
+        },
+        {
+          q: "Can I edit a scanned PDF?",
+          a: "The text in a scan is part of a picture, so it cannot be changed as text. You can erase areas and type over them, sign, mark up the page and change its pages.",
+        },
+        {
+          q: "What about protected PDFs?",
+          a: "A PDF with a password or an editing restriction has to be unlocked before it can be opened here.",
+        },
+        {
+          q: "Is there a size limit?",
+          a: "Up to 50 MB per file. Long documents work too: pages are drawn only when you reach them.",
+        },
+      ],
+      related: ["merge-pdf", "split-pdf", "pdf-to-jpg"],
     },
   },
   {

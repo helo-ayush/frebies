@@ -50,7 +50,7 @@ export function CategoryIndex({
           <MaskLines
             immediate
             as="h1"
-            className="fb-wide mt-6 text-[clamp(30px,3.1vw,50px)]"
+            className="fb-wide mt-6 text-[clamp(28px,2.7vw,46px)]"
             lines={title.split(" ")}
           />
           <p className="mt-5 max-w-[420px] text-[15.5px] leading-[1.5] text-muted">{description}</p>

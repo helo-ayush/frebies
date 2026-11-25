@@ -55,7 +55,10 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   function go(row: Row | undefined) {
     if (!row) return;
     onClose();
-    router.push(row.kind === "tool" ? row.tool.path : row.path);
+    const path = row.kind === "tool" ? row.tool.path : row.path;
+    // A tool with unsaved work may want to ask first.
+    if (!window.dispatchEvent(new CustomEvent("frebies:leave", { cancelable: true, detail: path }))) return;
+    router.push(path);
   }
 
   return (

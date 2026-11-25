@@ -77,7 +77,7 @@ export function DashboardHero() {
               What are we making today?
             </h1>
             <p className="mt-4 max-w-[520px] text-[15px] leading-relaxed text-[#6c645a]">
-              Seventeen focused tools for images, documents, audio and video. Start with an idea, or
+              Eighteen focused tools for images, documents, audio and video. Start with an idea, or
               go straight to a tool below.
             </p>
           </BlurFade>
