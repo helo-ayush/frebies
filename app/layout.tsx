@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Inter_Tight } from "next/font/google";
+import { Anybody, Host_Grotesk } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { SoundEffects } from "@/components/ui/sound";
 import { ArcLinkProvider } from "@/components/ArcLinkProvider";
@@ -11,9 +11,21 @@ import {
 } from "@/lib/auth/clerk-config";
 import "@/components/arc/foundation.css";
 import "./globals.css";
+import "./site.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const interTight = Inter_Tight({ subsets: ["latin"], variable: "--font-inter-tight" });
+/** Wide, squared display face. The width axis is what makes it read as signage. */
+const wide = Anybody({
+  subsets: ["latin"],
+  axes: ["wdth"],
+  variable: "--font-wide",
+  display: "swap",
+});
+
+const host = Host_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-host",
+  display: "swap",
+});
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -26,7 +38,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
+  themeColor: "#e9e9e6",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -42,8 +54,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   );
 
   return (
-    <html lang="en" data-scroll-behavior="smooth" data-accent="coral">
-      <body className={`${inter.variable} ${interTight.variable} font-sans`}>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      data-accent="coral"
+      className={`${wide.variable} ${host.variable}`}
+    >
+      <body className="font-sans">
         {clerkEnabled ? (
           <ClerkProvider
             publishableKey={publishableKey}

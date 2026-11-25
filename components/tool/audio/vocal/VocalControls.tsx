@@ -1,46 +1,59 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Cpu, RotateCcw, SlidersHorizontal, Waves } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
+import { Field, OptionCard, Segmented } from "@/components/tool/kit";
 import { PaidToggle } from "@/components/tool/paid/PaidControls";
+import { RailReset } from "@/components/tool/studio/RailControls";
+import { RailSection } from "@/components/tool/studio/RailSection";
 import {
   DEFAULT_VOCAL_SETTINGS,
-  STEM_OPTIONS,
   VOCAL_ENGINE_MODELS,
   VOCAL_SAMPLE_RATES,
-  getVocalEngineMeta,
   type VocalBitrate,
   type VocalChannelMode,
+  type VocalEngineModel,
   type VocalOutputFormat,
+  type VocalSampleRate,
   type VocalSettings,
+  type VocalStemOutputMode,
 } from "./model";
 
-export type VocalSettingsTab = "engine" | "dsp" | "output";
+const STEM_CHOICES: { value: VocalStemOutputMode; label: string }[] = [
+  { value: "both", label: "Both" },
+  { value: "vocals", label: "Vocals" },
+  { value: "instrumental", label: "Instrumental" },
+];
 
-function SectionLabel({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
-  return (
-    <div className="mb-2 flex items-baseline justify-between gap-2">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-        {children}
-      </span>
-      {aside ? <span className="text-[11px] text-faint">{aside}</span> : null}
-    </div>
-  );
-}
+const STEM_HINT: Record<VocalStemOutputMode, string> = {
+  both: "Two files",
+  vocals: "Acapella only",
+  instrumental: "Karaoke track only",
+};
 
-function chipClass(selected: boolean) {
-  return selected
-    ? "border-ink bg-ink text-white shadow-sm"
-    : "border-line bg-white text-ink hover:border-ink/30 hover:bg-rail";
-}
+/** What each separation model is good at, in plain words. The model name stays as detail. */
+const ENGINE_COPY: Record<VocalEngineModel, { title: string; detail: string }> = {
+  bs_roformer: { title: "Best overall", detail: "Cleanest vocals and backing track" },
+  kim_vocal_2: { title: "Cleanest vocals", detail: "Dry acapella with the least bleed" },
+  uvr_mdx_inst_hq3: { title: "Best instrumental", detail: "Keeps drums, bass and reverb intact" },
+};
 
-const TAB_META: { id: VocalSettingsTab; label: string; icon: ReactNode }[] = [
-  { id: "engine", label: "Engine", icon: <Cpu size={13} aria-hidden /> },
-  { id: "dsp", label: "Mix & DSP", icon: <Waves size={13} aria-hidden /> },
-  { id: "output", label: "Output", icon: <SlidersHorizontal size={13} aria-hidden /> },
+const FORMAT_CHOICES: { value: VocalOutputFormat; label: string }[] = [
+  { value: "mp3", label: "MP3" },
+  { value: "wav", label: "WAV" },
 ];
 
 const BITRATE_OPTIONS: VocalBitrate[] = [192, 256, 320];
+
+const SAMPLE_RATE_HINT: Record<VocalSampleRate, string> = {
+  44100: "Standard for music",
+  48000: "Matches video projects",
+  24000: "Smaller files, fine for speech",
+};
+
+const CHANNEL_CHOICES: { value: VocalChannelMode; label: string }[] = [
+  { value: "stereo", label: "Stereo" },
+  { value: "mono", label: "Mono" },
+];
 
 export function VocalControls({
   settings,
@@ -53,258 +66,123 @@ export function VocalControls({
   onReset?: () => void;
   disabled?: boolean;
 }) {
-  const [tab, setTab] = useState<VocalSettingsTab>("engine");
-  const activeEngine = getVocalEngineMeta(settings.engineModel);
-
   return (
-    <div className="space-y-4">
-      <div
-        role="tablist"
-        aria-label="Vocal separation settings"
-        className="grid grid-cols-3 gap-1 rounded-xl bg-[#f3f3f1] p-1"
-      >
-        {TAB_META.map((item) => {
-          const selected = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => setTab(item.id)}
-              className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-[9px] text-[11.5px] font-medium transition-all ${
-                selected
-                  ? "bg-white text-ink shadow-[0_1px_2px_rgba(15,15,16,0.08)]"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              <span className={selected ? "text-accent" : ""}>{item.icon}</span>
-              {item.label}
-            </button>
-          );
-        })}
+    // A disabled fieldset locks every control inside it while a track is uploading.
+    <fieldset
+      disabled={disabled}
+      className={`min-w-0 transition-opacity ${disabled ? "opacity-60" : ""}`}
+    >
+      <div className="space-y-7 pb-7">
+      <Field label="What you need" hint={STEM_HINT[settings.stems]}>
+        <Segmented
+          label="Stems to extract"
+          options={STEM_CHOICES}
+          value={settings.stems}
+          onChange={(stems) => onPatch({ stems })}
+        />
+      </Field>
+
+      <Field label="Tuned for">
+        <div className="space-y-2">
+          {VOCAL_ENGINE_MODELS.map((model) => {
+            const copy = ENGINE_COPY[model.id];
+            return (
+              <OptionCard
+                key={model.id}
+                active={settings.engineModel === model.id}
+                title={copy.title}
+                detail={`${copy.detail} · ${model.shortLabel}`}
+                onClick={() => onPatch({ engineModel: model.id })}
+              />
+            );
+          })}
+        </div>
+      </Field>
+
+      <Field label="File format" hint={settings.format === "mp3" ? "Smaller files" : "Lossless, larger files"}>
+        <Segmented
+          label="File format"
+          options={FORMAT_CHOICES}
+          value={settings.format}
+          onChange={(format) => onPatch({ format })}
+        />
+        {settings.format === "mp3" ? (
+          <Segmented
+            className="mt-2"
+            label="MP3 bitrate"
+            options={BITRATE_OPTIONS.map((bitrate) => ({
+              value: String(bitrate),
+              label: `${bitrate} kbps`,
+            }))}
+            value={String(settings.bitrate)}
+            onChange={(bitrate) => onPatch({ bitrate: Number(bitrate) as VocalBitrate })}
+          />
+        ) : null}
+      </Field>
+
       </div>
 
-      {tab === "engine" ? (
-        <div className="space-y-4">
-          <div>
-            <SectionLabel aside={activeEngine.sdr}>GPU separator model</SectionLabel>
-            <div className="grid gap-1.5">
-              {VOCAL_ENGINE_MODELS.map((model) => {
-                const selected = settings.engineModel === model.id;
-                return (
-                  <button
-                    key={model.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onPatch({ engineModel: model.id })}
-                    className={`rounded-xl border p-2.5 text-left transition ${chipClass(selected)}`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[12px] font-semibold">{model.label}</span>
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${
-                          selected ? "bg-white/15 text-white" : "bg-[#f3f3f1] text-muted"
-                        }`}
-                      >
-                        {model.badge}
-                      </span>
-                    </div>
-                    <p
-                      className={`mt-1 text-[10.5px] leading-snug ${
-                        selected ? "text-white/75" : "text-faint"
-                      }`}
-                    >
-                      {model.hint}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+      <div className="-mx-4 border-t border-line px-4 sm:-mx-5 sm:px-5">
+      <RailSection icon={SlidersHorizontal} title="Fine-tuning" defaultOpen={false}>
+        <div className="space-y-6">
+          <Field label="Sample rate" hint={SAMPLE_RATE_HINT[settings.sampleRate]}>
+            <Segmented
+              label="Sample rate"
+              options={VOCAL_SAMPLE_RATES.map((rate) => ({
+                value: String(rate.id),
+                label: rate.label,
+              }))}
+              value={String(settings.sampleRate)}
+              onChange={(rate) => onPatch({ sampleRate: Number(rate) as VocalSampleRate })}
+            />
+          </Field>
 
-          <div>
-            <SectionLabel>Extracted stems</SectionLabel>
-            <div className="grid gap-1.5">
-              {STEM_OPTIONS.map((opt) => {
-                const selected = settings.stems === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onPatch({ stems: opt.id })}
-                    className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition ${chipClass(
-                      selected,
-                    )}`}
-                  >
-                    <div>
-                      <p className="text-[12px] font-semibold">{opt.label}</p>
-                      <p
-                        className={`text-[10.5px] ${selected ? "text-white/75" : "text-faint"}`}
-                      >
-                        {opt.hint}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      ) : null}
+          <Field label="Channels">
+            <Segmented
+              label="Channels"
+              options={CHANNEL_CHOICES}
+              value={settings.channelMode}
+              onChange={(channelMode) => onPatch({ channelMode })}
+            />
+          </Field>
 
-      {tab === "dsp" ? (
-        <div className="space-y-4">
-          <div>
-            <SectionLabel>Sample rate</SectionLabel>
-            <div className="grid grid-cols-3 gap-1.5">
-              {VOCAL_SAMPLE_RATES.map((sr) => {
-                const selected = settings.sampleRate === sr.id;
-                return (
-                  <button
-                    key={sr.id}
-                    type="button"
-                    disabled={disabled}
-                    title={sr.hint}
-                    onClick={() => onPatch({ sampleRate: sr.id })}
-                    className={`h-9 rounded-lg border text-[11.5px] font-semibold transition ${chipClass(
-                      selected,
-                    )}`}
-                  >
-                    {sr.label}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1.5 text-[10.5px] text-faint">
-              {VOCAL_SAMPLE_RATES.find((r) => r.id === settings.sampleRate)?.hint}
-            </p>
-          </div>
-
-          <div>
-            <SectionLabel>Channel imaging</SectionLabel>
-            <div className="grid grid-cols-2 gap-1.5">
-              {(["stereo", "mono"] as VocalChannelMode[]).map((mode) => {
-                const selected = settings.channelMode === mode;
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onPatch({ channelMode: mode })}
-                    className={`h-9 rounded-lg border text-[12px] font-medium capitalize transition ${chipClass(
-                      selected,
-                    )}`}
-                  >
-                    {mode}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-2.5 pt-1">
+          <div className="space-y-4">
             <PaidToggle
-              title="70 Hz vocal high-pass de-bleed"
-              description="Trim kick & sub-bass bleed from isolated vocals"
+              title="Cut bass bleed from vocals"
+              description="Filters kick and sub-bass below 70 Hz out of the vocal track."
               checked={settings.debleed}
-              disabled={disabled}
               onChange={(debleed) => onPatch({ debleed })}
             />
             <PaidToggle
-              title="-1.0 dBFS studio peak normalization"
-              description="Optimize output loudness cleanly with zero clipping"
+              title="Even out the volume"
+              description="Raises each track to a peak of -1 dB without clipping."
               checked={settings.normalize}
-              disabled={disabled}
               onChange={(normalize) => onPatch({ normalize })}
             />
             <PaidToggle
-              title="Preserve backing harmonies"
-              description="Keep soft double-tracks and background vocal layers"
+              title="Keep backing vocals"
+              description="Preserves harmonies and doubled background vocals."
               checked={settings.keepBacking}
-              disabled={disabled}
               onChange={(keepBacking) => onPatch({ keepBacking })}
+            />
+            <PaidToggle
+              title="Tag the files"
+              description="Writes the track name and stem type into each file."
+              checked={settings.metadata}
+              onChange={(metadata) => onPatch({ metadata })}
             />
           </div>
         </div>
-      ) : null}
+      </RailSection>
 
-      {tab === "output" ? (
-        <div className="space-y-4">
-          <div>
-            <SectionLabel>Download format</SectionLabel>
-            <div className="grid grid-cols-2 gap-1.5">
-              {(
-                [
-                  { id: "mp3", label: "MP3", hint: "Compact portable audio up to 320 kbps" },
-                  { id: "wav", label: "WAV (PCM)", hint: "Uncompressed 16-bit lossless studio WAV" },
-                ] as { id: VocalOutputFormat; label: string; hint: string }[]
-              ).map((fmt) => {
-                const selected = settings.format === fmt.id;
-                return (
-                  <button
-                    key={fmt.id}
-                    type="button"
-                    disabled={disabled}
-                    title={fmt.hint}
-                    onClick={() => onPatch({ format: fmt.id })}
-                    className={`h-9 rounded-lg border text-[12px] font-semibold transition ${chipClass(
-                      selected,
-                    )}`}
-                  >
-                    {fmt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {settings.format === "mp3" ? (
-            <div>
-              <SectionLabel>MP3 bitrate</SectionLabel>
-              <div className="grid grid-cols-3 gap-1.5">
-                {BITRATE_OPTIONS.map((br) => {
-                  const selected = settings.bitrate === br;
-                  return (
-                    <button
-                      key={br}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => onPatch({ bitrate: br })}
-                      className={`h-9 rounded-lg border text-[11.5px] font-semibold tabular-nums transition ${chipClass(
-                        selected,
-                      )}`}
-                    >
-                      {br} kbps
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-
-          <PaidToggle
-            title="Embed ID3 stem metadata"
-            description="Tag extracted files with track name & stem role"
-            checked={settings.metadata}
-            disabled={disabled}
-            onChange={(metadata) => onPatch({ metadata })}
-          />
-        </div>
-      ) : null}
-
-      <div className="border-t border-line pt-3">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => (onReset ? onReset() : onPatch({ ...DEFAULT_VOCAL_SETTINGS }))}
-          className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-muted transition hover:text-ink"
-        >
-          <RotateCcw size={12} aria-hidden />
-          Reset defaults
-        </button>
       </div>
-    </div>
+
+      <div className="pt-2">
+        <RailReset
+          label="Reset to defaults"
+          onClick={() => (onReset ? onReset() : onPatch({ ...DEFAULT_VOCAL_SETTINGS }))}
+        />
+      </div>
+    </fieldset>
   );
 }

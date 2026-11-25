@@ -1,21 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, type DragEvent } from "react";
-import {
-  AlertTriangle,
-  AudioLines,
-  Captions,
-  CheckCircle2,
-  Cloud,
-  Download,
-  Film,
-  Loader2,
-  Sparkles,
-  Subtitles,
-  UploadCloud,
-  X,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, Cloud, Download, Film, Loader2, UploadCloud, X } from "lucide-react";
 import { formatBytes, formatTime } from "@/components/tool/audio/format";
+import { Note, ResultButton, ResultCard, ToolText } from "@/components/tool/kit";
+import { RailCards } from "@/components/tool/studio/RailControls";
+import { buttonClasses } from "@/components/ui/Button";
 import {
   getDubLanguageLabel,
   type DubBindAudioMode,
@@ -45,34 +35,36 @@ const AUDIO_MODE_OPTIONS: {
 }[] = [
   {
     id: "keep_both",
-    title: "Keep both audio tracks",
-    desc: "Dual-language stream: switch between Dubbed & Original in any player.",
+    title: "Both tracks",
+    desc: "Switch between dubbed and original in your player.",
   },
   {
     id: "mix_ducked",
-    title: "Mix over ducked original",
-    desc: "Blends dubbed speech cleanly above lowered original sound bed.",
+    title: "Dub over original",
+    desc: "The original stays, turned down under the dub.",
   },
   {
     id: "replace",
-    title: "Dubbed audio only",
-    desc: "Replaces original audio completely with the dubbed track.",
+    title: "Dub only",
+    desc: "The original audio is removed.",
   },
 ];
 
 const SUBTITLE_MODE_OPTIONS: {
   id: DubBindSubtitleMode;
   title: string;
-  badge: string;
+  desc: string;
 }[] = [
-  { id: "soft_both", title: "Keep both subtitle tracks", badge: "Fast · Toggleable" },
-  { id: "soft_translated", title: "Translated subtitles only", badge: "Fast · Soft track" },
-  { id: "soft_original", title: "Original subtitles only", badge: "Fast · Soft track" },
-  { id: "burn_translated", title: "Burn-in translated captions", badge: "Hard-baked" },
-  { id: "burn_original", title: "Burn-in original captions", badge: "Hard-baked" },
-  { id: "burn_dual", title: "Burn-in dual bilingual captions", badge: "Hard-baked" },
-  { id: "none", title: "No subtitles in video", badge: "Audio only" },
+  { id: "soft_both", title: "Both languages", desc: "Switchable tracks" },
+  { id: "soft_translated", title: "Translated", desc: "Switchable track" },
+  { id: "soft_original", title: "Original", desc: "Switchable track" },
+  { id: "burn_translated", title: "Translated, burned in", desc: "Always visible · slower" },
+  { id: "burn_original", title: "Original, burned in", desc: "Always visible · slower" },
+  { id: "burn_dual", title: "Both, burned in", desc: "Always visible · slower" },
+  { id: "none", title: "No subtitles", desc: "Audio only" },
 ];
+
+const SECTION_LABEL = "text-[13px] font-semibold uppercase";
 
 export function BindVideoModal({
   job,
@@ -163,7 +155,7 @@ export function BindVideoModal({
     if (!selectedVideo || !checkResult?.matches || !currentJob.audioUrl) return;
     setBinding(true);
     setBindError(null);
-    setBindStage("Preparing dubbed audio...");
+    setBindStage("Preparing dubbed audio…");
     try {
       const res = await bindDubbedAudioToVideoInBrowser({
         sourceVideo: selectedVideo,
@@ -233,70 +225,82 @@ export function BindVideoModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[3px]"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-ink/60 p-3 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="bind-modal-title"
     >
-      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[24px] border border-line bg-white shadow-[0_24px_80px_rgba(15,15,16,0.28)]">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-line bg-[#fafaf9] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-ink text-white">
-              <Film size={17} aria-hidden />
-            </span>
-            <div>
-              <h3 id="bind-modal-title" className="text-[15px] font-semibold text-ink">
-                Bind dubbed audio to video
-              </h3>
-              <p className="mt-0.5 text-[11.5px] text-muted">
-                Runs 100% locally in your browser · {currentJob.sourceVideoName} ({formatTime(currentJob.durationSeconds, false)})
-              </p>
-            </div>
+      <div className="relative flex max-h-[92dvh] w-full max-w-[760px] flex-col overflow-hidden bg-panel shadow-pop">
+        <div className="flex items-stretch justify-between bg-ink text-white">
+          <div className="min-w-0 px-5 py-4 sm:px-6">
+            <h3 id="bind-modal-title" className="fb-wide text-[clamp(18px,2.2vw,24px)]">
+              Add the dub to your video
+            </h3>
+            <p className="fb-num mt-2 truncate text-[13.5px] text-white/60">
+              {currentJob.sourceVideoName} · {formatTime(currentJob.durationSeconds, false)} · {targetLabel}
+            </p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
             aria-label="Close bind dialog"
-            className="grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-rail hover:text-ink"
+            data-slot="dialog-close"
+            className="grid w-[60px] shrink-0 place-items-center border-l border-white/15 transition-colors hover:bg-white hover:text-ink"
           >
-            <X size={16} aria-hidden />
+            <X size={19} aria-hidden />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="space-y-4 overflow-y-auto p-5">
-          <input
-            ref={inputRef}
-            type="file"
-            accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.mp4,.mov,.webm,.mkv,.m4v"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (f) void validateAndSelectVideo(f, currentJob.durationSeconds);
-            }}
-            className="hidden"
-          />
-
-          {/* Step 1: Select & verify original video */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-                1. Original video file
-              </p>
-              {selectedVideo && (
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  className="text-[11px] font-medium text-accent hover:underline"
+        <input
+          ref={inputRef}
+          type="file"
+          accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.mp4,.mov,.webm,.mkv,.m4v"
+          tabIndex={-1}
+          aria-label="Choose the original video"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (f) void validateAndSelectVideo(f, currentJob.durationSeconds);
+          }}
+          className="sr-only"
+        />
+        <div className="studio-main space-y-7 overflow-y-auto p-5 sm:p-6">
+          {boundResult && (
+            <ResultCard title="Video ready" meta={`${boundResult.fileName} · ${formatBytes(boundResult.blob.size)}`}>
+              {boundResult.blob.size <= 45 * 1024 * 1024 && !boundResult.savedToVault && (
+                <ResultButton
+                  onClick={() => void handleSaveToVault()}
+                  disabled={savingVault}
+                  icon={
+                    savingVault ? (
+                      <Loader2 size={16} className="animate-spin" aria-hidden />
+                    ) : (
+                      <Cloud size={16} aria-hidden />
+                    )
+                  }
                 >
-                  Choose different video
-                </button>
+                  Keep 24 hours
+                </ResultButton>
+              )}
+              <ResultButton loud href={boundResult.url} filename={boundResult.fileName} icon={<Download size={16} aria-hidden />}>
+                Download
+              </ResultButton>
+            </ResultCard>
+          )}
+
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className={SECTION_LABEL}>Original video</p>
+              {selectedVideo && (
+                <ToolText onClick={() => inputRef.current?.click()}>Choose another</ToolText>
               )}
             </div>
 
             <div
+              role={selectedVideo ? undefined : "button"}
+              tabIndex={selectedVideo ? undefined : 0}
+              aria-label={selectedVideo ? undefined : "Choose the original video"}
               onDragOver={(e: DragEvent) => {
                 e.preventDefault();
                 setDragging(true);
@@ -311,50 +315,63 @@ export function BindVideoModal({
               onClick={() => {
                 if (!selectedVideo) inputRef.current?.click();
               }}
-              className={`rounded-[16px] border border-dashed p-4 transition-colors ${
+              onKeyDown={(e) => {
+                if (selectedVideo) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  inputRef.current?.click();
+                }
+              }}
+              className={`border border-dashed px-5 py-4 outline-none transition-colors focus-visible:border-accent ${
                 dragging
-                  ? "border-accent bg-accent/[0.04]"
+                  ? "border-accent bg-accent-soft"
                   : checkResult?.matches
-                    ? "border-[#9bc5a7] bg-[#f4faf5]"
+                    ? "border-ink bg-white"
                     : checkResult && !checkResult.matches
-                      ? "border-[#eab2ad] bg-[#fdf4f3]"
-                      : "cursor-pointer border-[#d5d5d0] bg-[#fafaf9] hover:border-ink/40"
+                      ? "border-danger/40 bg-danger-soft"
+                      : selectedVideo
+                        ? "border-line-strong bg-white"
+                        : "fb-hatch cursor-pointer border-line-strong hover:border-ink"
               }`}
             >
               {!selectedVideo ? (
                 <div className="flex flex-col items-center py-3 text-center">
-                  <UploadCloud size={22} className="text-muted" aria-hidden />
-                  <p className="mt-2 text-[13px] font-medium text-ink">
-                    Select or drag your original video here
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-faint">
-                    Expected duration: ~{formatTime(currentJob.durationSeconds, false)} · Target file: {currentJob.sourceVideoName}
+                  <UploadCloud size={26} strokeWidth={1.6} aria-hidden />
+                  <p className="mt-3 text-[15px] font-semibold">Choose or drop the original video</p>
+                  <p className="mt-1 text-[13.5px] text-muted">
+                    It should be about {formatTime(currentJob.durationSeconds, false)} long.
                   </p>
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-[12.5px] font-semibold text-ink">{selectedVideo.name}</p>
-                    <p className="mt-0.5 text-[11px] text-muted">
-                      {formatBytes(selectedVideo.size)}
-                      {checkResult ? ` · Duration ${formatTime(checkResult.videoDuration, false)}` : ""}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <Film size={17} className="shrink-0 text-muted" aria-hidden />
+                    <div className="min-w-0">
+                      <p className="truncate text-[14.5px] font-semibold">{selectedVideo.name}</p>
+                      <p className="fb-num mt-0.5 text-[13px] text-muted">
+                        {formatBytes(selectedVideo.size)}
+                        {checkResult ? ` · ${formatTime(checkResult.videoDuration, false)}` : ""}
+                      </p>
+                    </div>
                   </div>
 
                   {checking ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-ink">
-                      <Loader2 size={12} className="animate-spin text-accent" aria-hidden />
-                      Checking duration...
+                    <span
+                      role="status"
+                      className="inline-flex items-center gap-2 text-[13.5px] text-muted"
+                    >
+                      <Loader2 size={13} className="animate-spin text-accent" aria-hidden />
+                      Checking length…
                     </span>
                   ) : checkResult?.matches ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e3f3e7] px-2.5 py-1 text-[11px] font-semibold text-[#236337]">
-                      <CheckCircle2 size={12} aria-hidden />
-                      Duration matches
+                    <span className="inline-flex items-center gap-2 text-[13.5px] font-semibold">
+                      <CheckCircle2 size={16} className="text-accent-deep" aria-hidden />
+                      Length matches
                     </span>
                   ) : checkResult && !checkResult.matches ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fae2df] px-2.5 py-1 text-[11px] font-semibold text-[#9b3127]">
-                      <AlertTriangle size={12} aria-hidden />
-                      Duration mismatch
+                    <span className="inline-flex items-center gap-2 text-[13.5px] font-semibold text-danger">
+                      <AlertTriangle size={14} aria-hidden />
+                      Length does not match
                     </span>
                   ) : null}
                 </div>
@@ -362,197 +379,106 @@ export function BindVideoModal({
             </div>
 
             {checkResult && !checkResult.matches && (
-              <div className="flex items-start gap-2 rounded-[12px] border border-[#f2c6c2] bg-[#fdf4f3] px-3.5 py-2.5 text-[11.5px] text-[#9b3127]">
-                <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden />
-                <span>{checkResult.message}</span>
-              </div>
+              <Note tone="error" className="mt-2">
+                {checkResult.message}
+              </Note>
             )}
 
             {checkError && (
-              <div className="flex items-start gap-2 rounded-[12px] border border-[#f2c6c2] bg-[#fdf4f3] px-3.5 py-2.5 text-[11.5px] text-[#9b3127]">
-                <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden />
-                <span>{checkError}</span>
-              </div>
+              <Note tone="error" className="mt-2">
+                {checkError}
+              </Note>
             )}
           </div>
 
-          {/* Step 2: Audio tracks mode */}
-          <div className="space-y-2">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-              <AudioLines size={12} className="text-accent" aria-hidden />
-              2. Audio track configuration
-            </p>
-            <div className="grid gap-2 sm:grid-cols-3">
+          <div>
+            <p className={`mb-2 ${SECTION_LABEL}`}>Audio</p>
+            <div className="grid gap-px border border-line-strong bg-line-strong sm:grid-cols-3">
               {AUDIO_MODE_OPTIONS.map((opt) => {
                 const active = audioMode === opt.id;
                 return (
                   <button
                     key={opt.id}
                     type="button"
+                    aria-pressed={active}
                     onClick={() => setAudioMode(opt.id)}
-                    className={`rounded-[13px] border p-3 text-left transition-all ${
-                      active
-                        ? "border-ink bg-[#fcfcfb] shadow-[0_2px_8px_rgba(15,15,16,0.06)]"
-                        : "border-line bg-white hover:bg-rail/50"
-                    }`}
+                    className={`relative px-4 py-3 text-left transition-colors ${active ? "bg-ink text-white" : "bg-white hover:bg-hover"}`}
                   >
-                    <p className="text-[12px] font-semibold text-ink">{opt.title}</p>
-                    <p className="mt-1 text-[10.5px] leading-snug text-faint">{opt.desc}</p>
+                    <span className="block text-[14px] font-semibold">{opt.title}</span>
+                    <span className={`mt-1 block text-[13px] leading-snug ${active ? "text-white/60" : "text-muted"}`}>{opt.desc}</span>
+                    {active ? <span aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] bg-accent" /> : null}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Step 3: Subtitles mode */}
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-                <Subtitles size={12} className="text-accent" aria-hidden />
-                3. Subtitles embedding
-              </p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {currentJob.srtText && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onDownloadText(currentJob.srtText, `${stem}-${currentJob.targetLanguage}.srt`)
-                    }
-                    className="inline-flex items-center gap-1 rounded-full border border-line bg-rail px-2.5 py-0.5 text-[10px] font-medium text-ink hover:bg-white"
-                  >
-                    <Captions size={10} aria-hidden />
-                    Translated .SRT
-                  </button>
-                )}
-                {currentJob.sourceSrtText && (
-                  <button
-                    type="button"
-                    onClick={() => onDownloadText(currentJob.sourceSrtText, `${stem}-original.srt`)}
-                    className="inline-flex items-center gap-1 rounded-full border border-line bg-rail px-2.5 py-0.5 text-[10px] font-medium text-ink hover:bg-white"
-                  >
-                    <Captions size={10} aria-hidden />
-                    Original .SRT
-                  </button>
-                )}
-                {currentJob.dualSrtText && (
-                  <button
-                    type="button"
-                    onClick={() => onDownloadText(currentJob.dualSrtText, `${stem}-dual.srt`)}
-                    className="inline-flex items-center gap-1 rounded-full border border-line bg-rail px-2.5 py-0.5 text-[10px] font-medium text-ink hover:bg-white"
-                  >
-                    <Captions size={10} aria-hidden />
-                    Dual .SRT
-                  </button>
-                )}
-              </div>
+          <div>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <p className={SECTION_LABEL}>Subtitles</p>
+              {(currentJob.srtText || currentJob.sourceSrtText || currentJob.dualSrtText) && (
+                <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
+                  <span>Download SRT</span>
+                  {currentJob.srtText && (
+                    <ToolText
+                      onClick={() => onDownloadText(currentJob.srtText, `${stem}-${currentJob.targetLanguage}.srt`)}
+                    >
+                      Translated
+                    </ToolText>
+                  )}
+                  {currentJob.sourceSrtText && (
+                    <ToolText onClick={() => onDownloadText(currentJob.sourceSrtText, `${stem}-original.srt`)}>Original</ToolText>
+                  )}
+                  {currentJob.dualSrtText && (
+                    <ToolText onClick={() => onDownloadText(currentJob.dualSrtText, `${stem}-dual.srt`)}>Both</ToolText>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="grid gap-1.5 sm:grid-cols-2">
-              {SUBTITLE_MODE_OPTIONS.map((opt) => {
-                const active = subtitleMode === opt.id;
-                const noSubsAvailable =
-                  opt.id !== "none" && !currentJob.srtText && !currentJob.sourceSrtText;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    disabled={noSubsAvailable}
-                    onClick={() => setSubtitleMode(opt.id)}
-                    className={`flex items-center justify-between gap-2 rounded-[11px] border px-3 py-2 text-left transition-colors disabled:opacity-40 ${
-                      active
-                        ? "border-ink bg-ink text-white"
-                        : "border-line bg-white text-ink hover:bg-rail/60"
-                    }`}
-                  >
-                    <span className="text-[11.5px] font-medium">{opt.title}</span>
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[9.5px] ${
-                        active ? "bg-white/15 text-white" : "bg-rail text-faint"
-                      }`}
-                    >
-                      {opt.badge}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <RailCards
+              label="Subtitles"
+              columns={2}
+              value={subtitleMode}
+              options={SUBTITLE_MODE_OPTIONS.map((opt) => ({
+                value: opt.id,
+                label: opt.title,
+                note: opt.desc,
+                disabled: opt.id !== "none" && !currentJob.srtText && !currentJob.sourceSrtText,
+              }))}
+              onChange={setSubtitleMode}
+            />
           </div>
 
           {bindStage && (
-            <div className="flex items-center gap-2 rounded-[12px] border border-line bg-[#fafaf9] px-3.5 py-2.5 text-[12px] font-medium text-ink">
-              <Loader2 size={14} className="animate-spin text-accent" aria-hidden />
+            <p role="status" className="flex items-center gap-2.5 text-[14.5px] font-semibold">
+              <Loader2 size={17} className="animate-spin text-accent-deep" aria-hidden />
               <span>{bindStage}</span>
-            </div>
+            </p>
           )}
 
-          {bindError && (
-            <div className="rounded-[12px] border border-[#f2c6c2] bg-[#fdf4f3] px-3.5 py-2.5 text-[11.5px] text-[#9b3127]">
-              {bindError}
-            </div>
-          )}
-
-          {boundResult && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[#9bc5a7] bg-[#f4faf5] p-3.5">
-              <div>
-                <p className="text-[12.5px] font-semibold text-[#1f5731]">
-                  Bound video ready ({formatBytes(boundResult.blob.size)})
-                </p>
-                <p className="text-[11px] text-[#356c46]">{boundResult.fileName}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <a
-                  href={boundResult.url}
-                  download={boundResult.fileName}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-[12px] font-medium text-white hover:bg-[#242426]"
-                >
-                  <Download size={13} aria-hidden />
-                  Download Video
-                </a>
-                {boundResult.blob.size <= 45 * 1024 * 1024 && !boundResult.savedToVault && (
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveToVault()}
-                    disabled={savingVault}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-[11.5px] font-medium text-ink hover:bg-rail"
-                  >
-                    {savingVault ? (
-                      <Loader2 size={12} className="animate-spin" aria-hidden />
-                    ) : (
-                      <Cloud size={12} aria-hidden />
-                    )}
-                    Save to 24h vault
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+          {bindError && <Note tone="error">{bindError}</Note>}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between gap-3 border-t border-line bg-[#fafaf9] px-5 py-3.5">
-          <p className="text-[11px] text-faint">
-            No video is uploaded to servers · processed cleanly on your device
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-9 items-center rounded-full border border-line bg-white px-4 text-[12px] font-medium text-ink hover:bg-rail"
-            >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-4 sm:px-6">
+          <p className="text-[13.5px] text-muted">Made on this device. Your video is not uploaded.</p>
+          <div className="flex items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1">
+            <button type="button" onClick={onClose} className={buttonClasses("secondary", "lg")}>
               Close
             </button>
             <button
               type="button"
               onClick={() => void handleRunBind()}
               disabled={!selectedVideo || !checkResult?.matches || binding || checking}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-5 text-[12px] font-semibold text-white transition hover:bg-[#232325] disabled:cursor-not-allowed disabled:opacity-45"
+              aria-busy={binding || undefined}
+              className={buttonClasses("accent", "lg")}
             >
               {binding ? (
-                <Loader2 size={13} className="animate-spin" aria-hidden />
+                <Loader2 size={15} className="animate-spin" aria-hidden />
               ) : (
-                <Sparkles size={13} aria-hidden />
+                <Film size={15} aria-hidden />
               )}
-              {binding ? "Binding..." : "Bind & Export Video"}
+              {binding ? "Creating video…" : boundResult ? "Create again" : "Create video"}
             </button>
           </div>
         </div>

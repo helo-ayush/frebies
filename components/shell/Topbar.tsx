@@ -3,215 +3,200 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getCategory, getTool } from "@/lib/registry/tools";
-import { AceternityTooltip } from "@/components/aceternity/animated-tooltip";
-import { HoverBorderGradient } from "@/components/aceternity/hover-border-gradient";
-import { buttonClasses } from "@/components/ui/Button";
 import { LogOut } from "lucide-react";
-import { ChevronGlyph, MenuGlyph, PanelGlyph, SearchGlyph } from "@/components/icons/NavGlyph";
+import { Wordmark, LogoMark } from "@/components/brand/Wordmark";
+import { PanelGlyph, SearchGlyph } from "@/components/icons/NavGlyph";
 import { useAuthSession } from "@/components/auth/AuthContext";
+import { Roll } from "@/components/site/kit";
 import { SoundToggle } from "@/components/ui/sound";
-import { CommandMenu } from "./CommandMenu";
+import { categories, getCategory, getTool, tools } from "@/lib/registry/tools";
 
 type Crumb = { label: string; href?: string };
 
 function useCrumbs(): Crumb[] {
   const pathname = usePathname();
-
-  if (pathname === "/dashboard") return [{ label: "Home" }];
-
   const parts = pathname.split("/").filter(Boolean);
-  if (parts.length === 0) return [{ label: "Home" }];
-
+  if (parts.length === 0 || parts[0] === "dashboard") return [{ label: "All tools" }];
   const category = getCategory(parts[0]);
-
-  if (parts.length === 1) {
-    const fallback = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-    return [{ label: category?.name ?? fallback }];
-  }
-
-  if (parts.length === 2) {
-    const tool = getTool(parts[0], parts[1]);
-    return [
-      ...(category ? [{ label: category.name, href: `/${category.slug}` }] : []),
-      { label: tool?.shortName ?? tool?.name ?? parts[1] },
-    ];
-  }
-
-  return [{ label: "Home" }];
+  if (!category) return [{ label: parts[0] }];
+  if (parts.length === 1) return [{ label: category.name }];
+  const tool = getTool(parts[0], parts[1]);
+  return [{ label: category.name, href: `/${category.slug}` }, { label: tool?.shortName ?? tool?.name ?? parts[1] }];
 }
 
-const iconBtn =
-  "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-ink";
-const kbd =
-  "rounded-md border border-line bg-white px-1.5 py-0.5 text-[10px] leading-none text-muted";
+/** Where to come back to after signing in. */
+export function useAuthSuffix() {
+  const pathname = usePathname();
+  if (!pathname || pathname === "/dashboard" || pathname.startsWith("/sign-")) return "";
+  return `?redirect_url=${encodeURIComponent(pathname)}`;
+}
 
 export function Topbar({
-  onOpenNav,
+  navOpen,
+  onToggleNav,
+  onSearch,
   collapsed,
   onToggleSidebar,
 }: {
-  onOpenNav: () => void;
+  navOpen: boolean;
+  onToggleNav: () => void;
+  onSearch: () => void;
   collapsed: boolean;
   onToggleSidebar: () => void;
 }) {
-  const pathname = usePathname();
-  const [searchOpen, setSearchOpen] = useState(false);
   const crumbs = useCrumbs();
+  const pathname = usePathname();
   const { isSignedIn, user, signOut } = useAuthSession();
-
-  const authSuffix =
-    pathname &&
-    pathname !== "/dashboard" &&
-    !pathname.startsWith("/sign-in") &&
-    !pathname.startsWith("/sign-up")
-      ? `?redirect_url=${encodeURIComponent(pathname)}`
-      : "";
+  const authSuffix = useAuthSuffix();
+  const [mac, setMac] = useState(false);
+  const number = categories.findIndex((category) => pathname.startsWith(`/${category.slug}`)) + 1;
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setSearchOpen(true);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    setMac(/mac|iphone|ipad/i.test(navigator.platform));
   }, []);
 
   return (
-    <>
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line-soft bg-white/95 px-4 backdrop-blur md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:px-5">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <AceternityTooltip label="Open navigation" side="bottom">
-            <button type="button" onClick={onOpenNav} aria-label="Open navigation" className={`${iconBtn} lg:hidden`}>
-              <MenuGlyph size={19} />
-            </button>
-          </AceternityTooltip>
-
-          <AceternityTooltip
-            label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            hint="⌘B"
-            side="bottom"
+    <header className="fixed inset-x-0 top-0 z-50 flex h-[var(--fb-bar)] items-stretch border-b border-line bg-canvas">
+      {/* Logo cell lines up with the index below it */}
+      <div className="flex shrink-0 items-center gap-2 border-line pl-4 transition-[width] duration-200 motion-reduce:transition-none lg:w-[var(--fb-side)] lg:justify-between lg:border-r lg:pl-0">
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            aria-label="Expand the tool index"
+            aria-expanded={false}
+            aria-controls="workbench-sidebar"
+            title="Expand the tool index (Ctrl B)"
+            data-slot="sidebar-trigger"
+            className="hidden h-full w-full place-items-center transition-colors hover:bg-hover lg:grid"
           >
+            <PanelGlyph collapsed size={20} />
+          </button>
+        ) : (
+          <>
+            <span className="lg:pl-6">
+              <Wordmark href="/" size={24} />
+            </span>
             <button
               type="button"
               onClick={onToggleSidebar}
-              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+              aria-label="Collapse the tool index"
+              aria-expanded
               aria-controls="workbench-sidebar"
-              aria-expanded={!collapsed}
+              title="Collapse the tool index (Ctrl B)"
               data-slot="sidebar-trigger"
-              className={`${iconBtn} hidden lg:grid`}
+              className="hidden h-full w-12 place-items-center text-muted transition-colors hover:bg-hover hover:text-ink lg:grid"
             >
-              <PanelGlyph collapsed={collapsed} size={20} />
+              <PanelGlyph collapsed={false} size={19} />
             </button>
-          </AceternityTooltip>
-
-          <span className="truncate text-[13.5px] font-medium text-ink md:hidden">
-            {crumbs[crumbs.length - 1].label}
+          </>
+        )}
+        {collapsed ? (
+          <span className="lg:hidden">
+            <Wordmark href="/" size={24} />
           </span>
+        ) : null}
+      </div>
 
-          <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 pl-1 text-[13.5px] md:flex">
-            {crumbs.map((crumb, index) => (
-              <span key={`${crumb.label}-${index}`} className="flex min-w-0 items-center gap-1.5">
-                {index > 0 && <ChevronGlyph size={12} className="shrink-0 text-faint" />}
-                {crumb.href ? (
-                  <Link href={crumb.href} className="truncate text-muted transition-colors hover:text-ink">
-                    {crumb.label}
-                  </Link>
-                ) : (
-                  <span className="truncate font-medium text-ink">{crumb.label}</span>
-                )}
-              </span>
-            ))}
-          </nav>
-        </div>
+      <div className="flex min-w-0 flex-1 items-center gap-4 pl-4 pr-3 sm:pr-4 lg:pl-6 lg:pr-5">
+        {collapsed ? (
+          <Link href="/" aria-label="frebies home" className="hidden lg:block">
+            <LogoMark size={24} />
+          </Link>
+        ) : null}
+
+        <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center text-[14px] uppercase sm:flex">
+          <span className="whitespace-pre text-faint">[{number > 0 ? `0${number} // ` : ""}</span>
+          {crumbs.map((crumb, index) => (
+            <span key={crumb.label} className="flex min-w-0 items-center whitespace-pre">
+              {index > 0 ? <span className="text-faint">{" // "}</span> : null}
+              {crumb.href ? (
+                <Link href={crumb.href} className="text-muted transition-colors hover:text-accent-deep">
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span className="truncate font-medium">{crumb.label}</span>
+              )}
+            </span>
+          ))}
+          <span className="text-faint">]</span>
+        </nav>
 
         <button
           type="button"
-          onClick={() => setSearchOpen(true)}
-          aria-label="Search tools and pages"
-          className="hidden h-9 w-[320px] items-center gap-2.5 rounded-[10px] border border-line bg-white px-3 text-ui text-faint transition-colors hover:border-[#d8d8d5] md:flex xl:w-[400px]"
+          onClick={onSearch}
+          aria-label="Search tools"
+          className="group ml-auto flex h-10 items-stretch border border-line-strong bg-panel text-left transition-colors hover:border-ink max-md:border-0 max-md:bg-transparent md:w-[260px] xl:w-[340px]"
         >
-          <SearchGlyph size={16} className="shrink-0" />
-          <span>Search everything…</span>
-          <span className="ml-auto flex items-center gap-1">
-            <kbd className={kbd}>⌘</kbd>
-            <kbd className={kbd}>K</kbd>
+          <span className="grid w-10 shrink-0 place-items-center transition-colors max-md:text-ink md:bg-ink md:text-white md:group-hover:bg-accent-deep">
+            <SearchGlyph size={18} />
+          </span>
+          <span className="hidden flex-1 items-center justify-between gap-3 px-3 text-[14px] text-faint md:flex">
+            Search {tools.length} tools
+            <kbd className="font-sans text-[12px] text-faint">{mac ? "⌘K" : "Ctrl K"}</kbd>
           </span>
         </button>
 
-        <div className="flex items-center justify-end gap-2">
-          <AceternityTooltip label="Search" hint="⌘K" side="bottom">
+        <SoundToggle
+          aria-label="Toggle interface sounds"
+          className="hidden h-10 w-10 shrink-0 place-items-center text-muted transition-colors hover:bg-hover hover:text-ink sm:grid"
+        />
+
+        {isSignedIn && user ? (
+          <div className="hidden items-center gap-3 sm:flex">
+            <span className="flex items-center gap-2.5" title={user.email ?? undefined}>
+              {user.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.imageUrl} alt="" className="fb-ear h-8 w-8 object-cover" style={{ ["--ear" as string]: "8px" }} />
+              ) : (
+                <span
+                  className="fb-ear grid h-8 w-8 place-items-center bg-ink text-[12px] font-semibold text-white"
+                  style={{ ["--ear" as string]: "8px" }}
+                >
+                  {user.initials}
+                </span>
+              )}
+              <span className="hidden max-w-[120px] truncate text-[14px] xl:block">
+                {user.firstName ?? user.email ?? "Account"}
+              </span>
+            </span>
             <button
               type="button"
-              onClick={() => setSearchOpen(true)}
-              aria-label="Search tools and pages"
-              className={`${iconBtn} md:hidden`}
+              onClick={() => signOut()}
+              aria-label="Sign out"
+              title="Sign out"
+              className="grid h-10 w-10 place-items-center text-muted transition-colors hover:bg-hover hover:text-ink"
             >
-              <SearchGlyph size={19} />
+              <LogOut size={17} aria-hidden />
             </button>
-          </AceternityTooltip>
-          <AceternityTooltip label="Toggle interface sounds" side="bottom">
-            <SoundToggle className={`${iconBtn} text-muted hover:text-ink`} />
-          </AceternityTooltip>
-          {isSignedIn && user ? (
-            <div className="flex items-center gap-2">
-              <div
-                className="flex h-8 items-center gap-2 rounded-full border border-line bg-white pl-1 pr-2.5 text-ui text-ink"
-                title={user.email ?? user.fullName ?? "Signed in"}
-              >
-                {user.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={user.imageUrl}
-                    alt={user.fullName ?? "Account avatar"}
-                    className="h-6 w-6 rounded-full object-cover"
-                  />
-                ) : (
-                  <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[10.5px] font-semibold text-white">
-                    {user.initials}
-                  </span>
-                )}
-                <span className="hidden max-w-[140px] truncate text-[12.5px] font-medium sm:inline">
-                  {user.firstName ?? user.fullName ?? user.email ?? "Account"}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => signOut()}
-                aria-label="Sign out"
-                className={`${buttonClasses("secondary", "sm", "h-8 rounded-full px-2.5 text-[12.5px]")}`}
-              >
-                <LogOut size={13} aria-hidden />
-                <span className="hidden sm:inline">Sign out</span>
-              </button>
-            </div>
-          ) : (
-            <>
-              <HoverBorderGradient
-                as={Link}
-                href={`/sign-up${authSuffix}`}
-                containerClassName="hidden rounded-full sm:flex"
-                className="h-8 rounded-full px-3 text-ui transition-colors hover:bg-neutral-50"
-              >
-                Get credits
-              </HoverBorderGradient>
-              <HoverBorderGradient
-                as={Link}
-                href={`/sign-in${authSuffix}`}
-                containerClassName="rounded-full"
-                className="h-8 rounded-full bg-ink px-3 text-ui text-white transition-colors hover:bg-neutral-800"
-              >
-                Sign in
-              </HoverBorderGradient>
-            </>
-          )}
-        </div>
-      </header>
+          </div>
+        ) : (
+          <div className="hidden items-center gap-5 sm:flex">
+            <Link href={`/sign-in${authSuffix}`} className="text-[14px] uppercase">
+              <Roll>Sign in</Roll>
+            </Link>
+            <Link
+              href={`/sign-up${authSuffix}`}
+              className="fb-btn fb-ear !hidden !h-10 !px-4 !text-[13px] xl:!inline-flex"
+              style={{ ["--ear" as string]: "11px" }}
+            >
+              25 free credits
+            </Link>
+          </div>
+        )}
 
-      <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} />
-    </>
+        <button
+          type="button"
+          onClick={onToggleNav}
+          aria-label={navOpen ? "Close menu" : "Open menu"}
+          aria-expanded={navOpen}
+          aria-controls="workbench-sidebar"
+          className="relative grid h-10 w-10 shrink-0 place-items-center lg:hidden"
+        >
+          <span className={`absolute h-[2px] w-6 bg-current transition-transform duration-300 ${navOpen ? "rotate-45" : "-translate-y-[5px]"}`} />
+          <span className={`absolute h-[2px] w-6 bg-current transition-transform duration-300 ${navOpen ? "-rotate-45" : "translate-y-[5px]"}`} />
+        </button>
+      </div>
+    </header>
   );
 }

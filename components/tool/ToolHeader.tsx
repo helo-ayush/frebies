@@ -1,73 +1,50 @@
-import { Cloud, Lock, MonitorDown } from "lucide-react";
+import { Cloud, MonitorSmartphone } from "lucide-react";
 import type { Category, Tool } from "@/lib/registry/tools";
-import { PointerHighlight } from "@/components/aceternity/pointer-highlight";
-import { Badge } from "@/components/ui/Badge";
-import { Breadcrumb } from "@/components/arc/breadcrumb/breadcrumb";
+import { ToolGlyph } from "@/components/icons/NavGlyph";
+import { SeamTag } from "@/components/ui/Seam";
 
+/**
+ * One row between the top bar and the studio: what this tool is, and whether
+ * it is free. The studio fills everything below it, so nothing needs scrolling.
+ */
 export function ToolHeader({
   tool,
-  category,
   showTierBadge = true,
   showEngineBadge = true,
 }: {
   tool: Tool;
-  category: Category;
+  category?: Category;
   showTierBadge?: boolean;
   showEngineBadge?: boolean;
 }) {
-  const Icon = tool.icon;
-  const EngineIcon = tool.engine === "browser" ? MonitorDown : Cloud;
+  const onDevice = tool.engine === "browser";
+  const EngineIcon = onDevice ? MonitorSmartphone : Cloud;
 
   return (
-    <header className="flex flex-wrap items-start justify-between gap-5">
-      <div className="flex min-w-0 items-start gap-3.5">
-        <span className="mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-[12px] border border-line bg-rail text-ink">
-          <Icon size={21} strokeWidth={1.5} aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <Breadcrumb
-            items={[
-              { label: category.title, href: `/${category.slug}` },
-              { label: "Workspace" },
-            ]}
-          />
-          <h1 className="mt-1.5 flex items-center gap-2 font-display text-[30px] font-semibold tracking-[-0.035em]">
-            <PointerHighlight
-              rectangleClassName="border-accent/30"
-              pointerClassName="text-accent"
-            >
-              <span className="px-0.5">{tool.h1}</span>
-            </PointerHighlight>
-            {showTierBadge && tool.tier === "credits" && (
-              <span title="Uses credits — sign in to run" className="mt-1">
-                <Lock size={14} strokeWidth={1.8} className="text-faint" aria-hidden />
-              </span>
-            )}
-          </h1>
-          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted">{tool.tagline}</p>
-        </div>
-      </div>
+    <header className="flex min-h-[var(--fb-head)] items-stretch border-b border-line">
+      <span
+        className="fb-ear hidden w-[var(--fb-head)] shrink-0 place-items-center bg-ink text-white sm:grid"
+        style={{ ["--ear" as string]: "18px" }}
+      >
+        <ToolGlyph path={tool.path} size={27} />
+      </span>
 
-      {(showTierBadge || showEngineBadge) && (
-        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          {tool.status === "soon" && <Badge tone="soon">UI preview</Badge>}
-          {showTierBadge &&
-            (tool.tier === "free" ? (
-              <Badge tone="free">Free</Badge>
-            ) : (
-              <Badge tone="credits">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                {tool.creditCost} {tool.creditCost === 1 ? "credit" : "credits"}
-              </Badge>
-            ))}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-8 gap-y-1 px-4 py-3 sm:px-5 lg:px-6">
+        <div className="min-w-0">
+          <h1 className="fb-wide text-[clamp(19px,1.75vw,26px)]">{tool.h1}</h1>
+          <p className="mt-1.5 text-[14px] leading-snug text-muted max-sm:line-clamp-1 sm:truncate">{tool.tagline}</p>
+        </div>
+
+        <div className="hidden flex-wrap items-center gap-x-6 gap-y-1 md:flex">
+          {(showTierBadge || tool.status === "soon") && <SeamTag tool={tool} />}
           {showEngineBadge && (
-            <Badge tone="neutral">
-              <EngineIcon size={11} aria-hidden />
-              {tool.engine === "browser" ? "On-device" : "Cloud"}
-            </Badge>
+            <span className="inline-flex items-center gap-2 text-[12.5px] uppercase leading-none text-muted">
+              <EngineIcon size={14} strokeWidth={1.7} aria-hidden />
+              {onDevice ? "Runs in your browser" : "Runs on our server"}
+            </span>
           )}
         </div>
-      )}
+      </div>
     </header>
   );
 }

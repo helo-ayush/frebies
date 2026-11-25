@@ -3,20 +3,29 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { Lock, UserPlus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useAuthSession } from "@/components/auth/AuthContext";
+import { LockGlyph } from "@/components/icons/NavGlyph";
+import { Arrow } from "@/components/site/kit";
 import { buttonClasses } from "@/components/ui/Button";
+import { canHoldFile, holdFile } from "@/lib/held-file";
 
+/** Asked once, when a guest presses run on a tool that uses credits. */
 export function CreditGate({
   open,
   onClose,
   action,
   cost,
+  file,
+  settings,
 }: {
   open: boolean;
   onClose: () => void;
   action: string;
   cost: number;
+  /** What is loaded now. Held on this device while they sign in. */
+  file?: File | null;
+  settings?: unknown;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const pathname = usePathname();
@@ -35,6 +44,12 @@ export function CreditGate({
     }
     if (!open && dialog.open) dialog.close();
   }, [open]);
+
+  const holding = useRef({ file, settings });
+  holding.current = { file, settings };
+  useEffect(() => {
+    if (open && holding.current.file) void holdFile(pathname, holding.current.file, holding.current.settings);
+  }, [open, pathname]);
 
   useEffect(() => {
     if (isSignedIn && ref.current?.open) {
@@ -64,62 +79,51 @@ export function CreditGate({
       ref={ref}
       aria-labelledby="credit-gate-title"
       aria-describedby="credit-gate-description"
-      className="fixed inset-0 m-auto h-fit max-h-[calc(100vh-32px)] w-[min(480px,calc(100vw-32px))] overflow-y-auto rounded-[16px] border border-line bg-white p-0 text-ink shadow-[0_30px_80px_rgba(15,15,16,0.28)]"
+      className="fixed inset-0 m-auto h-fit max-h-[calc(100dvh-32px)] w-[min(500px,calc(100vw-32px))] overflow-y-auto border-0 bg-panel p-0 text-ink shadow-pop"
     >
-      <div className="p-6">
-        <div className="flex items-start justify-between gap-4">
-          <span className="grid h-10 w-10 place-items-center rounded-[11px] border border-line bg-rail text-ink">
-            <Lock size={17} strokeWidth={1.7} aria-hidden />
-          </span>
-          <button
-            type="button"
-            onClick={() => ref.current?.close()}
-            aria-label="Close dialog"
-            data-slot="dialog-close"
-            className="grid h-8 w-8 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/25"
-          >
-            <X size={15} aria-hidden />
-          </button>
-        </div>
-
-        <h2
-          id="credit-gate-title"
-          className="mt-4 font-display text-[24px] font-semibold leading-[1.12] tracking-[-0.03em]"
+      <div className="flex h-14 items-stretch justify-between bg-ink text-white">
+        <span className="grid w-14 place-items-center bg-accent-deep">
+          <LockGlyph size={19} />
+        </span>
+        <span className="fb-num flex flex-1 items-center px-4 text-[13px] uppercase text-white/70">
+          This run // {cost} {cost === 1 ? "credit" : "credits"}
+        </span>
+        <button
+          type="button"
+          onClick={() => ref.current?.close()}
+          aria-label="Close dialog"
+          data-slot="dialog-close"
+          className="grid w-14 place-items-center transition-colors hover:bg-white hover:text-ink"
         >
+          <X size={18} aria-hidden />
+        </button>
+      </div>
+
+      <div className="p-6 sm:p-8">
+        <h2 id="credit-gate-title" className="fb-wide text-[clamp(25px,5vw,34px)]">
           Sign in to {action}
         </h2>
-        <p id="credit-gate-description" className="mt-2 text-ui leading-relaxed text-muted">
-          Your file stays in this browser until you continue. New accounts get{" "}
-          <span className="font-medium text-ink">25 free credits</span>.
+        <p id="credit-gate-description" className="mt-4 text-[15.5px] leading-[1.5] text-muted">
+          New accounts get <span className="font-semibold text-ink">25 free credits</span>. No credits are
+          used until the run starts.
         </p>
 
-        <div className="mt-4 flex items-center justify-between rounded-[10px] border border-line bg-[#fbfaf7] px-3 py-2.5">
-          <span className="text-[11px] text-muted">This run</span>
-          <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-            {cost} {cost === 1 ? "credit" : "credits"}
-          </span>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          <Link
-            href={`/sign-up${redirectQuery}`}
-            className={buttonClasses("primary", "md", "w-full")}
-          >
-            <UserPlus size={14} aria-hidden />
-            Create free account (25 credits)
+        <div className="mt-7 space-y-2.5">
+          <Link href={`/sign-up${redirectQuery}`} className="fb-run">
+            <span className="fb-run-icon">
+              <Arrow size={18} />
+            </span>
+            <span className="fb-run-label">Create a free account</span>
           </Link>
-          <Link
-            href={`/sign-in${redirectQuery}`}
-            className={buttonClasses("secondary", "md", "w-full")}
-          >
-            Sign in with Google or email
+          <Link href={`/sign-in${redirectQuery}`} className={buttonClasses("secondary", "lg", "w-full")}>
+            I have an account
           </Link>
         </div>
 
-        <p className="mt-4 border-t border-line-soft pt-3 text-[10px] leading-relaxed text-faint">
-          Cancel any time and the draft stays here for up to 60 minutes. No credits are
-          used until the run starts.
+        <p className="mt-5 text-[13px] leading-relaxed text-faint">
+          {file && canHoldFile(file)
+            ? "Your file and settings wait in this browser while you sign in, for up to 60 minutes."
+            : "You come straight back to this tool."}
         </p>
       </div>
     </dialog>

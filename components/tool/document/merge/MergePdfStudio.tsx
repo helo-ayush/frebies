@@ -1,31 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Reorder } from "motion/react";
-import {
-  ArrowDownUp,
-  Bookmark,
-  Check,
-  Download,
-  Eye,
-  FilePlus2,
-  Layers3,
-  Loader2,
-  Plus,
-  ShieldCheck,
-  Trash2,
-  TriangleAlert,
-  X,
-} from "lucide-react";
-import { buttonClasses } from "@/components/ui/Button";
-import { ArrowRightGlyph } from "@/components/icons/NavGlyph";
+import { Reorder, motion } from "motion/react";
+import { ArrowDownUp, Download, FilePlus2, Layers3, X } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
-import { StudioHeader } from "../DocumentKit";
+import {
+  ActionRow,
+  DownloadAction,
+  Note,
+  PrimaryAction,
+  SecondaryAction,
+  StageBar,
+  StartOverAction,
+  StudioFrame,
+  StudioStage,
+  ToolTabs,
+  ToolText,
+} from "@/components/tool/kit";
+import { DropOver } from "@/components/tool/viewer/DropOver";
+import { PdfBytesReader } from "@/components/tool/viewer/PdfReader";
+import { DropChip } from "@/components/tool/kit/Dropzone";
 import { PdfDropzone } from "../PdfDropzone";
 import { fileStem, formatBytes } from "../model";
 import { MergeCancelled, mergePdfs, type MergeOutcome } from "./merge-engine";
 import { MergeDocRow } from "./MergeDocRow";
-import { MergedPdfDialog } from "./MergedPdfDialog";
 import { MergeSettings } from "./MergeSettings";
 import {
   DEFAULT_MERGE_SETTINGS,
@@ -33,11 +31,7 @@ import {
   outputFileName,
   type MergeSettings as MergeSettingsValue,
 } from "./merge-model";
-import {
-  MAX_MERGE_FILES,
-  MAX_MERGE_TOTAL_MB,
-  useMergeQueue,
-} from "./useMergeQueue";
+import { MAX_MERGE_FILES, useMergeQueue } from "./useMergeQueue";
 
 type Phase = "idle" | "running" | "done" | "error";
 
@@ -49,6 +43,15 @@ type MergeResult = {
   bytes: Uint8Array;
 };
 
+const VIEWS = [
+  { value: "files", label: "Files" },
+  { value: "merged", label: "Merged PDF" },
+] as const;
+
+function plural(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
 export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const queue = useMergeQueue({ maxFiles: MAX_MERGE_FILES, maxSizeMB });
   const [settings, setSettings] = useState<MergeSettingsValue>(DEFAULT_MERGE_SETTINGS);
@@ -57,7 +60,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const [runError, setRunError] = useState<string | null>(null);
   const [result, setResult] = useState<MergeResult | null>(null);
   const [ranSignature, setRanSignature] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [view, setView] = useState<"files" | "merged">("files");
 
   const resultRef = useRef<MergeResult | null>(null);
   const runIdRef = useRef(0);
@@ -119,6 +122,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   function clearAll() {
     queue.clear();
     revokeResult();
+    setView("files");
     setRanSignature(null);
     setRunError(null);
     setPhase("idle");
@@ -159,6 +163,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
       resultRef.current = next;
       setResult(next);
       setRanSignature(startedSignature);
+      setView("merged");
       setPhase("done");
       setProgress({ value: 1, label: "Done" });
     } catch (error) {
@@ -184,249 +189,134 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     setProgress({ value: 0, label: "Preparing…" });
   }
 
-  const toolButton =
-    "inline-flex h-7 items-center gap-1 rounded-[7px] px-2 text-[10.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-40";
+  const fileCount = queue.items.length;
+  const fresh = result && !stale ? result : null;
+  const showMerged = Boolean(fresh) && view === "merged";
+  const mergeLabel = queue.reading
+    ? "Reading PDFs…"
+    : readyCount === 0
+      ? "Merge PDFs"
+      : readyCount === 1
+        ? `Export PDF · ${plural(projectedPages, "page")}`
+        : `Merge ${readyCount} PDFs · ${plural(projectedPages, "page")}`;
+  const mergeHint = busy ? (
+    <span className="max-w-full truncate">{progress.label}</span>
+  ) : fileCount === 0 ? (
+    "Add PDFs to get started"
+  ) : queue.reading ? (
+    "Reading documents…"
+  ) : (
+    <span className="max-w-full truncate">Saves as {outputName}</span>
+  );
 
   return (
-    <section
-      id="merge-pdf"
-      aria-label="Merge PDF studio"
-      className="scroll-mt-20 rounded-[26px] border border-line bg-white"
-    >
-      <span
-        aria-hidden
-        className="hidden"
-        data-success={result && !stale ? `merged-${runIdRef.current}` : undefined}
-        data-error={runError ?? (queue.errors.length ? queue.errors.join(" · ") : undefined)}
-      />
+    <>
+      <StudioFrame id="merge-pdf" label="Merge PDF studio">
+        <StudioStage flush>
+          <span
+            aria-hidden
+            className="hidden"
+            data-success={fresh ? `merged-${runIdRef.current}` : undefined}
+            data-error={runError ?? (queue.errors.length ? queue.errors.join(" · ") : undefined)}
+          />
 
-      <StudioHeader
-        path="/document/merge-pdf"
-        title="Merge studio"
-        subtitle="Combine documents, choose pages and export one PDF."
-        pills={
-          <>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] font-medium tabular-nums text-muted">
-              <Layers3 size={10} aria-hidden />
-              {queue.items.length
-                ? `${queue.items.length} file${queue.items.length === 1 ? "" : "s"} · ${projectedPages} page${projectedPages === 1 ? "" : "s"}`
-                : "No documents"}
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dfe8e0] bg-[#f3f8f3] px-2.5 py-1 text-[10px] font-medium text-[#3f6b4f]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#4f8a63]" aria-hidden />
-              Engine live
-            </span>
-          </>
-        }
-      />
-
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_372px] lg:items-start">
-        <div className="studio-main flex min-h-0 min-w-0 flex-col p-4 sm:p-5 lg:min-h-[620px]">
-          {queue.items.length === 0 ? (
+          {fileCount === 0 ? (
             <PdfDropzone
               title="Drop PDFs to merge"
-              description="Add two or more PDFs. Drag them into order, keep only the pages you need, then export one clean document."
+              description="Add two or more PDFs, drag them into order and export one document."
               buttonLabel="Choose PDFs"
-              limits={`PDF · up to ${maxSizeMB} MB each · ${MAX_MERGE_FILES} files · ${MAX_MERGE_TOTAL_MB} MB total`}
-              note="Files are read locally. Nothing is uploaded."
+              limits={`PDF · up to ${maxSizeMB} MB each · ${MAX_MERGE_FILES} files`}
               onChoose={() => queue.openPicker()}
               dragging={queue.dragging}
               onDragOver={queue.onDragOver}
               onDragLeave={queue.onDragLeave}
               onDrop={queue.onDrop}
-              minHeightClass="min-h-[420px]"
               chips={
                 <>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <ArrowDownUp size={9} aria-hidden />
-                    Drag to reorder
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <Eye size={9} aria-hidden />
-                    Real thumbnails
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <Bookmark size={9} aria-hidden />
-                    Bookmarks
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <ShieldCheck size={9} aria-hidden />
-                    Stays on device
-                  </span>
+                  <DropChip>Drag to reorder</DropChip>
+                  <DropChip>Pick pages per file</DropChip>
+                  <DropChip>Bookmarks and page numbers</DropChip>
                 </>
               }
             />
           ) : (
             <div
+              className="relative flex min-h-0 flex-1 flex-col"
               onDragOver={queue.onDragOver}
               onDragLeave={queue.onDragLeave}
               onDrop={queue.onDrop}
-              className={`flex flex-col rounded-[16px] transition-shadow ${
-                queue.dragging ? "ring-2 ring-[#b3a7ce]/60 ring-offset-4 ring-offset-white" : ""
-              }`}
             >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
-                    Merge order
-                  </p>
-                  <p className="mt-1 text-[11px] tabular-nums text-muted">
-                    {queue.items.length} file{queue.items.length === 1 ? "" : "s"} ·{" "}
-                    {queue.totalPages} page{queue.totalPages === 1 ? "" : "s"} selected ·{" "}
-                    {formatBytes(queue.totalSize)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-0.5">
-                  <button
-                    type="button"
-                    onClick={() => queue.reverse()}
-                    disabled={busy || queue.items.length < 2}
-                    className={toolButton}
-                  >
-                    <ArrowDownUp size={11} aria-hidden />
-                    Reverse
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => queue.openPicker()}
-                    disabled={busy || queue.items.length >= MAX_MERGE_FILES}
-                    className={toolButton}
-                  >
-                    <Plus size={11} aria-hidden />
-                    Add PDFs
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearAll}
-                    disabled={busy}
-                    data-variant="destructive"
-                    className={toolButton}
-                  >
-                    <Trash2 size={11} aria-hidden />
-                    Clear
-                  </button>
-                </div>
-              </div>
-
-              {queue.dragging && (
-                <p className="mt-2 rounded-[9px] border border-dashed border-[#b3a7ce] bg-[#f6f2fb] px-3 py-2 text-center text-[10.5px] font-medium text-[#655f72]">
-                  Drop PDFs to add them to the end of the list.
-                </p>
-              )}
-
-              <Reorder.Group
-                axis="y"
-                values={queue.items}
-                onReorder={queue.reorder}
-                className="mt-3 space-y-2"
+              <StageBar
+                end={
+                  showMerged ? null : (
+                    <>
+                      <ToolText
+                        onClick={() => queue.openPicker()}
+                        disabled={busy || fileCount >= MAX_MERGE_FILES}
+                        icon={<FilePlus2 size={14} aria-hidden />}
+                      >
+                        Add PDFs
+                      </ToolText>
+                      <ToolText
+                        onClick={() => queue.reverse()}
+                        disabled={busy || fileCount < 2}
+                        icon={<ArrowDownUp size={14} aria-hidden />}
+                      >
+                        Reverse
+                      </ToolText>
+                      {fresh ? null : (
+                        <ToolText onClick={clearAll} disabled={busy}>
+                          Clear
+                        </ToolText>
+                      )}
+                    </>
+                  )
+                }
               >
-                {queue.items.map((item, index) => (
-                  <MergeDocRow
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    total={queue.items.length}
-                    locked={busy}
-                    onRangeChange={queue.setRange}
-                    onRotationChange={queue.setRotation}
-                    onMove={queue.move}
-                    onRemove={queue.remove}
-                  />
-                ))}
-              </Reorder.Group>
+                {fresh ? <ToolTabs label="Stage view" options={VIEWS} value={view} onChange={setView} /> : null}
+                <span className="fb-num pl-1 text-[13.5px] text-muted">
+                  {plural(fileCount, "file")} · {plural(queue.totalPages, "page")} · {formatBytes(queue.totalSize)}
+                </span>
+              </StageBar>
 
-              {queue.items.length < MAX_MERGE_FILES && (
-                <button
-                  type="button"
-                  onClick={() => queue.openPicker()}
-                  disabled={busy}
-                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-dashed border-[#d5d0dd] bg-[#faf9fc] py-3 text-[11px] font-medium text-faint transition-colors hover:border-[#b8a992] hover:text-ink disabled:pointer-events-none disabled:opacity-50"
-                >
-                  <FilePlus2 size={13} aria-hidden />
-                  Add another PDF
-                </button>
-              )}
-            </div>
-          )}
-
-          {queue.errors.length > 0 && (
-            <div
-              role="alert"
-              className="mt-3 rounded-[11px] border border-[#f0d8d1] bg-[#fdf4f1] px-3 py-2.5"
-            >
-              <div className="space-y-1.5">
-                {queue.errors.map((message, index) => (
-                  <p
-                    key={`${message}-${index}`}
-                    className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[#a13d30]"
-                  >
-                    <TriangleAlert size={12} className="mt-0.5 shrink-0" aria-hidden />
-                    {message}
-                  </p>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={queue.dismissErrors}
-                className="mt-1.5 text-[10px] font-medium text-[#a13d30] underline-offset-2 hover:underline"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-
-          {result && (
-            <div className="mt-3 rounded-[16px] border border-[#dde8de] bg-[#f4f8f4] p-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#3f6b4f] text-white">
-                    <Check size={13} aria-hidden />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-medium text-ink">Merged — ready to download</p>
-                    <p className="truncate text-[10px] text-faint">{result.name}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {stale && (
-                    <span className="rounded-full border border-[#eadfce] bg-[#fdf9f2] px-2 py-0.5 text-[9px] font-medium text-[#786344]">
-                      Settings changed
-                    </span>
-                  )}
-                  <span className="rounded-full border border-[#d7e3d8] bg-white px-2 py-0.5 text-[9.5px] font-medium tabular-nums text-[#3f6b4f]">
-                    {result.pageCount} pages
-                  </span>
-                  <span className="rounded-full border border-[#d7e3d8] bg-white px-2 py-0.5 text-[9.5px] font-medium tabular-nums text-[#3f6b4f]">
-                    {formatBytes(result.size)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[10px] leading-relaxed text-faint">
-                  {stale
-                    ? "Merge again to apply the latest order and settings."
-                    : "Open the preview to check the page order before downloading."}
-                </p>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewOpen(true)}
-                    className={buttonClasses("secondary", "sm", "rounded-lg")}
-                  >
-                    <Eye size={12} aria-hidden />
-                    Preview
-                  </button>
-                  <a
-                    href={result.url}
-                    download={result.name}
-                    className={buttonClasses("primary", "sm", "rounded-lg")}
-                  >
-                    <Download size={12} aria-hidden />
-                    Download PDF
+              {result && !fresh ? (
+                <Note tone="warn" className="shrink-0 border-x-0 border-t-0">
+                  The order or settings changed after the last merge. Merge again to update the file, or{" "}
+                  <a href={result.url} download={result.name} className="font-semibold underline underline-offset-2">
+                    download the earlier version
                   </a>
+                  .
+                </Note>
+              ) : null}
+
+              {showMerged && fresh ? (
+                <div className="flex min-h-[60svh] flex-1 flex-col lg:min-h-0">
+                  <PdfBytesReader bytes={fresh.bytes} title={fresh.name} />
                 </div>
-              </div>
+              ) : (
+                <motion.div
+                  layoutScroll
+                  className="studio-main min-h-0 flex-1 lg:overflow-y-auto lg:overflow-x-hidden"
+                >
+                  <Reorder.Group axis="y" values={queue.items} onReorder={queue.reorder}>
+                    {queue.items.map((item, index) => (
+                      <MergeDocRow
+                        key={item.id}
+                        item={item}
+                        index={index}
+                        total={fileCount}
+                        locked={busy}
+                        onRangeChange={queue.setRange}
+                        onRotationChange={queue.setRotation}
+                        onMove={queue.move}
+                        onRemove={queue.remove}
+                      />
+                    ))}
+                  </Reorder.Group>
+                </motion.div>
+              )}
+
+              {queue.dragging ? <DropOver label="Drop to add to the end" /> : null}
             </div>
           )}
 
@@ -441,112 +331,62 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             onChange={queue.onPick}
           />
 
-          {queue.items.length > 0 && (
-            <div className="mt-auto flex shrink-0 flex-col gap-3 border-t border-line-soft pt-4">
-              {busy ? (
-                <div className="w-full">
-                  <div className="flex items-center justify-between gap-3 text-micro">
-                    <span className="flex min-w-0 items-center gap-2 truncate text-muted">
-                      <Loader2 size={12} className="shrink-0 animate-spin text-accent" aria-hidden />
-                      {progress.label}
-                    </span>
-                    <span className="shrink-0 font-medium tabular-nums text-ink">
-                      {Math.round(progress.value * 100)}%
-                    </span>
-                  </div>
-                  <div
-                    className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e9e4da]"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round(progress.value * 100)}
-                  >
-                    <div
-                      className="h-full rounded-full bg-accent transition-[width] duration-200"
-                      style={{ width: `${Math.round(progress.value * 100)}%` }}
-                    />
-                  </div>
-                  <div className="mt-2.5 flex items-center justify-between gap-3">
-                    <p className="flex items-center gap-1.5 text-micro text-faint">
-                      <ShieldCheck size={12} aria-hidden />
-                      Everything stays on this device
-                    </p>
-                    <button
-                      type="button"
-                      onClick={cancelRun}
-                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-micro font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                    >
-                      <X size={11} aria-hidden />
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="flex items-center gap-1.5 text-micro text-faint">
-                      <ShieldCheck size={12} aria-hidden />
-                      Free · no upload · no watermark
-                    </p>
-                    <p className="max-w-[260px] truncate text-micro tabular-nums text-faint">
-                      {outputName}
-                    </p>
-                  </div>
-                  <p className="text-micro tabular-nums text-faint">
-                    {queue.reading
-                      ? "Reading documents…"
-                      : `${readyCount} document${readyCount === 1 ? "" : "s"} → ${projectedPages} page${projectedPages === 1 ? "" : "s"}`}
-                  </p>
-                </>
-              )}
-
-              {runError && (
-                <p
-                  role="alert"
-                  className="rounded-[10px] border border-[#f0d8d1] bg-[#fdf4f1] px-3 py-2.5 text-micro leading-relaxed text-[#a13d30]"
-                >
-                  {runError}
-                </p>
-              )}
-            </div>
+          {queue.errors.length > 0 && (
+            <Note tone="error" className="m-3 shrink-0">
+              {queue.errors.map((message, index) => (
+                <span key={`${message}-${index}`} className="block">
+                  {message}
+                </span>
+              ))}
+              <button
+                type="button"
+                onClick={queue.dismissErrors}
+                className="mt-1 font-medium underline underline-offset-2"
+              >
+                Dismiss
+              </button>
+            </Note>
           )}
-        </div>
+
+          {runError && <Note tone="error" className="m-3 shrink-0">{runError}</Note>}
+        </StudioStage>
 
         <StudioRail
           label="Merge settings"
-          sticky
           action={
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                onClick={() => void runMerge()}
-                disabled={!canRun || busy}
-                className={buttonClasses("primary", "md", "w-full")}
-              >
+            fresh ? (
+              <>
+                <DownloadAction
+                  label="Download merged PDF"
+                  href={fresh.url}
+                  filename={fresh.name}
+                  hint={`${plural(fresh.pageCount, "page")} · ${formatBytes(fresh.size)} · no watermark`}
+                />
+                <ActionRow>
+                  <StartOverAction onClick={clearAll} />
+                </ActionRow>
+              </>
+            ) : (
+              <>
+                <PrimaryAction
+                  label={mergeLabel}
+                  busyLabel="Merging…"
+                  icon={<Layers3 size={16} aria-hidden />}
+                  busy={busy}
+                  progress={progress.value}
+                  disabled={!canRun}
+                  onClick={() => void runMerge()}
+                  hint={mergeHint}
+                />
                 {busy ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" aria-hidden />
-                    Merging…
-                  </>
-                ) : (
-                  <>
-                    {queue.reading
-                      ? "Reading PDFs…"
-                      : readyCount === 0
-                        ? "Merge PDFs"
-                        : readyCount === 1
-                          ? "Export PDF"
-                          : `Merge ${readyCount} PDFs`}
-                    <ArrowRightGlyph size={13} />
-                  </>
-                )}
-              </button>
-              <p className="flex items-center justify-center gap-1.5 text-[10.5px] text-faint">
-                <ShieldCheck size={12} aria-hidden />
-                {readyCount} of {queue.items.length} ready · {projectedPages} page
-                {projectedPages === 1 ? "" : "s"}
-              </p>
-            </div>
+                  <ActionRow>
+                    <SecondaryAction onClick={cancelRun} icon={<X size={13} aria-hidden />}>
+                      Cancel
+                    </SecondaryAction>
+                  </ActionRow>
+                ) : null}
+              </>
+            )
           }
         >
           <MergeSettings
@@ -554,22 +394,11 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             onChange={patchSettings}
             onReset={resetSettings}
             suggestion={suggestion}
-            itemCount={queue.items.length}
             totalPages={projectedPages}
-            totalSize={queue.totalSize}
             advancedModified={advancedModified}
           />
         </StudioRail>
-      </div>
-
-      <MergedPdfDialog
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        bytes={result?.bytes ?? null}
-        url={result?.url ?? null}
-        name={result?.name ?? outputName}
-        pageCount={result?.pageCount ?? projectedPages}
-      />
-    </section>
+      </StudioFrame>
+    </>
   );
 }

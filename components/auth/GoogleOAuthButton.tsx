@@ -1,11 +1,11 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { motion, useMotionTemplate, useMotionValue } from "motion/react";
+import { useStagePress } from "./AuthShell";
 
 function GoogleGlyph() {
   return (
-    <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden className="shrink-0">
+    <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden className="shrink-0">
       <path
         fill="#4285F4"
         d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.54-5.17 3.54-8.87z"
@@ -37,45 +37,19 @@ export function GoogleOAuthButton({
   disabled?: boolean;
   onClick: () => void;
 }) {
-  const mouseX = useMotionValue(-100);
-  const mouseY = useMotionValue(-100);
-
-  const highlight = useMotionTemplate`radial-gradient(150px circle at ${mouseX}px ${mouseY}px, rgba(255, 198, 150, 0.28), rgba(255, 255, 255, 0) 70%)`;
-
+  useStagePress(Boolean(loading));
   return (
-    <motion.button
+    <button
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
-      whileHover={{ y: -1 }}
-      whileTap={{ scale: 0.985 }}
-      transition={{ type: "spring", stiffness: 420, damping: 28 }}
-      onMouseMove={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        mouseX.set(e.clientX - rect.left);
-        mouseY.set(e.clientY - rect.top);
-      }}
-      onMouseLeave={() => {
-        mouseX.set(-200);
-        mouseY.set(-200);
-      }}
-      className="group relative flex h-11 w-full select-none items-center justify-center gap-2.5 overflow-hidden rounded-[12px] border border-white/90 bg-white/85 px-4 text-[13.5px] font-medium text-ink shadow-[inset_0_1px_0_rgba(255,255,255,1),0_4px_16px_-6px_rgba(15,15,16,0.12),0_0_0_1px_rgba(15,15,16,0.06)] backdrop-blur-md transition-all duration-200 hover:border-white hover:bg-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_10px_24px_-8px_rgba(229,94,64,0.24),0_0_0_1px_rgba(229,94,64,0.14)] disabled:pointer-events-none disabled:opacity-55"
+      aria-busy={loading || undefined}
+      className="group flex h-[56px] w-full select-none items-stretch border border-line-strong bg-white text-[14.5px] font-semibold uppercase transition-colors hover:border-ink disabled:pointer-events-none disabled:opacity-55"
     >
-      <motion.span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-        style={{ background: highlight }}
-      />
-      <span className="relative z-10 inline-flex items-center gap-2.5">
-        {loading ? (
-          <Loader2 size={15} className="animate-spin text-muted" aria-hidden />
-        ) : (
-          <span className="inline-flex transition-transform duration-200 group-hover:scale-110">
-            <GoogleGlyph />
-          </span>
-        )}
-        <span>{loading ? "Connecting to Google…" : label}</span>
+      <span className="grid w-[56px] shrink-0 place-items-center border-r border-line-strong transition-colors group-hover:border-ink">
+        {loading ? <Loader2 size={19} className="animate-spin" aria-hidden /> : <GoogleGlyph />}
       </span>
-    </motion.button>
+      <span className="flex flex-1 items-center px-5 text-left">{loading ? "Connecting to Google…" : label}</span>
+    </button>
   );
 }

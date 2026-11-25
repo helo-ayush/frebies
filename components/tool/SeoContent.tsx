@@ -1,138 +1,111 @@
 import Link from "next/link";
-import { ArrowUpRight, Check, ChevronDown, Lock, ShieldCheck } from "lucide-react";
 import type { Category, Tool } from "@/lib/registry/tools";
 import { getRelatedTools } from "@/lib/registry/tools";
-import { Badge } from "@/components/ui/Badge";
+import { ToolGlyph } from "@/components/icons/NavGlyph";
+import { FaqList } from "@/components/site/FaqList";
+import { Arrow } from "@/components/site/kit";
+import { Seam, seamLabel } from "@/components/ui/Seam";
 
+/** Everything under the studio: how it works, why, related tools, questions. */
 export function SeoContent({ tool, category }: { tool: Tool; category: Category }) {
   const related = getRelatedTools(tool);
-  const steps = tool.seo.howItWorks.length > 0
-    ? tool.seo.howItWorks
-    : [
-        tool.category === "audio" && tool.slug === "text-to-speech"
-          ? "Enter or paste the script you want to turn into speech."
-          : `Add the ${tool.category === "image" ? "image" : tool.category === "audio" ? "audio file" : tool.category === "video" ? "video" : "document"} you want to work with.`,
-        "Choose the output settings that fit your task, with the cost visible before you run.",
-        "Review the result in the workspace and download your finished file.",
-      ];
-  const benefits = tool.seo.benefits.length > 0
-    ? tool.seo.benefits
-    : [
-        tool.engine === "browser"
-          ? "Designed for on-device processing, so everyday files can stay with you."
-          : "Clear credit pricing, with failed provider runs automatically refunded.",
-        "A focused workspace with no watermarks and no unnecessary detours.",
-        "Your recent outputs are organized in one place after you sign in.",
-      ];
+  const noun =
+    tool.category === "image" ? "image" : tool.category === "audio" ? "audio file" : tool.category === "video" ? "video" : "document";
+  const steps =
+    tool.seo.howItWorks.length > 0
+      ? tool.seo.howItWorks
+      : [
+          `Add the ${noun} you want to work with.`,
+          "Choose the output settings that fit your task, with the cost visible before you run.",
+          "Review the result and download your finished file.",
+        ];
+  const benefits =
+    tool.seo.benefits.length > 0
+      ? tool.seo.benefits
+      : [
+          tool.engine === "browser"
+            ? "Runs on your device, so everyday files stay with you."
+            : "Clear credit pricing, with failed runs refunded automatically.",
+          "A focused workspace with no watermarks.",
+        ];
 
   return (
-    <div className="mt-14 border-t border-line-soft pt-10">
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-10">
-          <section>
-            <p className="text-micro font-medium text-faint">A simpler workflow</p>
-            <h2 className="mt-1.5 text-[20px] font-semibold tracking-[-0.02em]">How {tool.name} works</h2>
-            <ol className="mt-5 grid gap-3 sm:grid-cols-3">
-              {steps.map((step, index) => (
-                <li key={step} className="rounded-[13px] border border-line bg-white p-4">
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-rail text-micro font-semibold text-muted">
-                    {index + 1}
-                  </span>
-                  <p className="mt-4 text-ui leading-relaxed text-muted">{step}</p>
-                </li>
-              ))}
-            </ol>
-          </section>
+    <div className="border-t border-line">
+      {tool.status === "soon" ? (
+        <p className="flex items-center gap-3 border-b border-line bg-panel px-[var(--fb-pad)] py-4 text-[15px]">
+          <Seam tool={tool} className="shrink-0" />
+          This tool is a preview and is not connected yet. Below is how it will work.
+        </p>
+      ) : null}
+      <section aria-label={`How ${tool.name} works`}>
+        <h2 className="sr-only">How {tool.name} works</h2>
+        <ol className="grid grid-cols-1 border-b border-line lg:grid-cols-3">
+          {steps.map((step, index) => (
+            <li
+              key={step}
+              className={`flex flex-col border-line px-[var(--fb-pad)] py-[clamp(28px,3vw,48px)] max-lg:border-b max-lg:last:border-b-0 lg:border-l lg:first:border-l-0 ${
+                index === 0 ? "bg-ink-2 text-white" : index === 2 ? "bg-panel" : ""
+              }`}
+            >
+              <span className={`text-[13px] ${index === 0 ? "text-white/50" : "text-faint"}`}>// 0{index + 1}</span>
+              <p className={`mt-8 max-w-[420px] text-[17px] leading-[1.45] ${index === 0 ? "text-white/85" : ""}`}>{step}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
 
-          <section>
-            <h2 className="text-[18px] font-semibold tracking-[-0.015em]">Made to stay out of your way</h2>
-            <ul className="mt-4 grid gap-3 sm:grid-cols-3">
-              {benefits.map((benefit) => (
-                <li key={benefit} className="rounded-[13px] bg-rail p-4 text-ui leading-relaxed text-muted">
-                  <Check size={15} className="mb-3 text-ink" aria-hidden />
-                  {benefit}
+      <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(320px,32%)]">
+        <div className="px-[var(--fb-pad)] py-[clamp(40px,5vw,84px)]">
+          <h2 className="fb-wide text-[clamp(25px,2.5vw,40px)]">Why this one</h2>
+          <ul className="mt-8 max-w-[760px] border-t border-line-strong">
+            {benefits.map((benefit) => (
+              <li key={benefit} className="flex gap-4 border-b border-line py-5 text-[16px] leading-[1.5]">
+                <span aria-hidden className="fb-sq mt-[7px] !h-[10px] !w-[10px]" />
+                {benefit}
+              </li>
+            ))}
+          </ul>
+
+          {tool.seo.faq.length > 0 ? (
+            <div className="mt-[clamp(44px,5vw,80px)] max-w-[820px]">
+              <h2 className="fb-wide text-[clamp(25px,2.5vw,40px)]">Before you ask</h2>
+              <FaqList items={tool.seo.faq} className="mt-8" />
+            </div>
+          ) : null}
+        </div>
+
+        <aside className="border-line bg-panel max-lg:border-t lg:border-l">
+          <div className="lg:sticky lg:top-[var(--fb-bar)]">
+            <h2 className="fb-wide px-[clamp(18px,2vw,32px)] pb-5 pt-[clamp(40px,5vw,84px)] text-[22px]">Next job</h2>
+            <ul className="border-t border-line">
+              {related.map((item) => (
+                <li key={item.path} className="border-b border-line">
+                  <Link
+                    href={item.path}
+                    className="group flex items-center gap-4 px-[clamp(18px,2vw,32px)] py-4 transition-colors hover:bg-ink hover:text-white"
+                  >
+                    <ToolGlyph path={item.path} size={21} className="shrink-0 text-muted group-hover:text-accent" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15.5px] font-semibold">{item.name}</span>
+                      <span className="block truncate text-[13px] text-muted group-hover:text-white/60">{item.tagline}</span>
+                    </span>
+                    <span className="flex items-center gap-2 text-[12px] uppercase text-faint group-hover:text-white/65">
+                      {seamLabel(item)}
+                      <Seam tool={item} className={item.tier === "credits" ? "group-hover:!bg-white/70" : ""} />
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>
-          </section>
-
-          {tool.seo.faq.length > 0 && (
-            <section>
-              <h2 className="text-[18px] font-semibold tracking-[-0.015em]">Frequently asked questions</h2>
-              <div className="mt-3 border-t border-line-soft">
-                {tool.seo.faq.map((item) => (
-                  <details key={item.q} className="group border-b border-line-soft py-4">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-ink">
-                      {item.q}
-                      <ChevronDown size={15} className="shrink-0 text-faint transition-transform group-open:rotate-180" aria-hidden />
-                    </summary>
-                    <p className="mt-2.5 max-w-2xl text-ui leading-relaxed text-muted">{item.a}</p>
-                  </details>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <p className="text-micro text-faint">Last updated October 2026</p>
-        </div>
-
-        <aside className="min-w-0">
-          <h2 className="text-[18px] font-semibold tracking-[-0.015em]">Related tools</h2>
-          <div className="mt-3 space-y-2.5">
-            {related.map((item) => (
-              <RelatedRow key={item.path} tool={item} />
-            ))}
-          </div>
-
-          <div className="mt-6 rounded-[13px] border border-line bg-rail p-4">
-            <span className="grid h-8 w-8 place-items-center rounded-[9px] border border-line bg-white text-muted">
-              <ShieldCheck size={15} strokeWidth={1.5} aria-hidden />
-            </span>
-            <p className="mt-3 text-ui font-semibold text-ink">
-              {tool.engine === "browser" ? "Your everyday files stay private." : "Cloud processing, made clear."}
+            <p className="px-[clamp(18px,2vw,32px)] py-8">
+              <Link href={`/${category.slug}`} className="fb-link">
+                All {category.title.toLowerCase()}
+                <Arrow />
+              </Link>
             </p>
-            <p className="mt-1.5 text-micro leading-relaxed text-muted">
-              {tool.engine === "browser"
-                ? "This tool is designed to run in your browser, with no account and no upload."
-                : "AI runs use private temporary storage. You see the credit cost before anything starts."}
-            </p>
-            <Link
-              href={`/${category.slug}`}
-              className="mt-3 inline-flex items-center gap-1 text-ui font-medium text-ink hover:underline"
-            >
-              All {category.title.toLowerCase()}
-              <ArrowUpRight size={13} aria-hidden />
-            </Link>
           </div>
         </aside>
-      </div>
+      </section>
     </div>
-  );
-}
-
-function RelatedRow({ tool }: { tool: Tool }) {
-  const Icon = tool.icon;
-
-  return (
-    <Link
-      href={tool.path}
-      className="group flex items-center gap-2.5 rounded-[11px] border border-line bg-white p-2.5 transition-colors hover:bg-hover"
-    >
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] border border-line bg-rail">
-        <Icon size={16} strokeWidth={1.6} className="text-ink" aria-hidden />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-ui font-medium text-ink">
-          {tool.name}
-          {tool.tier === "credits" && <Lock size={10} className="text-faint" aria-hidden />}
-        </span>
-        <span className="block truncate text-micro text-faint">{tool.tagline}</span>
-      </span>
-      {tool.status === "soon" ? (
-        <Badge tone="soon">Preview</Badge>
-      ) : (
-        <ArrowUpRight size={14} className="shrink-0 text-faint transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden />
-      )}
-    </Link>
   );
 }

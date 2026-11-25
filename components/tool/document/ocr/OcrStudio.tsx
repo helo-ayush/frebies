@@ -1,45 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Check,
-  FileText,
-  Languages,
-  ScanText,
-  ShieldCheck,
-  TableProperties,
-  TriangleAlert,
-  X,
-} from "lucide-react";
-import { CopyButton } from "@/components/arc/copy-button/copy-button";
+import { useEffect, useState } from "react";
+import { FileText, Loader2, ScanText } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
-import { PaidRail } from "@/components/tool/paid/PaidRail";
-import { PaidRunCard } from "@/components/tool/paid/PaidRunCard";
-import { CreditGate } from "@/components/tool/paid/CreditGate";
-import {
-  PreviewNote,
-  RailSection,
-  SelectRow,
-  StudioHeader,
-  TextRow,
-  ToggleRow,
-} from "../DocumentKit";
-import { PagePaper } from "../PagePreview";
+import { Field, FileRow, Note, StudioFrame, StudioStage } from "@/components/tool/kit";
+import { DropChip } from "@/components/tool/kit/Dropzone";
+import { PreviewAction } from "@/components/tool/paid/PreviewAction";
+import { SelectRow, TextRow, ToggleRow } from "../DocumentKit";
 import { PdfDropzone } from "../PdfDropzone";
-import { formatBytes, fileStem, rangeLabel } from "../model";
+import { usePdfDocument } from "../PdfPages";
+import { DropOver } from "@/components/tool/viewer/DropOver";
+import { ImageViewer } from "@/components/tool/viewer/ImageViewer";
+import { PdfReader } from "@/components/tool/viewer/PdfReader";
+import { formatBytes } from "../model";
 import { usePdfQueue } from "../usePdfQueue";
-
-const SAMPLE_LINES = [
-  "INVOICE 2026-118",
-  "Billed to: Northwind Studio, 14 Bridge Lane",
-  "Issued: 12 September 2026 · Due: 30 October 2026",
-  "Design retainer — September 2026      2,400.00",
-  "Additional icon set — 18 icons         320.00",
-  "Total due                             2,720.00",
-  "Payment within 14 days. Late payments accrue 2% monthly.",
-];
-
-const SAMPLE_TEXT = SAMPLE_LINES.join("\n");
 
 const LANGUAGES = [
   "Auto detect",
@@ -71,323 +45,174 @@ export function OcrStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const [pages, setPages] = useState("All pages");
   const [tables, setTables] = useState(true);
   const [numbers, setNumbers] = useState(true);
-  const [gateOpen, setGateOpen] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const isImage = activeItem?.kind === "image";
-  const pageCount = activeItem?.pages ?? 0;
-  const rangeText = pages.trim().toLowerCase() === "all pages" ? `1–${pageCount}` : pages;
+  const doc = usePdfDocument(activeItem && !isImage ? activeItem.file : null);
+  const pageCount = doc.pageCount || activeItem?.pages || 0;
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
 
-  function patch() {
-    setNotice(null);
-  }
+  useEffect(() => {
+    setImageSize(null);
+    if (!activeItem || !isImage) return;
+    let cancelled = false;
+    const image = new Image();
+    image.onload = () => {
+      if (!cancelled) setImageSize({ width: image.naturalWidth || 1, height: image.naturalHeight || 1 });
+    };
+    image.src = activeItem.url;
+    return () => {
+      cancelled = true;
+    };
+  }, [activeItem, isImage]);
+
+  const sizeLabel = isImage ? "1 image" : `${pageCount} page${pageCount === 1 ? "" : "s"}`;
 
   return (
-    <section
-      id="ocr"
-      aria-label="OCR studio"
-      className="scroll-mt-20 overflow-hidden rounded-[26px] border border-line bg-white"
-    >
-      <StudioHeader
-        path="/document/ocr"
-        title="OCR studio"
-        subtitle="Scans and screenshots into editable text."
-        pills={
-          <>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] font-medium tabular-nums text-muted">
-              <ScanText size={10} aria-hidden />
-              {activeItem ? (isImage ? "1 image" : `${pageCount} pages`) : "No scan"}
-            </span>
-            <span className="flex items-center gap-1.5 rounded-full border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-1 text-[10px] font-medium text-[#786344]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" aria-hidden />
-              Interface preview
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] font-medium text-muted">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />1 credit
-            </span>
-          </>
-        }
-      />
+    <StudioFrame id="ocr" label="OCR studio">
+      <StudioStage flush>
+        <span aria-hidden className="hidden" data-error={error} />
 
-      <div className="grid lg:h-[780px] lg:grid-cols-[minmax(0,1fr)_372px]">
-        <div className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5">
-          {!activeItem ? (
-            <PdfDropzone
-              title="Drop a scan to read"
-              description="A PDF, photo or screenshot. Pick the language and layout, then copy the text straight out of the page."
-              buttonLabel="Choose a file"
-              limits={`PDF, JPG, PNG or WebP · up to ${maxSizeMB} MB`}
-              note="Recognition is a preview here; the file stays in this browser."
-              onChoose={() => openPicker()}
-              dragging={dragging}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-              chips={
-                <>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <Languages size={9} aria-hidden />
-                    Multiple languages
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <TableProperties size={9} aria-hidden />
-                    Tables and numbers
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <ShieldCheck size={9} aria-hidden />
-                    Stays on device
-                  </span>
-                </>
-              }
-            />
-          ) : (
-            <>
-              <div className="min-h-[280px] flex-1 overflow-hidden rounded-[16px] border border-line bg-[#f6f4f0] p-3">
-                <div className="flex items-center justify-between gap-3 px-0.5">
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
-                    Source · page 1
-                  </span>
-                  <span className="rounded-full border border-line bg-white px-2 py-0.5 text-[9.5px] font-medium text-muted">
-                    {tables ? "Tables detected" : "Text only"}
-                  </span>
-                </div>
-
-                <div className="mt-2 grid gap-3 md:grid-cols-[176px_minmax(0,1fr)]">
-                  <div className="mx-auto w-full max-w-[176px]">
-                    {isImage ? (
-                      <span className="block overflow-hidden rounded-[5px] border border-[#e2dee8] bg-white shadow-[0_6px_16px_rgba(45,36,60,0.10)]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={activeItem.url}
-                          alt={`Scan preview of ${activeItem.name}`}
-                          className="block h-auto w-full object-contain"
-                        />
-                      </span>
-                    ) : (
-                      <PagePaper index={1} weight={2} />
-                    )}
-                    <p className="mt-1.5 truncate text-center text-[9px] text-faint">
-                      {activeItem.name}
-                    </p>
-                  </div>
-
-                  <div className="flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-line bg-white">
-                    <div className="flex items-center justify-between gap-2 border-b border-line-soft px-3 py-2">
-                      <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
-                        Extracted text
-                      </span>
-                      <CopyButton value={SAMPLE_TEXT} label="Copy extracted text" iconOnly variant="plain" />
-                    </div>
-
-                    <div className="studio-rail min-h-0 flex-1 overflow-y-auto px-3 py-2.5">
-                      <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-faint">
-                        {output === "Plain text" ? "Plain text" : output}
-                      </p>
-                      <div className="mt-1.5 space-y-1">
-                        {SAMPLE_LINES.map((line, index) => (
-                          <p
-                            key={line}
-                            className={`rounded px-1 py-0.5 text-[10.5px] leading-relaxed ${
-                              index === 0
-                                ? "font-semibold text-ink"
-                                : "text-[#5f5a67]"
-                            } ${language !== "Auto detect" && index === 0 ? "bg-[#faf6ee]" : ""}`}
-                          >
-                            {line}
-                          </p>
-                        ))}
-                      </div>
-                      <p className="mt-2 flex items-center gap-1.5 border-t border-line-soft pt-2 text-[9px] text-faint">
-                        <Check size={9} className="text-[#3d6b4a]" aria-hidden />
-                        {language === "Auto detect" ? "English detected" : language} · 98% confidence
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-2.5">
-                <div className="flex flex-wrap items-center gap-2 rounded-[11px] border border-line bg-white px-2.5 py-2">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[#f3f0f7] text-[#6b6384]">
-                    <FileText size={15} aria-hidden />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-ui font-medium text-ink">{activeItem.name}</p>
-                    <p className="mt-0.5 text-micro text-faint">
-                      {formatBytes(activeItem.size)}
-                      {isImage ? " · image" : ` · ${pageCount} pages`}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openPicker(activeItem.id)}
-                    className="h-7 rounded-lg px-2 text-[10.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                  >
-                    Replace
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clear();
-                      setNotice(null);
-                    }}
-                    aria-label={`Remove ${activeItem.name}`}
-                    data-slot="pdf-remove"
-                    className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
-                  >
-                    <X size={13} aria-hidden />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-3 shrink-0 rounded-[13px] border border-line bg-white p-3.5">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
-                      Recognition plan
-                    </p>
-                    <div className="mt-1.5 flex items-baseline gap-2">
-                      <span className="font-display text-[22px] font-semibold leading-none tracking-[-0.03em] text-ink">
-                        {isImage ? "1 page" : `${pageCount} pages`}
-                      </span>
-                      <span className="text-[10px] text-faint">
-                        {language} · {output.toLowerCase()}
-                      </span>
-                    </div>
-                    <p className="mt-1 truncate text-[10px] text-faint">
-                      {fileStem(activeItem.name)}-text.txt · pages {rangeText}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="rounded-full border border-line px-2 py-1 text-[10px] font-medium text-muted">
-                      {tables ? "Tables" : "No tables"}
-                    </span>
-                    <span className="rounded-full border border-line px-2 py-1 text-[10px] font-medium text-muted">
-                      {numbers ? "Numbers kept" : "Raw text"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
-            tabIndex={-1}
-            aria-label="Choose a PDF or image"
-            className="sr-only"
-            onChange={onPick}
+        {!activeItem ? (
+          <PdfDropzone
+            title="Drop a scan to read"
+            description="A scanned PDF, photo or screenshot becomes text you can copy and edit."
+            buttonLabel="Choose a file"
+            limits={`PDF, JPG, PNG or WebP · up to ${maxSizeMB} MB`}
+            note="The file stays in this browser."
+            onChoose={() => openPicker()}
+            dragging={dragging}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            chips={
+              <>
+                <DropChip>Multiple languages</DropChip>
+                <DropChip>Tables and numbers</DropChip>
+                <DropChip>Text or Markdown</DropChip>
+              </>
+            }
           />
-
-          <span aria-hidden className="hidden" data-success={notice} data-error={error} />
-
-          {error && (
-            <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
-              <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
-              {error}
-            </p>
-          )}
-
-          <p className="mt-4 shrink-0 border-t border-line-soft pt-4 text-[10px] leading-relaxed text-faint">
-            OCR runs on our servers once connected. A temporary copy is deleted after the
-            run or within an hour, and failed runs are refunded.
-          </p>
-
-          {notice && (
-            <p
-              role="status"
-              className="mt-3 shrink-0 rounded-[10px] border border-[#eadfce] bg-[#fdf9f2] px-3 py-2.5 text-micro leading-relaxed text-[#786344]"
-            >
-              {notice}
-            </p>
-          )}
-        </div>
-
-        <PaidRail
-          label="OCR settings"
-          action={
-            <PaidRunCard
-              cost={1}
-              verb="extract text"
-              ready={Boolean(activeItem)}
-              onRun={() => setGateOpen(true)}
-              emptyLabel="Add a document to run"
-              note="1 credit per run. Failed runs are refunded, and files are deleted within an hour."
+        ) : (
+          <div
+            className="relative flex min-h-0 flex-1 flex-col"
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            <FileRow
+              flush
+              className="border-b border-line"
+              icon={<FileText size={17} aria-hidden />}
+              name={activeItem.name}
+              meta={`${formatBytes(activeItem.size)} · ${sizeLabel}`}
+              onReplace={() => openPicker(activeItem.id)}
+              onRemove={clear}
             />
-          }
-        >
-          <div className="space-y-5">
-            <RailSection title="Language" hint="Auto by default">
+
+            <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+              <div className="flex min-h-[46svh] min-w-0 flex-col md:min-h-0">
+                {isImage ? (
+                  imageSize ? (
+                    <ImageViewer
+                      title={activeItem.name}
+                      before={{
+                        src: activeItem.url,
+                        width: imageSize.width,
+                        height: imageSize.height,
+                        label: "Scan",
+                        note: `${imageSize.width} × ${imageSize.height}`,
+                        alt: `Scan preview of ${activeItem.name}`,
+                      }}
+                    />
+                  ) : null
+                ) : doc.pdf ? (
+                  <PdfReader pdf={doc.pdf} pageCount={doc.pageCount} firstPage={doc.firstPage} title={activeItem.name} />
+                ) : doc.error ? (
+                  <Note tone="error" className="m-3">
+                    {doc.error}
+                  </Note>
+                ) : (
+                  <p className="grid flex-1 place-items-center text-[14.5px] text-muted">
+                    <span className="flex items-center gap-2.5">
+                      <Loader2 size={17} className="animate-spin" aria-hidden />
+                      Opening the PDF…
+                    </span>
+                  </p>
+                )}
+              </div>
+
+              <div className="fb-corners relative flex min-h-[220px] flex-col items-center justify-center border-line bg-panel px-6 py-8 text-center max-md:border-t md:border-l">
+                <span className="grid h-12 w-12 shrink-0 place-items-center bg-ink text-white">
+                  <ScanText size={22} strokeWidth={1.6} aria-hidden />
+                </span>
+                <p className="fb-wide mt-5 max-w-[300px] text-[19px]">The text lands here</p>
+                <p className="mt-3 max-w-[300px] text-[14.5px] leading-relaxed text-muted">
+                  {output} · {language === "Auto detect" ? "language detected automatically" : language}
+                </p>
+              </div>
+            </div>
+
+            {dragging ? <DropOver label="Drop to replace" /> : null}
+          </div>
+        )}
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
+          tabIndex={-1}
+          aria-label="Choose a PDF or image"
+          className="sr-only"
+          onChange={onPick}
+        />
+
+        {error ? <Note tone="error" className="m-3 shrink-0">{error}</Note> : null}
+      </StudioStage>
+
+      <StudioRail
+        label="OCR settings"
+        action={<PreviewAction />}
+      >
+        <div className="space-y-7">
+          <Field label="Recognition">
+            <div className="space-y-4">
               <SelectRow
-                label="Spoken language"
+                label="Document language"
                 options={LANGUAGES}
                 value={language}
-                onChange={(value) => {
-                  setLanguage(value);
-                  patch();
-                }}
+                onChange={setLanguage}
               />
-            </RailSection>
+              <SelectRow label="Output format" options={OUTPUTS} value={output} onChange={setOutput} />
+              {!isImage && (
+                <TextRow
+                  label="Pages"
+                  value={pages}
+                  onChange={setPages}
+                  placeholder="All pages"
+                  hint="For example 1-3, 5"
+                />
+              )}
+            </div>
+          </Field>
 
-            <RailSection title="Output" hint="Text format" className="border-t border-line-soft pt-4">
-              <SelectRow
-                label="Keep"
-                options={OUTPUTS}
-                value={output}
-                onChange={(value) => {
-                  setOutput(value);
-                  patch();
-                }}
-              />
-              <TextRow
-                label="Pages"
-                value={pages}
-                onChange={(value) => {
-                  setPages(value);
-                  patch();
-                }}
-                placeholder="All pages"
-                hint="Commas and dashes work"
-              />
-            </RailSection>
-
-            <RailSection title="Detail" hint="Optional" className="border-t border-line-soft pt-4">
+          <Field label="Detail">
+            <div className="space-y-4">
               <ToggleRow
                 label="Detect tables"
-                description="Keep columns and rows instead of a single text stream."
+                description="Keep columns and rows instead of one stream of text."
                 checked={tables}
-                onChange={(checked) => {
-                  setTables(checked);
-                  patch();
-                }}
+                onChange={setTables}
               />
               <ToggleRow
                 label="Smart numbers"
                 description="Restore dates, amounts and decimal separators."
                 checked={numbers}
-                onChange={(checked) => {
-                  setNumbers(checked);
-                  patch();
-                }}
+                onChange={setNumbers}
               />
-            </RailSection>
-
-            <PreviewNote>
-              The text on this page is sample output. Recognition is connected in the next
-              build step; the pricing and file handling above are final.
-            </PreviewNote>
-          </div>
-        </PaidRail>
-      </div>
-
-      <CreditGate
-        open={gateOpen}
-        onClose={() => setGateOpen(false)}
-        action="extract text"
-        cost={1}
-      />
-    </section>
+            </div>
+          </Field>
+        </div>
+      </StudioRail>
+    </StudioFrame>
   );
 }

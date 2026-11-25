@@ -1,0 +1,12 @@
+Interface sounds
+================
+
+Recordings by Kenney (https://www.kenney.nl), from the packs UI Audio,
+Interface Sounds, RPG Audio, Casino Audio and Impact Sounds.
+
+License: Creative Commons Zero (CC0)
+http://creativecommons.org/publicdomain/zero/1.0/
+
+Free for personal and commercial use. Credit is not required.
+
+Each file here was trimmed, levelled and converted to MP3.

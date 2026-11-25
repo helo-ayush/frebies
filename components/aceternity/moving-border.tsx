@@ -37,8 +37,17 @@ export function MovingBorder({
     }
   });
 
-  const x = useTransform(progress, (value) => pathRef.current?.getPointAtLength(value).x);
-  const y = useTransform(progress, (value) => pathRef.current?.getPointAtLength(value).y);
+  // A hidden rect (the sidebar is display:none on phones) has no geometry, and
+  // getPointAtLength throws on it, which used to take the whole page down.
+  const pointAt = (value: number) => {
+    try {
+      return pathRef.current?.getPointAtLength(value) ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const x = useTransform(progress, (value) => pointAt(value)?.x ?? 0);
+  const y = useTransform(progress, (value) => pointAt(value)?.y ?? 0);
   const transform = useMotionTemplate`translateX(${x}px) translateY(${y}px) translateX(-50%) translateY(-50%)`;
 
   return (

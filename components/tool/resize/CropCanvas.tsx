@@ -30,30 +30,34 @@ type DragState = {
   containerHeight: number;
 };
 
-const CORNER_HANDLES: { mode: DragMode; label: string; className: string; cursor: string }[] = [
+const CORNER_HANDLES: { mode: DragMode; label: string; className: string; cursor: string; bracket: string }[] = [
   {
     mode: "nw",
     label: "Resize top-left",
     className: "left-0 top-0 -translate-x-1/2 -translate-y-1/2",
     cursor: "cursor-nwse-resize",
+    bracket: "left-1/2 top-1/2 border-l-[4px] border-t-[4px] -translate-x-[3px] -translate-y-[3px]",
   },
   {
     mode: "ne",
     label: "Resize top-right",
     className: "left-full top-0 -translate-x-1/2 -translate-y-1/2",
     cursor: "cursor-nesw-resize",
+    bracket: "right-1/2 top-1/2 border-r-[4px] border-t-[4px] translate-x-[3px] -translate-y-[3px]",
   },
   {
     mode: "sw",
     label: "Resize bottom-left",
     className: "left-0 top-full -translate-x-1/2 -translate-y-1/2",
     cursor: "cursor-nesw-resize",
+    bracket: "bottom-1/2 left-1/2 border-b-[4px] border-l-[4px] -translate-x-[3px] translate-y-[3px]",
   },
   {
     mode: "se",
     label: "Resize bottom-right",
     className: "left-full top-full -translate-x-1/2 -translate-y-1/2",
     cursor: "cursor-nwse-resize",
+    bracket: "bottom-1/2 right-1/2 border-b-[4px] border-r-[4px] translate-x-[3px] translate-y-[3px]",
   },
 ];
 
@@ -88,15 +92,6 @@ const EDGE_HANDLES: { mode: DragMode; label: string; className: string; cursor: 
   },
 ];
 
-const RATIO_OPTIONS: { id: CropRatioId; label: string }[] = [
-  { id: "free", label: "Free" },
-  { id: "1:1", label: "1:1" },
-  { id: "4:5", label: "4:5" },
-  { id: "16:9", label: "16:9" },
-  { id: "9:16", label: "9:16" },
-  { id: "3:2", label: "3:2" },
-];
-
 export function CropCanvas({
   src,
   naturalWidth,
@@ -106,8 +101,6 @@ export function CropCanvas({
   stageWidth,
   stageHeight,
   onChange,
-  onRatioChange,
-  onReset,
   className = "",
 }: {
   src: string;
@@ -118,8 +111,6 @@ export function CropCanvas({
   stageWidth?: number;
   stageHeight?: number;
   onChange: (crop: CropRect) => void;
-  onRatioChange?: (ratio: CropRatioId) => void;
-  onReset?: () => void;
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -206,39 +197,8 @@ export function CropCanvas({
   const rightPct = `${clamp((1 - (crop.x + crop.width)) * 100, 0, 100)}%`;
 
   return (
-    <div className={`relative flex flex-col items-center justify-center w-full h-full min-h-0 p-1 select-none ${className}`}>
-      {/* Top Floating Quick Ratio Bar */}
-      {onRatioChange && (
-        <div className="z-30 mb-2 flex flex-wrap items-center gap-1 rounded-full border border-line bg-white/95 p-1 shadow-xs backdrop-blur-sm">
-          {RATIO_OPTIONS.map((opt) => {
-            const active = ratioId === opt.id;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onRatioChange(opt.id)}
-                className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
-                  active ? "bg-ink font-semibold text-white shadow-2xs" : "text-muted hover:text-ink"
-                }`}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-          {onReset && (
-            <button
-              type="button"
-              onClick={onReset}
-              className="ml-1 rounded-full border border-line px-2 py-0.5 text-[10.5px] font-medium text-muted hover:border-[#c8c2b7] hover:text-ink"
-            >
-              Reset
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Main Image Stage Box: Relative container wrapping the image exactly */}
+    <div className={`relative flex h-full min-h-0 w-full select-none items-center justify-center ${className}`}>
+      {/* The picture, at exactly the size it fits the stage */}
       <div
         ref={containerRef}
         style={{
@@ -246,163 +206,111 @@ export function CropCanvas({
           height: containerH ? `${containerH}px` : undefined,
           aspectRatio: !containerW && naturalWidth && naturalHeight ? `${naturalWidth} / ${naturalHeight}` : undefined,
           maxWidth: "100%",
-          maxHeight: "calc(100% - 44px)",
+          maxHeight: "100%",
         }}
-        className="relative touch-none select-none overflow-hidden rounded-[4px] shadow-md border border-black/15 shrink-0"
+        className="fb-checker relative shrink-0 touch-none select-none shadow-[0_0_0_1px_rgba(24,24,27,0.22)]"
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onLostPointerCapture={endDrag}
       >
-        {/* Source Image */}
         <img
           src={src}
           alt="Crop stage"
           draggable={false}
-          className="h-full w-full object-fill block select-none pointer-events-none"
+          className="pointer-events-none block h-full w-full select-none object-fill"
         />
 
-        {/* Dark Dimming Backdrop: 4 rects surrounding the bright crop box */}
-        <div aria-hidden className="absolute inset-0 pointer-events-none select-none z-10">
-          {/* Top dark area */}
-          <div
-            className="absolute inset-x-0 top-0 bg-black/55 backdrop-blur-[0.5px]"
-            style={{ height: topPct }}
-          />
-          {/* Bottom dark area */}
-          <div
-            className="absolute inset-x-0 bottom-0 bg-black/55 backdrop-blur-[0.5px]"
-            style={{ height: bottomPct }}
-          />
-          {/* Left dark area */}
-          <div
-            className="absolute left-0 bg-black/55 backdrop-blur-[0.5px]"
-            style={{ top: topPct, height: heightPct, width: leftPct }}
-          />
-          {/* Right dark area */}
-          <div
-            className="absolute right-0 bg-black/55 backdrop-blur-[0.5px]"
-            style={{ top: topPct, height: heightPct, width: rightPct }}
-          />
+        {/* Everything outside the crop, dimmed */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-10">
+          <div className="absolute inset-x-0 top-0 bg-ink/65" style={{ height: topPct }} />
+          <div className="absolute inset-x-0 bottom-0 bg-ink/65" style={{ height: bottomPct }} />
+          <div className="absolute left-0 bg-ink/65" style={{ top: topPct, height: heightPct, width: leftPct }} />
+          <div className="absolute right-0 bg-ink/65" style={{ top: topPct, height: heightPct, width: rightPct }} />
         </div>
 
-        {/* The Bright Crop Box Overlay */}
+        {/* The crop */}
         <div
           role="group"
-          aria-label={`Crop box: ${pixels.width} by ${pixels.height} pixels`}
+          aria-label={`Crop box: ${pixels.width} by ${pixels.height} pixels. Arrow keys move it.`}
           tabIndex={0}
           onKeyDown={onKeyDown}
-          className="absolute z-20 outline-none select-none"
-          style={{
-            left: leftPct,
-            top: topPct,
-            width: widthPct,
-            height: heightPct,
-          }}
+          className="group absolute z-20 select-none outline-none"
+          style={{ left: leftPct, top: topPct, width: widthPct, height: heightPct }}
         >
-          {/* Visual Outline: Crisp 1.5px white border with subtle dark shadow */}
-          <div className="absolute inset-0 border-[1.5px] border-white shadow-[0_0_0_1px_rgba(0,0,0,0.65)] pointer-events-none" />
+          <div className="pointer-events-none absolute inset-0 border border-white shadow-[0_0_0_1px_rgba(29,28,31,0.7)] group-focus-visible:border-accent" />
 
-          {/* Rule of Thirds Grid */}
+          {/* Thirds */}
           <div aria-hidden className="pointer-events-none absolute inset-0">
-            <span className="absolute inset-y-0 left-1/3 w-px bg-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-            <span className="absolute inset-y-0 right-1/3 w-px bg-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-            <span className="absolute inset-x-0 top-1/3 h-px bg-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-            <span className="absolute inset-x-0 bottom-1/3 h-px bg-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
+            <span className="absolute inset-y-0 left-1/3 w-px bg-white/45" />
+            <span className="absolute inset-y-0 right-1/3 w-px bg-white/45" />
+            <span className="absolute inset-x-0 top-1/3 h-px bg-white/45" />
+            <span className="absolute inset-x-0 bottom-1/3 h-px bg-white/45" />
           </div>
 
-          {/* Draggable Inner Move Area */}
+          {/* Move */}
           <div
-            className="absolute inset-0 cursor-move z-10"
+            className="absolute inset-0 z-10 cursor-move"
             onPointerDown={(e) => startDrag(e, "move")}
-            title="Click and drag to move crop box"
+            title="Drag to move the crop"
           />
 
-          {/* Floating Dimension & Ratio Badge */}
-          <div className="pointer-events-none absolute left-2 top-2 z-30 flex items-center gap-1.5 rounded-md border border-white/20 bg-black/75 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-white shadow-xs backdrop-blur-xs select-none">
-            <span>{pixels.width} × {pixels.height} px</span>
-            <span className="text-white/60">·</span>
-            <span className="uppercase text-[9px] text-white/80">{ratioId === "free" ? "Free" : ratioId}</span>
+          {/* Size tag */}
+          <div className="fb-num pointer-events-none absolute left-0 top-0 z-30 flex h-7 select-none items-center gap-2 whitespace-nowrap bg-accent-deep px-2.5 text-[12px] font-semibold leading-none text-white">
+            <span>
+              {pixels.width} × {pixels.height}
+            </span>
+            {ratioId !== "free" ? <span className="font-normal text-white/80">{ratioId}</span> : null}
           </div>
 
-          {/* ========================================================================= */}
-          {/* MANUAL BORDER DRAG HIT AREAS (Active border lines for dragging from edges) */}
-          {/* ========================================================================= */}
-          {/* Top Border Hit Area */}
+          {/* Sides */}
           <div
-            className="absolute -top-2 inset-x-3 h-4 cursor-ns-resize z-20"
+            className="absolute inset-x-3 -top-2 z-20 h-4 cursor-ns-resize"
             title="Drag top border"
             onPointerDown={(e) => startDrag(e, "n")}
           />
-          {/* Bottom Border Hit Area */}
           <div
-            className="absolute -bottom-2 inset-x-3 h-4 cursor-ns-resize z-20"
+            className="absolute inset-x-3 -bottom-2 z-20 h-4 cursor-ns-resize"
             title="Drag bottom border"
             onPointerDown={(e) => startDrag(e, "s")}
           />
-          {/* Left Border Hit Area */}
           <div
-            className="absolute -left-2 inset-y-3 w-4 cursor-ew-resize z-20"
+            className="absolute inset-y-3 -left-2 z-20 w-4 cursor-ew-resize"
             title="Drag left border"
             onPointerDown={(e) => startDrag(e, "w")}
           />
-          {/* Right Border Hit Area */}
           <div
-            className="absolute -right-2 inset-y-3 w-4 cursor-ew-resize z-20"
+            className="absolute inset-y-3 -right-2 z-20 w-4 cursor-ew-resize"
             title="Drag right border"
             onPointerDown={(e) => startDrag(e, "e")}
           />
 
-          {/* ========================================================================= */}
-          {/* 4 CORNER HANDLES (Large hit areas with distinct L-brackets / corner blocks) */}
-          {/* ========================================================================= */}
+          {/* Corners */}
           {CORNER_HANDLES.map((corner) => (
             <div
               key={corner.mode}
-              className={`absolute grid h-7 w-7 place-items-center touch-none z-30 ${corner.className} ${corner.cursor}`}
+              className={`absolute z-30 h-11 w-11 touch-none ${corner.className} ${corner.cursor}`}
               onPointerDown={(e) => startDrag(e, corner.mode)}
               title={corner.label}
             >
-              {/* Corner L-bracket styling */}
-              <div
-                className={`h-3 w-3 border-white border-2 shadow-[0_0_2px_rgba(0,0,0,0.85)] bg-white ${
-                  corner.mode === "nw"
-                    ? "rounded-tl-xs"
-                    : corner.mode === "ne"
-                      ? "rounded-tr-xs"
-                      : corner.mode === "sw"
-                        ? "rounded-bl-xs"
-                        : "rounded-br-xs"
-                }`}
-              />
+              <span className={`absolute h-[22px] w-[22px] border-accent ${corner.bracket}`} />
             </div>
           ))}
 
-          {/* ========================================================================= */}
-          {/* 4 EDGE MIDPOINT GRAB PILLS */}
-          {/* ========================================================================= */}
+          {/* Side grips */}
           {EDGE_HANDLES.map((edge) => (
             <div
               key={edge.mode}
-              className={`absolute grid place-items-center touch-none z-30 ${
-                edge.isVertical ? "h-8 w-5" : "h-5 w-8"
+              className={`absolute z-30 grid touch-none place-items-center ${
+                edge.isVertical ? "h-11 w-8" : "h-8 w-11"
               } ${edge.className} ${edge.cursor}`}
               onPointerDown={(e) => startDrag(e, edge.mode)}
               title={edge.label}
             >
-              <div
-                className={`rounded-full border border-black/70 bg-white shadow-md ${
-                  edge.isVertical ? "h-5 w-2" : "h-2 w-5"
-                }`}
-              />
+              <div className={`bg-accent ${edge.isVertical ? "h-7 w-[4px]" : "h-[4px] w-7"}`} />
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Bottom Hint */}
-      <div className="mt-2 text-center text-[10.5px] text-faint">
-        Drag borders or handles to resize · Drag center to reposition
       </div>
     </div>
   );

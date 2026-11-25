@@ -1,29 +1,23 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import {
-  Check,
-  ChevronRight,
-  Crop,
-  Percent,
-  Download,
-  FileArchive,
-  Grid,
-  ImagePlus,
-  Loader2,
-  Maximize2,
-  Plus,
-  RotateCw,
-  Scaling,
-  ShieldCheck,
-  Sparkles,
-  TriangleAlert,
-  X,
-} from "lucide-react";
-import { buttonClasses } from "@/components/ui/Button";
-import { ArrowRightGlyph, LockGlyph, ToolGlyph } from "@/components/icons/NavGlyph";
+import { Crop, Download, Image as ImageIcon, Pencil, Plus, Scaling } from "lucide-react";
 import { StudioDropzone, StudioChip } from "@/components/tool/studio/StudioDropzone";
 import { useImageQueue } from "@/components/tool/studio/useImageQueue";
+import {
+  ActionRow,
+  DownloadAction,
+  FileRow,
+  Note,
+  PrimaryAction,
+  SecondaryAction,
+  StartOverAction,
+  StudioFrame,
+  StudioStage,
+  ToolText,
+} from "@/components/tool/kit";
+import { Filmstrip } from "@/components/tool/viewer/Filmstrip";
+import { ImageViewer, Ruler, ViewTabs, type ViewMode } from "@/components/tool/viewer/ImageViewer";
 import {
   canvasToBlob,
   downloadAllAsZip,
@@ -37,17 +31,13 @@ import { CropCanvas } from "./CropCanvas";
 import { ImageResizeSettings } from "./ImageResizeSettings";
 import { renderResize } from "./render";
 import {
-  CROP_RATIOS,
   DEFAULT_RESIZE_SETTINGS,
   backgroundValue,
   computeResizeOutput,
   cropForRatio,
-  cropPixels,
   cropRatioValue,
+  cropPixels,
   estimateResizeBytes,
-  formatLabel,
-  isLossyFormat,
-  ratioLabel,
   reshapeCrop,
   type CropRect,
   type CropRatioId,
@@ -101,13 +91,15 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   };
 
   const [settings, setSettings] = useState<ResizeSettings>(DEFAULT_RESIZE_SETTINGS);
-  const [scaleToFit, setScaleToFit] = useState(true);
-  const [showGrid, setShowGrid] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>("after");
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeTone, setNoticeTone] = useState<"success" | "error">("success");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number; name?: string } | null>(null);
   const [results, setResults] = useState<Record<string, ResizeResult>>({});
+  // True while the last export still matches the settings. Any edit clears it,
+  // which swaps the download button back to the run button.
+  const [done, setDone] = useState(false);
 
   // Per-item settings map to preserve crop/rotation/dimensions when switching between queue items
   const [perItemMap, setPerItemMap] = useState<Record<string, PerItemCustomSettings>>({});
@@ -118,7 +110,9 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const [transformedMap, setTransformedMap] = useState<Record<string, string>>({});
   const transformedUrlsRef = useRef<Record<string, string>>({});
 
-  const stageRef = useRef<HTMLDivElement>(null);
+  // The canvas only exists once an image is loaded, so it is tracked through a
+  // callback ref rather than a mount-only effect.
+  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
   const [stageSize, setStageSize] = useState({ width: 640, height: 480 });
   const resultsRef = useRef<Record<string, ResizeResult>>({});
   resultsRef.current = results;
@@ -246,9 +240,9 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     }
   }, [activeItem?.id, activeItem?.width, activeItem?.height]);
 
-  // Measure stage size for scaleToFit
+  // Measure the canvas so the image can use all the room it has
   useLayoutEffect(() => {
-    if (!stageRef.current) return;
+    if (!stageEl) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
@@ -259,9 +253,15 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
         }
       }
     });
-    observer.observe(stageRef.current);
+    observer.observe(stageEl);
     return () => observer.disconnect();
-  }, []);
+  }, [stageEl]);
+
+  // Adding, replacing or removing an image makes the last export incomplete.
+  const itemsKey = items.map((item) => item.id).join("|");
+  useEffect(() => {
+    setDone(false);
+  }, [itemsKey]);
 
   function patch(next: Partial<ResizeSettings>) {
     setSettings((current) => {
@@ -317,9 +317,11 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
       return merged;
     });
     setNotice(null);
+    setDone(false);
   }
 
   function handleReset() {
+    setDone(false);
     if (!originalWidth || !originalHeight) {
       setSettings(DEFAULT_RESIZE_SETTINGS);
       return;
@@ -353,16 +355,6 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     patch({ crop });
   }
 
-  function resetCrop() {
-    if (!sourceWidth || !sourceHeight) return;
-    patch({
-      crop: cropForRatio(
-        sourceWidth / sourceHeight,
-        cropRatioValue(settings.cropRatio),
-      ),
-    });
-  }
-
   function handleRemoveItem(id: string) {
     if (transformedUrlsRef.current[id]) {
       URL.revokeObjectURL(transformedUrlsRef.current[id]);
@@ -389,6 +381,7 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     setTransformedMap({});
     setPerItemMap({});
     clearAll();
+    setNotice(null);
   }
 
   const originalWidth = activeItem?.width ?? 0;
@@ -418,24 +411,13 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
       })
     : 0;
 
-  // Viewport calculation for Fit vs 100%
-  const paddingX = 48;
-  const paddingY = 88;
-  const availableW = Math.max(120, stageSize.width - paddingX);
-  const availableH = Math.max(120, stageSize.height - paddingY);
-
-  const displayW = (settings.mode === "crop" ? sourceWidth : outputWidth) || sourceWidth || 800;
-  const displayH = (settings.mode === "crop" ? sourceHeight : outputHeight) || sourceHeight || 600;
-
-  const scaleRatioW = availableW / Math.max(1, displayW);
-  const scaleRatioH = availableH / Math.max(1, displayH);
-  // Fit multiplier: scale image so it comfortably fits available stage width & height without shrinking
-  const fitMultiplier = Math.max(0.01, Math.min(scaleRatioW, scaleRatioH));
-
-  const fitW = Math.max(1, Math.round(displayW * fitMultiplier));
-  const fitH = Math.max(1, Math.round(displayH * fitMultiplier));
-  const renderedW = scaleToFit ? fitW : displayW;
-  const renderedH = scaleToFit ? fitH : displayH;
+  // Room for the picture inside the crop stage
+  const availableW = Math.max(120, stageSize.width - 56);
+  const availableH = Math.max(120, stageSize.height - 56);
+  const cropScale =
+    sourceWidth && sourceHeight ? Math.min(availableW / sourceWidth, availableH / sourceHeight) : 0;
+  const cropLeft = (stageSize.width - sourceWidth * cropScale) / 2;
+  const cropTop = (stageSize.height - sourceHeight * cropScale) / 2;
 
   const activeResult = activeItem ? results[activeItem.id] : null;
 
@@ -444,6 +426,7 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     if (items.length === 0 || busy) return;
     setBusy(true);
     setNotice(null);
+    setDone(false);
 
     const isBatch = items.length > 1;
     const isCrop = settings.mode === "crop";
@@ -515,7 +498,7 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
         setNotice(
           `Exported ${single.name} · ${newResults[targetItems[0].id].width} × ${
             newResults[targetItems[0].id].height
-          } px · ${formatBytes(single.blob.size)}. 100% on-device.`,
+          } px · ${formatBytes(single.blob.size)}.`,
         );
       } else if (processedFiles.length > 1) {
         const zipName = isCrop ? "frebies-cropped.zip" : "frebies-resized.zip";
@@ -523,6 +506,7 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
         setNoticeTone("success");
         setNotice(`Exported all ${processedFiles.length} images bundled into ${zipName}.`);
       }
+      setDone(true);
     } catch (thrown) {
       setNoticeTone("error");
       setNotice(
@@ -538,474 +522,321 @@ export function ResizeCropStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   const totalInputBytes = items.reduce((sum, item) => sum + item.file.size, 0);
 
+  // Finished output for the images currently in the queue
+  const readyResults = items
+    .map((item) => results[item.id])
+    .filter((result): result is ResizeResult => Boolean(result));
+  const outputReady = done && !busy && items.length > 0 && readyResults.length === items.length;
+  const totalOutputBytes = readyResults.reduce((sum, result) => sum + result.bytes, 0);
+  const firstResult = readyResults[0];
+
+  /** Save the finished output again: the file itself, or a ZIP for a batch. */
+  function downloadOutput() {
+    if (readyResults.length === 0) return;
+    if (readyResults.length === 1) {
+      downloadBlob(readyResults[0].blob, readyResults[0].name);
+      return;
+    }
+    void downloadAllAsZip(
+      readyResults.map((result) => ({ blob: result.blob, name: result.name })),
+      settings.mode === "crop" ? "frebies-cropped.zip" : "frebies-resized.zip",
+    );
+  }
+
+  const isCrop = settings.mode === "crop";
+  const verb = isCrop ? "Crop" : "Resize";
+  const hasOutputSize = outputWidth > 0 && outputHeight > 0;
+  const actionLabel =
+    items.length === 0
+      ? "Resize or crop"
+      : items.length > 1
+        ? `${verb} ${items.length} images`
+        : hasOutputSize
+          ? `${verb} to ${outputWidth} × ${outputHeight}`
+          : `${verb} image`;
+  const actionHint =
+    items.length === 0
+      ? "Add an image to get started"
+      : items.length > 1
+        ? "Downloads as one ZIP when it finishes"
+        : estimate > 0
+          ? `About ${formatBytes(estimate)} · downloads when it finishes`
+          : "Downloads when it finishes";
+  const noticeError = noticeTone === "error" ? notice : null;
+
   return (
-    <section
-      id="resize"
-      aria-label="Image resize and crop studio"
-      className="scroll-mt-20 overflow-hidden rounded-[26px] border border-line bg-white shadow-xs"
-    >
-      {/* Studio Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-[#fdfdfc] px-4 py-3.5 sm:px-5">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-white text-ink shadow-xs">
-            <ToolGlyph path="/image/resize" size={18} />
-          </span>
-          <div>
-            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
-              Resize &amp; Crop Studio
-            </h2>
-            <p className="mt-0.5 text-[11.5px] text-faint">
-              Pixel precision · Percentage scaling · Interactive ratio crop · 100% on-device
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-[11.5px] font-medium text-muted">
-            <Scaling size={12} aria-hidden />
-            {activeItem && outputWidth ? `${outputWidth} × ${outputHeight} px` : "Ready"}
-          </span>
-          <span className="flex items-center gap-1.5 rounded-full border border-[#d9e3d5] bg-[#f4f8f2] px-3 py-1.5 text-[11.5px] font-medium text-[#4a6b47]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#5f8a56]" aria-hidden />
-            100% On-device
-          </span>
-          <span className="hidden items-center gap-1.5 text-[11.5px] text-faint sm:flex">
-            <LockGlyph size={12} />
-            No upload · Private
-          </span>
-        </div>
-      </div>
-
-      {/* Main Studio Grid: Workspace + Settings Rail */}
-      <div className="grid lg:h-[820px] lg:grid-cols-[minmax(0,1fr)_380px] xl:h-[860px] xl:grid-cols-[minmax(0,1fr)_420px]">
-        {/* Left Side: Dropzone, Canvas & Filmstrip */}
-        <div className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5">
-          {items.length === 0 ? (
-            <StudioDropzone
-              title="Drop your images here to resize or crop"
-              description="Set exact pixel dimensions, scale by percentage, or crop with live ratio presets. Supports single file or batch up to 10 images."
-              buttonLabel="Choose image"
-              limits={`JPG, PNG, WebP, AVIF, HEIC, BMP · up to ${maxSizeMB} MB each · ${MAX_FILES} per batch`}
-              onChoose={() => openPicker()}
-              dragging={dragging}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-              chips={
-                <>
-                  <StudioChip icon={<Scaling size={10} aria-hidden />}>Exact pixel dimensions</StudioChip>
-                  <StudioChip icon={<Scaling size={10} aria-hidden />}>Aspect ratio lock</StudioChip>
-                  <StudioChip icon={<Check size={10} aria-hidden />}>Free &amp; ratio crop</StudioChip>
-                  <StudioChip icon={<FileArchive size={10} aria-hidden />}>Batch ZIP export</StudioChip>
-                </>
-              }
-            />
-          ) : (
-            <div
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-              className={`flex min-h-0 flex-1 flex-col rounded-[16px] border p-3 transition-colors ${
-                dragging ? "border-[#b8a992] bg-[#f8f3ea]" : "border-line bg-[#f6f4f0]"
-              }`}
-            >
-              {/* Active Image Stage Viewport */}
-              <div
-                ref={stageRef}
-                className={`relative flex min-h-[260px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-line transition-colors ${
-                  showGrid
-                    ? "bg-[repeating-conic-gradient(#00000008_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] bg-[#fbfaf8]"
-                    : "bg-[#f1efeb]"
-                }`}
-              >
-                {/* Stage Header Controls: Quick Mode Switcher & Output Dimension */}
-                <div className="absolute left-3 top-3 z-30 flex flex-wrap items-center gap-2 pointer-events-auto">
-                  <div className="flex rounded-[10px] border border-line bg-white/95 p-1 shadow-2xs backdrop-blur-sm">
-                    <button
-                      type="button"
-                      onClick={() => patch({ mode: "crop" })}
-                      aria-pressed={settings.mode === "crop"}
-                      className={`flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                        settings.mode === "crop"
-                          ? "bg-ink font-semibold text-white shadow-2xs"
-                          : "text-muted hover:text-ink"
-                      }`}
-                    >
-                      <Crop size={12} aria-hidden />
-                      <span>Crop Box</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => patch({ mode: "dimensions" })}
-                      aria-pressed={settings.mode === "dimensions"}
-                      className={`flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                        settings.mode === "dimensions"
-                          ? "bg-ink font-semibold text-white shadow-2xs"
-                          : "text-muted hover:text-ink"
-                      }`}
-                    >
-                      <Scaling size={12} aria-hidden />
-                      <span>Dimensions</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => patch({ mode: "percent" })}
-                      aria-pressed={settings.mode === "percent"}
-                      className={`flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                        settings.mode === "percent"
-                          ? "bg-ink font-semibold text-white shadow-2xs"
-                          : "text-muted hover:text-ink"
-                      }`}
-                    >
-                      <Percent size={12} aria-hidden />
-                      <span>Scale %</span>
-                    </button>
-                  </div>
-
-                  <span className="flex items-center gap-1 rounded-lg border border-[#cbe4c7] bg-[#f4faf2]/95 px-2.5 py-1 text-[11px] font-semibold text-[#305e2b] shadow-2xs backdrop-blur-sm">
-                    <span>→ {outputWidth} × {outputHeight} px</span>
-                    {busy && <Loader2 size={11} className="ml-0.5 animate-spin" />}
+    <StudioFrame id="resize" label="Image resize and crop studio">
+      <StudioStage flush>
+        {items.length === 0 || !activeItem ? (
+          <StudioDropzone
+            title="Drop an image to resize or crop"
+            description="Set exact pixels, scale by percent, or crop to a ratio. Add several images to do them in one go."
+            buttonLabel="Choose images"
+            limits={`JPG, PNG, WebP, AVIF, HEIC, BMP · up to ${maxSizeMB} MB each · ${MAX_FILES} per batch`}
+            onChoose={() => openPicker()}
+            dragging={dragging}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            chips={
+              <>
+                <StudioChip>Exact pixels</StudioChip>
+                <StudioChip>Ratio crop</StudioChip>
+                <StudioChip>Batch to ZIP</StudioChip>
+              </>
+            }
+          />
+        ) : (
+          <div
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <FileRow
+              flush
+              className="border-b border-line"
+              icon={<ImageIcon size={17} aria-hidden />}
+              name={activeItem.file.name}
+              meta={
+                originalWidth && originalHeight ? (
+                  <span className="fb-num">
+                    <span className="sr-only">Original size </span>
+                    {originalWidth} × {originalHeight} →{" "}
+                    <span className="font-semibold text-ink">
+                      <span className="sr-only">Output size </span>
+                      {outputWidth} × {outputHeight} px
+                    </span>
+                    {estimate > 0 ? ` · about ${formatBytes(estimate)}` : ""}
                   </span>
-                </div>
-
-                {/* Top Right Stage Controls: Fit/100%, Grid, and Quick Save */}
-                <div className="absolute right-3 top-3 z-30 flex items-center gap-1.5 pointer-events-auto">
-                  {/* Scale to Fit toggle */}
-                  {settings.mode !== "crop" && (
-                    <div className="flex rounded-[10px] border border-line bg-white/95 p-1 shadow-2xs backdrop-blur-sm">
-                      <button
-                        type="button"
-                        onClick={() => setScaleToFit(true)}
-                        aria-pressed={scaleToFit}
-                        className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
-                          scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
-                        }`}
-                        title={`Fit stage (${Math.round(fitMultiplier * 100)}%)`}
-                      >
-                        <Maximize2 size={11} aria-hidden />
-                        <span>Fit</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setScaleToFit(false)}
-                        aria-pressed={!scaleToFit}
-                        className={`flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium transition-colors ${
-                          !scaleToFit ? "bg-ink font-semibold text-white" : "text-muted hover:text-ink"
-                        }`}
-                        title="Show actual 100% pixels"
-                      >
-                        <span>100%</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Checkerboard Grid toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setShowGrid(!showGrid)}
-                    aria-pressed={showGrid}
-                    className={`grid h-8 w-8 place-items-center rounded-[9px] border transition-colors ${
-                      showGrid
-                        ? "border-ink bg-rail text-ink shadow-2xs"
-                        : "border-line bg-white/95 text-muted hover:text-ink"
-                    }`}
-                    title="Toggle checkerboard background"
-                    aria-label="Toggle checkerboard background"
-                  >
-                    <Grid size={12} aria-hidden />
-                  </button>
-
-                  {/* Quick Save of Active Result */}
-                  {activeResult && (
-                    <button
-                      type="button"
-                      onClick={() => downloadBlob(activeResult.blob, activeResult.name)}
-                      className="inline-flex h-8 items-center gap-1 rounded-[9px] border border-line bg-white/95 px-2.5 text-[11px] font-medium text-ink shadow-2xs backdrop-blur-sm hover:bg-hover"
-                      title="Download this file"
-                    >
-                      <Download size={12} aria-hidden />
-                      <span className="hidden sm:inline">Save</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Center Canvas Stage Content */}
-                {activeItem && (
-                  <div className="absolute inset-0 flex items-center justify-center overflow-auto px-4 pt-11 pb-7">
-                    {settings.mode === "crop" ? (
-                      <div className="relative flex h-full w-full items-center justify-center">
-                        <CropCanvas
-                          key={activeItem.id}
-                          src={currentPreview}
-                          naturalWidth={sourceWidth}
-                          naturalHeight={sourceHeight}
-                          crop={activeCrop}
-                          ratioId={settings.cropRatio}
-                          stageWidth={availableW}
-                          stageHeight={availableH - 40}
-                          onChange={handleCropChange}
-                          onRatioChange={(r) => patch({ cropRatio: r })}
-                          onReset={resetCrop}
-                        />
-                      </div>
-                    ) : (
-                      <div className="relative flex items-center justify-center shrink-0">
-                        <img
-                          src={currentPreview}
-                          alt={`Preview of ${activeItem.file.name}`}
-                          className={`rounded-[8px] shadow-md border border-black/10 select-none shrink-0 ${
-                            settings.fit === "fill"
-                              ? "object-cover"
-                              : settings.fit === "stretch"
-                                ? "object-fill"
-                                : "object-contain"
-                          }`}
-                          style={{
-                            width: `${renderedW}px`,
-                            height: `${renderedH}px`,
-                            maxWidth: scaleToFit ? "100%" : "none",
-                            maxHeight: scaleToFit ? "100%" : "none",
-                            backgroundColor:
-                              settings.mode === "dimensions" && settings.fit === "fit"
-                                ? backgroundValue(settings) || "transparent"
-                                : undefined,
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Active Image Specs and Actions Bar */}
-              {activeItem && (
-                <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-line bg-white px-3 py-2 shadow-2xs">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[#f5f2ec] text-ink">
-                      <ToolGlyph path="/image/resize" size={15} />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-[12.5px] font-semibold text-ink" title={activeItem.file.name}>
-                        {activeItem.file.name}
-                      </p>
-                      <p className="mt-0.5 text-[10.5px] text-faint tabular-nums">
-                        {formatBytes(activeItem.file.size)} · {originalWidth} × {originalHeight} px
-                        <span className="ml-1.5 font-semibold text-[#305e2b]">
-                          → {outputWidth} × {outputHeight} px
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => openPicker()}
-                      className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                    >
-                      <ImagePlus size={11} aria-hidden />
-                      <span>Add</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openPicker(activeItem.id)}
-                      className="inline-flex h-7 items-center rounded-lg px-2 text-[11px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                    >
-                      Replace
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(activeItem.id)}
-                      aria-label="Remove image"
-                      data-slot="item-remove"
-                      className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/bmp,.jpg,.jpeg,.png,.webp,.avif,.heic,.bmp"
-            multiple
-            tabIndex={-1}
-            aria-label="Choose images"
-            className="sr-only"
-            onChange={onPick}
-          />
-
-          <span
-            aria-hidden
-            className="hidden"
-            data-success={noticeTone === "success" ? notice : undefined}
-            data-error={error ?? (noticeTone === "error" ? notice : undefined)}
-          />
-
-          {error && (
-            <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-[11.5px] text-[#a13d30]">
-              <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
-              {error}
-            </p>
-          )}
-
-          {notice && (
-            <p
-              role="status"
-              className="mt-2.5 flex items-start gap-1.5 text-[11.5px] text-[#3d6b4a]"
-            >
-              <Check size={13} className="mt-0.5 shrink-0" aria-hidden />
-              {notice}
-            </p>
-          )}
-
-          {/* Batch Thumbnails Filmstrip Queue */}
-          {items.length > 1 && (
-            <div className="mt-3 shrink-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
-                  Batch queue ({items.length}) · {formatBytes(totalInputBytes)}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleClearAll}
-                  data-variant="destructive"
-                  className="text-[11.5px] text-faint transition-colors hover:text-ink"
-                >
-                  Clear queue
-                </button>
-              </div>
-
-              <ul className="mt-2 flex gap-2 overflow-x-auto pb-1.5 pt-0.5">
-                {items.map((item) => {
-                  const isSelected = item.id === activeItem?.id;
-                  const itemRes = results[item.id];
-
-                  return (
-                    <li key={item.id} className="relative shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setActiveId(item.id)}
-                        data-slot="queue-item"
-                        className={`group relative flex h-[126px] w-[140px] flex-col rounded-[11px] border p-2 text-left transition-all ${
-                          isSelected
-                            ? "border-ink bg-white shadow-xs ring-1 ring-ink/20"
-                            : "border-line bg-white/70 hover:border-[#d5d1c8] hover:bg-white"
-                        }`}
-                      >
-                        <div className="relative h-[78px] w-full overflow-hidden rounded-[7px] bg-[#f2efe9]">
-                          <img
-                            src={transformedMap[item.id] || item.preview}
-                            alt=""
-                            className="h-full w-full object-contain select-none"
-                          />
-                          <span className="absolute bottom-1 right-1 rounded bg-black/75 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
-                            {itemRes ? itemRes.name.split(".").pop() : "IMG"}
-                          </span>
-                          {itemRes && (
-                            <span className="absolute left-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-[#557550] text-[9px] text-white">
-                              ✓
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-1.5 min-w-0">
-                          <p className="truncate text-[11.5px] font-medium text-ink" title={item.file.name}>
-                            {item.file.name}
-                          </p>
-                          <p className="text-[10px] text-faint tabular-nums">
-                            {item.width && item.height ? `${item.width}×${item.height}` : formatBytes(item.file.size)}
-                            {itemRes && (
-                              <span className="text-ink font-semibold ml-1">
-                                → {itemRes.width}×{itemRes.height}
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-                <li className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => openPicker()}
-                    aria-label="Add more images to batch"
-                    className="flex h-[126px] w-[76px] flex-col items-center justify-center rounded-[11px] border border-dashed border-[#d5d1c8] bg-white/40 text-faint transition-colors hover:border-[#b5ae9f] hover:bg-white hover:text-ink"
-                  >
-                    <Plus size={18} aria-hidden />
-                    <span className="mt-1 text-[11px] font-medium">Add</span>
-                  </button>
-                </li>
-              </ul>
-            </div>
-          )}
-
-        </div>
-
-        {/* Right Side: Elevated Settings Rail */}
-        <ImageResizeSettings
-          action={
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                onClick={handleExecute}
-                disabled={items.length === 0 || busy}
-                className={buttonClasses("primary", "md", "w-full shadow-sm")}
-              >
-                {busy ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" aria-hidden />
-                    <span>
-                      {progress
-                        ? `Processing (${progress.current}/${progress.total})…`
-                        : "Processing…"}
-                    </span>
-                  </>
                 ) : (
-                  <>
-                    {items.length > 1 && <FileArchive size={13} aria-hidden />}
-                    <span>
-                      {items.length > 1
-                        ? settings.mode === "crop"
-                          ? `Crop all (${items.length})`
-                          : `Resize all (${items.length})`
-                        : settings.mode === "crop"
-                          ? "Crop & Download"
-                          : "Resize & Download"}
-                    </span>
-                    {items.length === 1 && <ArrowRightGlyph size={13} />}
-                  </>
-                )}
-              </button>
-              <p className="flex items-center justify-center gap-1.5 text-[10.5px] text-faint">
-                <ShieldCheck size={12} aria-hidden className="text-[#557550]" />
-                No upload · on-device canvas engine
-              </p>
-            </div>
-          }
-          settings={settings}
-          onPatch={patch}
-          onReset={handleReset}
-          originalWidth={originalWidth}
-          originalHeight={originalHeight}
-          sourceWidth={sourceWidth}
-          sourceHeight={sourceHeight}
-          outputWidth={outputWidth}
-          outputHeight={outputHeight}
-          scale={output.scale}
-          upscaling={output.upscaling}
-          capped={output.capped}
-          cropWidth={cropPixelSize.width}
-          cropHeight={cropPixelSize.height}
-          onResetCrop={resetCrop}
-          originalBytes={activeItem?.file.size ?? 0}
-          estimatedBytes={estimate}
+                  "Reading image…"
+                )
+              }
+              onReplace={() => openPicker(activeItem.id)}
+              onRemove={() => handleRemoveItem(activeItem.id)}
+            >
+              {items.length === 1 ? (
+                <ToolText onClick={() => openPicker()} icon={<Plus size={14} aria-hidden />}>
+                  <span>
+                    Add<span className="max-sm:sr-only"> more</span>
+                  </span>
+                </ToolText>
+              ) : outputReady && activeResult ? (
+                <ToolText
+                  onClick={() => downloadBlob(activeResult.blob, activeResult.name)}
+                  title={`Download ${activeResult.name} (${formatBytes(activeResult.bytes)})`}
+                  icon={<Download size={14} aria-hidden />}
+                  compact
+                >
+                  Save this one
+                </ToolText>
+              ) : (
+                <ToolText onClick={handleClearAll}>Clear all</ToolText>
+              )}
+              {!isCrop && outputReady && activeResult ? (
+                <ViewTabs mode={viewMode} onChange={setViewMode} afterLabel="Resized" />
+              ) : null}
+            </FileRow>
+
+            {isCrop ? (
+              <div className="grid min-h-[max(320px,50svh)] flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] sm:grid-cols-[22px_minmax(0,1fr)] sm:grid-rows-[22px_minmax(0,1fr)] lg:min-h-0">
+                <span aria-hidden className="hidden border-b border-r border-line bg-panel sm:block" />
+                <Ruler
+                  axis="x"
+                  length={stageSize.width}
+                  origin={cropLeft}
+                  scale={cropScale}
+                  extent={sourceWidth}
+                  from={activeCrop.x * sourceWidth}
+                  to={(activeCrop.x + activeCrop.width) * sourceWidth}
+                />
+                <Ruler
+                  axis="y"
+                  length={stageSize.height}
+                  origin={cropTop}
+                  scale={cropScale}
+                  extent={sourceHeight}
+                  from={activeCrop.y * sourceHeight}
+                  to={(activeCrop.y + activeCrop.height) * sourceHeight}
+                />
+                <div ref={setStageEl} className="relative min-h-0 min-w-0 overflow-hidden">
+                  <div className="absolute inset-0">
+                    <CropCanvas
+                      key={activeItem.id}
+                      src={currentPreview}
+                      naturalWidth={sourceWidth}
+                      naturalHeight={sourceHeight}
+                      crop={activeCrop}
+                      ratioId={settings.cropRatio}
+                      stageWidth={availableW}
+                      stageHeight={availableH}
+                      onChange={handleCropChange}
+                    />
+                  </div>
+                  {dragging ? (
+                    <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center border-[3px] border-accent bg-canvas/85">
+                      <p className="fb-wide text-[clamp(22px,2.6vw,38px)]">Drop to add</p>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <ImageViewer
+                title={activeItem.file.name}
+                before={{
+                  src: currentPreview,
+                  width: sourceWidth || 1,
+                  height: sourceHeight || 1,
+                  label: "Original",
+                  note: `${sourceWidth} × ${sourceHeight}`,
+                  alt: `Original ${activeItem.file.name}`,
+                }}
+                after={
+                  outputReady && activeResult
+                    ? {
+                        src: activeResult.previewUrl,
+                        width: activeResult.width,
+                        height: activeResult.height,
+                        label: "Resized",
+                        note: `${activeResult.width} × ${activeResult.height} · ${formatBytes(activeResult.bytes)}`,
+                        alt: `Resized ${activeItem.file.name}`,
+                      }
+                    : outputWidth && outputHeight
+                      ? {
+                          src: currentPreview,
+                          width: outputWidth,
+                          height: outputHeight,
+                          label: "New size",
+                          note: `${outputWidth} × ${outputHeight}`,
+                          alt: `Preview of ${activeItem.file.name}`,
+                          objectFit:
+                            settings.mode !== "dimensions" || settings.fit === "stretch"
+                              ? "fill"
+                              : settings.fit === "fill"
+                                ? "cover"
+                                : "contain",
+                          backdrop:
+                            settings.mode === "dimensions" && settings.fit === "fit"
+                              ? backgroundValue(settings) || undefined
+                              : undefined,
+                        }
+                      : null
+                }
+                mode={outputReady ? viewMode : "after"}
+                onModeChange={outputReady ? setViewMode : undefined}
+                busy={busy}
+                busyLabel={progress && progress.total > 1 ? `${progress.current} of ${progress.total}` : "Resizing"}
+                dragging={dragging}
+              />
+            )}
+
+            {items.length > 1 ? (
+              <Filmstrip
+                label="Images in this batch"
+                addLabel="Add more images"
+                activeId={activeItem.id}
+                onSelect={setActiveId}
+                onRemove={handleRemoveItem}
+                onAdd={() => openPicker()}
+                items={items.map((item) => {
+                  const made = results[item.id];
+                  return {
+                    id: item.id,
+                    name: made
+                      ? `${item.file.name}, exported at ${made.width} by ${made.height} pixels`
+                      : item.file.name,
+                    src: transformedMap[item.id] || item.preview,
+                    done: Boolean(made),
+                    badge: made ? `${made.width}×${made.height}` : undefined,
+                    title: item.file.name,
+                  };
+                })}
+              />
+            ) : null}
+          </div>
+        )}
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/bmp,.jpg,.jpeg,.png,.webp,.avif,.heic,.bmp"
+          multiple
+          tabIndex={-1}
+          aria-label="Choose images"
+          className="sr-only"
+          onChange={onPick}
         />
-      </div>
-    </section>
+
+        {/* Drives the success / error sound cues */}
+        <span
+          aria-hidden
+          className="hidden"
+          data-success={noticeTone === "success" ? notice : undefined}
+          data-error={error ?? (noticeTone === "error" ? notice : undefined)}
+        />
+
+        {error ? <Note tone="error" className="m-3 shrink-0">{error}</Note> : null}
+        {noticeError ? <Note tone="error" className="m-3 shrink-0">{noticeError}</Note> : null}
+      </StudioStage>
+
+      <ImageResizeSettings
+        action={
+          outputReady && firstResult ? (
+            <>
+              <DownloadAction
+                label={
+                  readyResults.length === 1
+                    ? "Download image"
+                    : `Download ${readyResults.length} images (ZIP)`
+                }
+                onClick={downloadOutput}
+                hint={
+                  readyResults.length === 1
+                    ? `${firstResult.width} × ${firstResult.height} px · ${formatBytes(firstResult.bytes)}`
+                    : `${formatBytes(totalInputBytes)} → ${formatBytes(totalOutputBytes)}`
+                }
+              />
+              <ActionRow>
+                <SecondaryAction onClick={() => setDone(false)} icon={<Pencil size={13} aria-hidden />}>
+                  Keep editing
+                </SecondaryAction>
+                {readyResults.length > 1 ? <StartOverAction onClick={handleClearAll} /> : null}
+              </ActionRow>
+            </>
+          ) : (
+            <PrimaryAction
+              label={actionLabel}
+              busyLabel={
+                progress && progress.total > 1
+                  ? `Image ${progress.current} of ${progress.total}`
+                  : isCrop
+                    ? "Cropping…"
+                    : "Resizing…"
+              }
+              icon={isCrop ? <Crop size={16} aria-hidden /> : <Scaling size={16} aria-hidden />}
+              busy={busy}
+              progress={
+                progress && progress.total > 1 ? (progress.current - 1) / progress.total : undefined
+              }
+              disabled={items.length === 0}
+              onClick={handleExecute}
+              hint={actionHint}
+            />
+          )
+        }
+        settings={settings}
+        onPatch={patch}
+        onReset={handleReset}
+        sourceWidth={sourceWidth}
+        sourceHeight={sourceHeight}
+        outputWidth={outputWidth}
+        outputHeight={outputHeight}
+        upscaling={output.upscaling}
+        capped={output.capped}
+        cropWidth={cropPixelSize.width}
+        cropHeight={cropPixelSize.height}
+      />
+    </StudioFrame>
   );
 }

@@ -1,43 +1,70 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  Check,
-  FileOutput,
-  Scissors,
-  ShieldCheck,
-  Sparkles,
-  TriangleAlert,
-  X,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, Eye, FileText, Loader2, Scissors } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import {
-  PreviewNote,
-  RailSection,
-  SelectRow,
-  StudioAction,
-  StudioHeader,
-  TextRow,
-  ToggleRow,
-} from "../DocumentKit";
-import { PageGrid } from "../PagePreview";
+  ActionRow,
+  DownloadAction,
+  Field,
+  FileRow,
+  Note,
+  OptionCard,
+  PrimaryAction,
+  ResultButton,
+  SecondaryAction,
+  StageBar,
+  StudioFrame,
+  StudioStage,
+  ToolIcon,
+  ToolTabs,
+  ToolText,
+} from "@/components/tool/kit";
+import { RailPick } from "@/components/tool/studio/RailControls";
+import { PdfLightbox, PdfReader } from "@/components/tool/viewer/PdfReader";
+import { DropChip } from "@/components/tool/kit/Dropzone";
+import { downloadAllAsZip, downloadBlob } from "@/lib/image/encode";
+import { TextRow, ToggleRow } from "../DocumentKit";
 import { PdfDropzone } from "../PdfDropzone";
-import { formatBytes, fileStem, pagesOf, parseRanges, rangeLabel } from "../model";
+import { DropOver } from "@/components/tool/viewer/DropOver";
+import { PdfPageGrid, usePdfDocument, type PageSize } from "../PdfPages";
+import { fileStem, formatBytes, pagesOf, parseRanges, rangeLabel } from "../model";
 import { usePdfQueue } from "../usePdfQueue";
+import { SplitError, splitPdf, type SplitOutput } from "./split-engine";
 
 type SplitMode = "extract" | "every" | "parity";
 
 const MODES: { id: SplitMode; title: string; detail: string }[] = [
-  { id: "extract", title: "Extract pages", detail: "One file with the pages you pick" },
-  { id: "every", title: "Every N pages", detail: "A file per chunk of N pages" },
-  { id: "parity", title: "Odd & even", detail: "Two files, one per side" },
+  { id: "extract", title: "Extract pages", detail: "Keep only the pages you pick" },
+  { id: "every", title: "Split every N pages", detail: "One file per chunk of N pages" },
+  { id: "parity", title: "Odd and even", detail: "Two files, one per side" },
 ];
+
+const CHUNK_PRESETS = [1, 2, 5, 10];
+
+const VIEWS = [
+  { value: "pages", label: "Pages" },
+  { value: "read", label: "Read" },
+] as const;
+
+const SIZES: { value: PageSize; label: string; title: string }[] = [
+  { value: "s", label: "S", title: "Small pages" },
+  { value: "m", label: "M", title: "Medium pages" },
+  { value: "l", label: "L", title: "Large pages" },
+];
+
+function safeName(value: string) {
+  return value.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "-").trim().slice(0, 90) || "document";
+}
+
+function pdfBlob(bytes: Uint8Array) {
+  return new Blob([bytes as BlobPart], { type: "application/pdf" });
+}
 
 export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const {
     activeItem,
-    error,
-    reading,
+    error: queueError,
     dragging,
     inputRef,
     openPicker,
@@ -45,412 +72,478 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     onDragOver,
     onDragLeave,
     onDrop,
-    removeItem,
     clear,
   } = usePdfQueue({ maxFiles: 1, maxSizeMB });
+
+  const doc = usePdfDocument(activeItem?.file ?? null);
+  const pageCount = doc.pageCount;
 
   const [mode, setMode] = useState<SplitMode>("extract");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [ranges, setRanges] = useState("");
-  const [every, setEvery] = useState("2");
-  const [parity, setParity] = useState("Odd pages");
+  const [separate, setSeparate] = useState(false);
+  const [every, setEvery] = useState("1");
   const [filename, setFilename] = useState("");
   const [keepMetadata, setKeepMetadata] = useState(true);
-  const [notice, setNotice] = useState<string | null>(null);
 
-  const pageCount = activeItem?.pages ?? 0;
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [outputs, setOutputs] = useState<SplitOutput[] | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [view, setView] = useState<"pages" | "read">("pages");
+  const [size, setSize] = useState<PageSize>("m");
+  const [readPage, setReadPage] = useState<number | null>(null);
+  const [openOutput, setOpenOutput] = useState<SplitOutput | null>(null);
 
+  // A new document starts with nothing picked, so the choice is always deliberate.
   useEffect(() => {
-    if (!activeItem) {
-      setSelected(new Set());
-      setRanges("");
-      return;
+    setSelected(new Set());
+    setRanges("");
+    setOutputs(null);
+    setRunError(null);
+    setView("pages");
+  }, [activeItem?.id]);
+
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const selectedPages = useMemo(() => [...selected].sort((a, b) => a - b), [selected]);
+  const everyCount = Math.min(500, Math.max(1, Number.parseInt(every, 10) || 1));
+  const baseName = safeName(filename.trim() || fileStem(activeItem?.name ?? "document"));
+
+  /** Output files as { name, pages } for the current settings. */
+  const groups = useMemo(() => {
+    if (pageCount === 0) return [];
+    if (mode === "extract") {
+      if (selectedPages.length === 0) return [];
+      if (separate) {
+        return selectedPages.map((page) => ({ name: `${baseName}-page-${page}.pdf`, pages: [page] }));
+      }
+      return [{ name: `${baseName}-pages-${rangeLabel(selectedPages).replace(/–/g, "-").replace(/[,\s…]+/g, "_")}.pdf`, pages: selectedPages }];
     }
-    const pages = pagesOf(activeItem.pages);
+    if (mode === "every") {
+      const chunks: { name: string; pages: number[] }[] = [];
+      for (let start = 1; start <= pageCount; start += everyCount) {
+        const end = Math.min(pageCount, start + everyCount - 1);
+        chunks.push({
+          name: `${baseName}-part-${chunks.length + 1}.pdf`,
+          pages: pagesOf(end - start + 1).map((offset) => start + offset - 1),
+        });
+      }
+      return chunks;
+    }
+    const all = pagesOf(pageCount);
+    return [
+      { name: `${baseName}-odd.pdf`, pages: all.filter((page) => page % 2 === 1) },
+      { name: `${baseName}-even.pdf`, pages: all.filter((page) => page % 2 === 0) },
+    ].filter((group) => group.pages.length > 0);
+  }, [mode, pageCount, selectedPages, separate, everyCount, baseName]);
+
+  const groupOfPage = useMemo(() => {
+    const map = new Map<number, number>();
+    groups.forEach((group, index) => group.pages.forEach((page) => map.set(page, index)));
+    return map;
+  }, [groups]);
+
+  function touch() {
+    setOutputs(null);
+    setRunError(null);
+  }
+
+  function setPages(pages: number[]) {
+    selectedRef.current = new Set(pages);
     setSelected(new Set(pages));
-    setRanges(rangeLabel(pages));
-  }, [activeItem]);
-
-  const everyCount = Math.min(100, Math.max(1, Number.parseInt(every, 10) || 1));
-  const chunkCount = pageCount > 0 ? Math.ceil(pageCount / everyCount) : 0;
-  const selectedPages = useMemo(
-    () => [...selected].sort((a, b) => a - b),
-    [selected],
-  );
-
-  const outputCount =
-    mode === "extract" ? (selectedPages.length > 0 ? 1 : 0) : mode === "every" ? chunkCount : 2;
-
-  const baseName = filename.trim() || fileStem(activeItem?.name ?? "document");
-
-  function patch() {
-    setNotice(null);
+    setRanges(pages.length > 0 ? rangeLabel(pages).replace(/–/g, "-") : "");
+    touch();
   }
 
   function togglePage(page: number) {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(page)) next.delete(page);
-      else next.add(page);
-      setRanges(rangeLabel([...next]));
-      return next;
-    });
-    patch();
+    // Read through the ref so rapid clicks never work from a stale selection.
+    const next = new Set(selectedRef.current);
+    if (next.has(page)) next.delete(page);
+    else next.add(page);
+    setPages([...next].sort((a, b) => a - b));
+  }
+
+  function pickRange(from: number, to: number) {
+    const next = new Set(selectedRef.current);
+    for (let page = from; page <= to; page += 1) next.add(page);
+    setPages([...next].sort((a, b) => a - b));
   }
 
   function applyRanges(value: string) {
     setRanges(value);
     setSelected(new Set(parseRanges(value, pageCount)));
-    patch();
+    touch();
   }
 
-  function selectAll() {
-    const pages = pagesOf(pageCount);
-    setSelected(new Set(pages));
-    setRanges(rangeLabel(pages));
-    patch();
+  async function handleSplit() {
+    if (!doc.bytes || groups.length === 0) return;
+    setBusy(true);
+    setProgress(0);
+    setRunError(null);
+    try {
+      const result = await splitPdf(doc.bytes, groups, { keepMetadata }, (done, total) =>
+        setProgress(done / total),
+      );
+      setOutputs(result);
+    } catch (error) {
+      setRunError(
+        error instanceof SplitError ? error.message : "Something went wrong while splitting. Try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function selectNone() {
-    setSelected(new Set());
-    setRanges("");
-    patch();
-  }
-
-  function handleSplit() {
-    const summary =
-      mode === "extract"
-        ? `${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"} (${rangeLabel(selectedPages)}) into one PDF`
-        : mode === "every"
-          ? `${pageCount} pages into ${chunkCount} files of ${everyCount} page${everyCount === 1 ? "" : "s"}`
-          : `${pageCount} pages into two files, ${parity.toLowerCase()} in ${parity === "Odd pages" ? "the first" : "the second"}`;
-    setNotice(
-      `The ${baseName} draft splits ${summary}. PDF assembly is connected in the next build step, and nothing leaves this device.`,
+  function downloadAll() {
+    if (!outputs) return;
+    if (outputs.length === 1) {
+      downloadBlob(pdfBlob(outputs[0].bytes), outputs[0].name);
+      return;
+    }
+    void downloadAllAsZip(
+      outputs.map((output) => ({ blob: pdfBlob(output.bytes), name: output.name })),
+      `${baseName}-split.zip`,
     );
   }
 
-  return (
-    <section
-      id="split-pdf"
-      aria-label="Split PDF studio"
-      className="scroll-mt-20 overflow-hidden rounded-[26px] border border-line bg-white"
-    >
-      <StudioHeader
-        path="/document/split-pdf"
-        title="Split studio"
-        subtitle="Extract ranges or break a document apart."
-        pills={
-          <>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] font-medium tabular-nums text-muted">
-              <Scissors size={10} aria-hidden />
-              {activeItem ? `${pageCount} pages` : "No document"}
-            </span>
-            <span className="flex items-center gap-1.5 rounded-full border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-1 text-[10px] font-medium text-[#786344]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" aria-hidden />
-              Interface preview
-            </span>
-          </>
-        }
-      />
+  function reset() {
+    clear();
+    touch();
+  }
 
-      <div className="grid lg:h-[780px] lg:grid-cols-[minmax(0,1fr)_372px]">
-        <div className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5">
-          {!activeItem ? (
-            <PdfDropzone
-              title="Drop a PDF to split"
-              description="Pick pages on the grid, type exact ranges, or break the whole document into even chunks."
-              buttonLabel="Choose a PDF"
-              limits={`PDF · up to ${maxSizeMB} MB`}
-              note="Files are read locally. Nothing is uploaded."
-              onChoose={() => openPicker()}
-              dragging={dragging}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-              chips={
-                <>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <Scissors size={9} aria-hidden />
-                    Exact ranges
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <FileOutput size={9} aria-hidden />
-                    One file per chunk
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <ShieldCheck size={9} aria-hidden />
-                    Stays on device
-                  </span>
-                </>
-              }
+  const ready = Boolean(doc.pdf) && groups.length > 0;
+  const actionLabel =
+    mode === "extract"
+      ? selectedPages.length === 0
+        ? "Pick pages to extract"
+        : separate
+          ? `Extract ${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"} as separate files`
+          : `Extract ${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"}`
+      : `Split into ${groups.length} file${groups.length === 1 ? "" : "s"}`;
+  const totalBytes = outputs?.reduce((sum, output) => sum + output.bytes.length, 0) ?? 0;
+  const error = queueError ?? doc.error ?? runError;
+
+  return (
+    <StudioFrame id="split-pdf" label="Split PDF studio">
+      <StudioStage flush>
+        {!activeItem ? (
+          <PdfDropzone
+            title="Drop a PDF to split"
+            description="Pick pages on the thumbnails, type exact ranges, or break the whole document into even parts."
+            buttonLabel="Choose a PDF"
+            limits={`PDF · up to ${maxSizeMB} MB`}
+            onChoose={() => openPicker()}
+            dragging={dragging}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            chips={
+              <>
+                <DropChip>Extract pages</DropChip>
+                <DropChip>Split every N pages</DropChip>
+                <DropChip>Odd / even</DropChip>
+              </>
+            }
+          />
+        ) : (
+          <div
+            className="relative flex min-h-0 flex-1 flex-col"
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            <FileRow
+              flush
+              className="border-b border-line"
+              icon={<FileText size={17} aria-hidden />}
+              name={activeItem.name}
+              meta={`${formatBytes(activeItem.size)}${pageCount ? ` · ${pageCount} pages` : ""}`}
+              onReplace={() => openPicker(activeItem.id)}
+              onRemove={reset}
             />
-          ) : (
-            <>
-              <div className="flex min-h-[250px] flex-1 flex-col rounded-[16px] border border-line bg-[#f6f4f0] p-3">
-                <div className="flex items-center justify-between gap-3 px-0.5">
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
-                    {mode === "extract" ? "Select pages" : "Pages"}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    {mode === "extract" ? (
+
+            {outputs && outputs.length > 1 ? (
+              <ul className="studio-main max-h-[156px] shrink-0 overflow-y-auto border-b border-line bg-panel">
+                {outputs.map((output, index) => (
+                  <li
+                    key={output.name}
+                    className="flex h-[52px] items-center gap-3 border-b border-line pl-3.5 pr-2 last:border-b-0"
+                  >
+                    <span className="fb-num text-[13px] text-faint">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium">{output.name}</span>
+                    <span className="fb-num shrink-0 text-[13px] text-muted max-sm:hidden">
+                      {output.pages.length} {output.pages.length === 1 ? "page" : "pages"} · {formatBytes(output.bytes.length)}
+                    </span>
+                    <span className="flex [&>*]:-ml-px">
+                      <ToolIcon label={`Read ${output.name}`} slot="viewer-open" onClick={() => setOpenOutput(output)}>
+                        <Eye size={15} aria-hidden />
+                      </ToolIcon>
+                      <ToolIcon
+                        label={`Download ${output.name}`}
+                        onClick={() => downloadBlob(pdfBlob(output.bytes), output.name)}
+                      >
+                        <Download size={15} aria-hidden />
+                      </ToolIcon>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <StageBar
+              end={
+                view === "pages" ? (
+                  <>
+                    {mode === "extract" && pageCount > 0 ? (
                       <>
-                        <button
-                          type="button"
-                          onClick={selectAll}
-                          className="text-[10px] font-medium text-faint transition-colors hover:text-ink"
-                        >
-                          All
-                        </button>
-                        <button
-                          type="button"
-                          onClick={selectNone}
-                          className="text-[10px] font-medium text-faint transition-colors hover:text-ink"
-                        >
-                          None
-                        </button>
+                        <ToolText onClick={() => setPages(pagesOf(pageCount))}>All</ToolText>
+                        <ToolText onClick={() => setPages([])}>None</ToolText>
                       </>
-                    ) : (
-                      <span className="text-[10px] text-faint">Every page stays in the output</span>
-                    )}
-                    <span className="text-[10px] tabular-nums text-faint">
-                      {mode === "extract" ? `${selectedPages.length} of ${pageCount}` : `${pageCount} pages`}
+                    ) : null}
+                    <span className="max-sm:hidden">
+                      <ToolTabs label="Page size" options={SIZES} value={size} onChange={setSize} />
+                    </span>
+                  </>
+                ) : null
+              }
+            >
+              <ToolTabs label="Stage view" options={VIEWS} value={view} onChange={setView} />
+              <span className="fb-num pl-1 text-[13.5px] text-muted">
+                {mode === "extract"
+                  ? selectedPages.length === 0
+                    ? "Click pages to pick them"
+                    : `${selectedPages.length} of ${pageCount} picked`
+                  : `${pageCount} pages → ${groups.length} files`}
+              </span>
+            </StageBar>
+
+            {view === "read" && doc.pdf ? (
+              <PdfReader
+                pdf={doc.pdf}
+                pageCount={pageCount}
+                firstPage={doc.firstPage}
+                title={activeItem.name}
+                className="max-lg:min-h-[60svh]"
+              />
+            ) : (
+              <div className="studio-main min-h-[280px] flex-1 overflow-y-auto p-4 lg:min-h-0">
+                {doc.pdf ? (
+                  <PdfPageGrid
+                    pdf={doc.pdf}
+                    pageCount={pageCount}
+                    size={size}
+                    selected={mode === "extract" ? selected : undefined}
+                    onToggle={mode === "extract" && !busy ? togglePage : undefined}
+                    onRange={mode === "extract" && !busy ? pickRange : undefined}
+                    onOpen={setReadPage}
+                    tagOf={
+                      mode === "extract"
+                        ? undefined
+                        : (page) => {
+                            const index = groupOfPage.get(page);
+                            if (index === undefined) return null;
+                            return {
+                              label: mode === "parity" ? (page % 2 === 1 ? "Odd" : "Even") : `File ${index + 1}`,
+                              tone: index,
+                            };
+                          }
+                    }
+                  />
+                ) : doc.loading ? (
+                  <div className="grid h-full min-h-[220px] place-items-center text-[14.5px] text-muted">
+                    <span className="flex items-center gap-2.5">
+                      <Loader2 size={17} className="animate-spin" aria-hidden />
+                      Reading pages…
                     </span>
                   </div>
-                </div>
-
-                <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-[10px] border border-line bg-[#f1efeb] p-2">
-                  <PageGrid
-                    count={pageCount}
-                    selected={mode === "extract" ? selected : undefined}
-                    onToggle={mode === "extract" ? togglePage : undefined}
-                    columns="grid-cols-4 sm:grid-cols-6"
-                    maxHeightClass="max-h-full"
-                  />
-                  {reading && pageCount === 1 ? (
-                    <p className="mt-2 text-[10px] text-faint">Reading page count…</p>
-                  ) : null}
-                </div>
+                ) : null}
               </div>
+            )}
 
-              <div className="mt-2.5">
-                <div className="flex flex-wrap items-center gap-2 rounded-[11px] border border-line bg-white px-2.5 py-2">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[#f3f0f7] text-[#6b6384]">
-                    <FileOutput size={15} aria-hidden />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-ui font-medium text-ink">{activeItem.name}</p>
-                    <p className="mt-0.5 text-micro text-faint">
-                      {formatBytes(activeItem.size)} · {pageCount} pages
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openPicker(activeItem.id)}
-                    className="h-7 rounded-lg px-2 text-[10.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                  >
-                    Replace
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clear();
-                      setNotice(null);
-                    }}
-                    aria-label={`Remove ${activeItem.name}`}
-                    data-slot="pdf-remove"
-                    className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
-                  >
-                    <X size={13} aria-hidden />
-                  </button>
-                </div>
-              </div>
+            {dragging ? <DropOver label="Drop to replace" /> : null}
+          </div>
+        )}
 
-              <div className="mt-3 shrink-0 rounded-[13px] border border-line bg-white p-3.5">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
-                      Output
-                    </p>
-                    <div className="mt-1.5 flex items-baseline gap-2">
-                      <span className="font-display text-[22px] font-semibold leading-none tabular-nums tracking-[-0.03em] text-ink">
-                        {outputCount} {outputCount === 1 ? "file" : "files"}
-                      </span>
-                      <span className="text-[10px] text-faint">
-                        {mode === "extract"
-                          ? `${selectedPages.length} pages`
-                          : mode === "every"
-                            ? `${everyCount} pages each`
-                            : "odd and even"}
-                      </span>
-                    </div>
-                    <p className="mt-1 truncate text-[10px] text-faint">
-                      {mode === "extract"
-                        ? `${baseName}-pages.pdf`
-                        : `${baseName}-1.pdf, ${baseName}-2.pdf${chunkCount > 2 ? ", …" : ""}`}
-                    </p>
-                  </div>
-                  <span className="flex items-center gap-1 rounded-full border border-line px-2 py-1 text-[10px] font-medium text-muted">
-                    <Check size={9} aria-hidden />
-                    {keepMetadata ? "Metadata kept" : "Metadata removed"}
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          tabIndex={-1}
+          aria-label="Choose a PDF"
+          className="sr-only"
+          onChange={onPick}
+        />
 
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            tabIndex={-1}
-            aria-label="Choose a PDF"
-            className="sr-only"
-            onChange={onPick}
-          />
+        {/* Drives the finished / problem sounds */}
+        <span aria-hidden className="hidden" data-success={outputs ? `split-${outputs.length}` : undefined} data-error={error ?? undefined} />
+        {error ? <Note tone="error" className="m-3 shrink-0">{error}</Note> : null}
 
-          <span aria-hidden className="hidden" data-success={notice} data-error={error} />
-
-          {error && (
-            <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
-              <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
-              {error}
-            </p>
-          )}
-
-          {notice && (
-            <p
-              role="status"
-              className="mt-3 shrink-0 rounded-[10px] border border-[#eadfce] bg-[#fdf9f2] px-3 py-2.5 text-micro leading-relaxed text-[#786344]"
-            >
-              {notice}
-            </p>
-          )}
-        </div>
-
-        <StudioRail
-          label="Split settings"
-          action={
-            <StudioAction
-              label={
-                mode === "extract"
-                  ? `Extract ${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"}`
-                  : mode === "every"
-                    ? `Split into ${chunkCount} files`
-                    : "Split into 2 files"
-              }
-              hint={
-                <>
-                  <ShieldCheck size={12} aria-hidden />
-                  Free · no upload · no watermark
-                </>
-              }
-              disabled={!activeItem || outputCount === 0}
-              onAction={handleSplit}
-            >
-              <span className="flex items-center gap-1">
-                <Sparkles size={10} aria-hidden />
-                {rangeLabel(selectedPages)}
-              </span>
-            </StudioAction>
+        <PdfLightbox
+          open={readPage !== null && Boolean(doc.pdf)}
+          onClose={() => setReadPage(null)}
+          pdf={readPage !== null ? doc.pdf : null}
+          pageCount={pageCount}
+          firstPage={doc.firstPage}
+          page={readPage ?? 1}
+          title={activeItem?.name ?? "PDF"}
+          meta={pageCount ? `${pageCount} pages` : undefined}
+        />
+        <PdfLightbox
+          open={openOutput !== null}
+          onClose={() => setOpenOutput(null)}
+          bytes={openOutput?.bytes ?? null}
+          title={openOutput?.name ?? "PDF"}
+          meta={openOutput ? `${openOutput.pages.length} pages · ${formatBytes(openOutput.bytes.length)}` : undefined}
+          actions={
+            openOutput ? (
+              <ResultButton
+                loud
+                onClick={() => downloadBlob(pdfBlob(openOutput.bytes), openOutput.name)}
+                icon={<Download size={16} aria-hidden />}
+              >
+                Download
+              </ResultButton>
+            ) : null
           }
-        >
-          <div className="space-y-5">
-            <RailSection title="Split mode" hint="How pages leave">
-              <div className="space-y-1.5">
-                {MODES.map((option) => {
-                  const active = mode === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => {
-                        setMode(option.id);
-                        patch();
-                      }}
-                      className={`w-full rounded-[10px] border px-3 py-2.5 text-left transition-colors ${
-                        active
-                          ? "border-ink bg-rail"
-                          : "border-line bg-white hover:border-[#d8d4cb] hover:bg-[#fcfbf9]"
-                      }`}
-                    >
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="text-[11.5px] font-medium text-ink">{option.title}</span>
-                        {active && <Check size={12} className="text-ink" aria-hidden />}
-                      </span>
-                      <span className="mt-0.5 block text-[10px] leading-relaxed text-faint">
-                        {option.detail}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </RailSection>
+        />
+      </StudioStage>
 
-            <RailSection title="Selection" hint={mode === "extract" ? "Pages" : "Automatic"} className="border-t border-line-soft pt-4">
-              {mode === "extract" && (
+      <StudioRail
+        label="Split settings"
+        action={
+          outputs ? (
+            <>
+              <DownloadAction
+                label={outputs.length === 1 ? "Download PDF" : `Download ${outputs.length} PDFs (ZIP)`}
+                onClick={downloadAll}
+                hint={`${outputs.length === 1 ? `${outputs[0].name} · ` : ""}${formatBytes(totalBytes)}`}
+              />
+              <ActionRow>
+                {outputs.length === 1 ? (
+                  <SecondaryAction onClick={() => setOpenOutput(outputs[0])} icon={<Eye size={14} aria-hidden />}>
+                    Read it
+                  </SecondaryAction>
+                ) : null}
+                <SecondaryAction onClick={touch} icon={<Scissors size={13} aria-hidden />}>
+                  Split again
+                </SecondaryAction>
+              </ActionRow>
+            </>
+          ) : (
+            <PrimaryAction
+              label={activeItem ? actionLabel : "Split PDF"}
+              busyLabel="Splitting…"
+              icon={<Scissors size={16} aria-hidden />}
+              busy={busy}
+              progress={progress}
+              disabled={!ready}
+              onClick={handleSplit}
+              hint={activeItem ? "Free · runs in your browser · no watermark" : "Add a PDF to get started"}
+            />
+          )
+        }
+      >
+        <div className="space-y-7">
+          <Field label="Split mode">
+            <div className="space-y-2">
+              {MODES.map((option) => (
+                <OptionCard
+                  key={option.id}
+                  active={mode === option.id}
+                  title={option.title}
+                  detail={option.detail}
+                  onClick={() => {
+                    setMode(option.id);
+                    touch();
+                  }}
+                />
+              ))}
+            </div>
+          </Field>
+
+          {mode === "extract" && (
+            <Field label="Pages" hint={pageCount ? `of ${pageCount}` : undefined}>
+              <div className="space-y-4">
                 <TextRow
                   label="Page ranges"
                   value={ranges}
                   onChange={applyRanges}
                   placeholder="1-3, 5, 8-10"
-                  hint="Commas and dashes are supported"
+                  hint="Or click the thumbnails. Commas and dashes work."
                 />
-              )}
-              {mode === "every" && (
+                <ToggleRow
+                  label="One file per page"
+                  description="Save every picked page as its own PDF."
+                  checked={separate}
+                  onChange={(checked) => {
+                    setSeparate(checked);
+                    touch();
+                  }}
+                />
+              </div>
+            </Field>
+          )}
+
+          {mode === "every" && (
+            <Field label="Pages per file" hint={pageCount ? `${groups.length} files` : undefined}>
+              <RailPick
+                label="Pages per file"
+                columns={4}
+                value={everyCount}
+                options={CHUNK_PRESETS.map((preset) => ({ value: preset, label: preset }))}
+                onChange={(preset) => {
+                  setEvery(String(preset));
+                  touch();
+                }}
+              />
+              <div className="mt-3">
                 <TextRow
-                  label="Pages per file"
+                  label="Custom"
                   value={every}
+                  inputMode="numeric"
                   onChange={(value) => {
-                    setEvery(value);
-                    patch();
+                    setEvery(value.replace(/[^\d]/g, ""));
+                    touch();
                   }}
                   placeholder="2"
-                  hint={`${pageCount} pages → ${chunkCount} files`}
                 />
-              )}
-              {mode === "parity" && (
-                <SelectRow
-                  label="First file"
-                  options={["Odd pages", "Even pages"]}
-                  value={parity}
-                  onChange={(value) => {
-                    setParity(value);
-                    patch();
-                  }}
-                />
-              )}
-            </RailSection>
+              </div>
+            </Field>
+          )}
 
-            <RailSection title="Output" hint="Naming" className="border-t border-line-soft pt-4">
+          {mode === "parity" && (
+            <Note>
+              Odd pages go into one file and even pages into another. Handy for separating the two sides of a
+              double-sided scan.
+            </Note>
+          )}
+
+          <Field label="Output">
+            <div className="space-y-4">
               <TextRow
                 label="File name"
                 value={filename}
                 onChange={(value) => {
                   setFilename(value);
-                  patch();
+                  touch();
                 }}
                 placeholder={fileStem(activeItem?.name ?? "document")}
-                hint="Number suffixes are added per file"
+                hint={groups[0] ? `First file: ${groups[0].name}` : "A suffix is added to each file"}
               />
               <ToggleRow
-                label="Keep document metadata"
-                description="Carry titles, authors and dates into each output."
+                label="Keep document details"
+                description="Carry the title, author and dates into each file."
                 checked={keepMetadata}
                 onChange={(checked) => {
                   setKeepMetadata(checked);
-                  patch();
+                  touch();
                 }}
               />
-            </RailSection>
-
-            <PreviewNote>
-              Splitting runs entirely on your device once the PDF engine is connected.
-              The page counts here come from the file you added.
-            </PreviewNote>
-          </div>
-        </StudioRail>
-      </div>
-    </section>
+            </div>
+          </Field>
+        </div>
+      </StudioRail>
+    </StudioFrame>
   );
 }

@@ -38,14 +38,12 @@ export function MiniWaveform({
         return (
           <span
             key={index}
-            className={`w-full flex-1 rounded-full ${
+            className={`w-full flex-1 ${
               played
                 ? tone === "coral"
                   ? "bg-accent"
-                  : tone === "ink"
-                    ? "bg-ink"
-                    : "bg-[#8fae9f]"
-                : "bg-[#ddd8cd]"
+                  : "bg-ink"
+                : "bg-line-strong"
             }`}
             style={{ height: `${height}%` }}
           />

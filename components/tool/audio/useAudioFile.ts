@@ -9,6 +9,8 @@ import {
   type DragEvent,
 } from "react";
 
+import { useFileIntake } from "@/components/tool/studio/useFileIntake";
+
 export type AudioItem = {
   id: string;
   file: File;
@@ -35,7 +37,7 @@ const AUDIO_TYPES = [
   "audio/ogg",
 ];
 const AUDIO_EXTENSION = /\.(mp3|wav|m4a|ogg)$/i;
-const BARS = 80;
+const BARS = 360;
 
 function isAudioFile(file: File) {
   return AUDIO_TYPES.includes(file.type) || AUDIO_EXTENSION.test(file.name);
@@ -200,6 +202,8 @@ export function useAudioFile({
     [clear, maxDurationMin, maxSizeMB],
   );
 
+  useFileIntake(accept, setDragging);
+
   function onPick(event: ChangeEvent<HTMLInputElement>) {
     accept(event.target.files);
     event.target.value = "";
@@ -232,6 +236,7 @@ export function useAudioFile({
     setError,
     dragging,
     inputRef,
+    accept,
     openPicker,
     onPick,
     onDragOver,

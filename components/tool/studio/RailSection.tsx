@@ -1,16 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { ChevronDown, type LucideIcon } from "lucide-react";
+import { useId, useState, type ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 
-export const RAIL_FIELD_LABEL = "block text-[12px] font-medium text-ink";
-export const RAIL_FIELD_META = "text-[11px] text-faint tabular-nums";
-export const RAIL_CARD_IDLE =
-  "border-line bg-white hover:border-[#cfc9bd] hover:bg-[#fdfdfc]";
-export const RAIL_CARD_ACTIVE =
-  "border-ink bg-[#fbfaf7] shadow-[inset_0_0_0_1px_#0f0f10]";
-
-/** Collapsible settings card shared by the tool studios. */
+/**
+ * Collapsible settings group shared by the tool studios. Flat by design: a
+ * heading row and its controls, ruled off from the next group edge to edge.
+ */
 export function RailSection({
   icon: Icon,
   title,
@@ -19,7 +15,7 @@ export function RailSection({
   aside,
   children,
 }: {
-  icon: LucideIcon;
+  icon?: LucideIcon;
   title: string;
   hint?: string;
   defaultOpen?: boolean;
@@ -27,40 +23,43 @@ export function RailSection({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const id = useId();
 
   return (
-    <div className="overflow-hidden rounded-[16px] border border-line bg-white shadow-2xs">
+    <div className={`-mx-4 border-b border-line px-4 pt-2.5 first:-mt-3 last:border-b-0 sm:-mx-5 sm:px-5 ${open ? "pb-6" : "pb-2.5"}`}>
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
+        aria-controls={id}
         data-slot="section-trigger"
-        className="flex w-full items-center gap-3 p-3.5 text-left transition-colors hover:bg-[#fbfaf8]"
+        title={hint}
+        className="group flex min-h-[40px] w-full items-center gap-3 text-left"
       >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-line bg-[#faf9f6] text-ink">
-          <Icon size={14} aria-hidden />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-ink">{title}</span>
-          {hint ? (
-            <span className="mt-0.5 block truncate text-[11px] text-faint">{hint}</span>
-          ) : null}
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
-          {aside ? (
-            <span className="rounded-full border border-line bg-[#faf9f6] px-2 py-0.5 text-[10.5px] font-medium text-muted">
-              {aside}
-            </span>
-          ) : null}
-          <ChevronDown
-            size={14}
-            aria-hidden
-            className={`text-faint transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        {Icon ? <Icon size={16} strokeWidth={1.7} className="shrink-0 text-muted" aria-hidden /> : null}
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold uppercase">{title}</span>
+        {aside ? <span className="fb-num shrink-0 text-[13px] text-faint">{aside}</span> : null}
+        <svg
+          aria-hidden
+          width="11"
+          height="11"
+          viewBox="0 0 11 11"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className="shrink-0 text-faint group-hover:text-accent-deep"
+        >
+          <path d="M0 5.5h11" />
+          <path
+            d="M5.5 0v11"
+            className="origin-center transition-transform duration-300"
+            style={{ transform: open ? "scaleY(0)" : undefined }}
           />
-        </span>
+        </svg>
       </button>
 
-      {open ? <div className="border-t border-line-soft p-4 pt-3.5">{children}</div> : null}
+      <div id={id} hidden={!open} className="pt-2.5">
+        {children}
+      </div>
     </div>
   );
 }

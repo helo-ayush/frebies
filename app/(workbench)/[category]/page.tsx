@@ -1,23 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import {
-  ArrowRight,
-  Check,
-  ChevronDown,
-  Cloud,
-  FileStack,
-  Gauge,
-  ShieldCheck,
-  WandSparkles,
-  type LucideIcon,
-} from "lucide-react";
-import { ToolDirectory } from "@/components/dashboard/ToolDirectory";
-import { CometCard } from "@/components/aceternity/comet-card";
-import { HoverBorderLink } from "@/components/aceternity/hover-border-gradient";
-import { PointerHighlight } from "@/components/aceternity/pointer-highlight";
-import { BorderBeam } from "@/components/magicui/border-beam";
+import { Cloud, FileStack, Gauge, WandSparkles, type LucideIcon } from "lucide-react";
+import { CategoryIndex } from "@/components/dashboard/CategoryIndex";
+import { FaqList } from "@/components/site/FaqList";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { categories, getCategory, toolsForCategory, type CategorySlug } from "@/lib/registry/tools";
+import { categories, getCategory, type CategorySlug } from "@/lib/registry/tools";
 import { categoryMetadata } from "@/lib/seo/metadata";
 import { categoryJsonLd } from "@/lib/seo/schema";
 
@@ -96,160 +83,48 @@ export default async function CategoryPage({ params }: CategoryParams) {
   const category = getCategory(slug);
   if (!category) notFound();
 
-  const categoryTools = toolsForCategory(category.slug);
   const showcase = showcases[category.slug];
-  const Icon = category.icon;
 
   return (
     <>
       <JsonLd data={categoryJsonLd(category)} />
+      <CategoryIndex slug={category.slug} title={category.title} description={category.description} />
 
-      <header className="flex flex-wrap items-end justify-between gap-5">
-        <div className="max-w-2xl">
-          <div className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-rail">
-              <Icon size={17} strokeWidth={1.55} aria-hidden />
-            </span>
-            <span className="text-micro font-medium text-faint">
-              {categoryTools.length} focused {categoryTools.length === 1 ? "workspace" : "workspaces"}
-            </span>
-          </div>
-          <h1 className="mt-4 font-display text-[32px] font-semibold tracking-[-0.035em]">
-            {category.title}
-          </h1>
-          <p className="mt-2 text-sm leading-relaxed text-muted">{category.description}</p>
-        </div>
-        <HoverBorderLink
-          href="#tools"
-          containerClassName="rounded-full"
-          className="h-9 gap-2 rounded-full px-3.5 text-ui transition-colors hover:bg-neutral-50"
-        >
-          Browse all tools
-          <ArrowRight size={14} aria-hidden />
-        </HoverBorderLink>
-      </header>
+      <section className="grid grid-cols-1 border-b border-line lg:grid-cols-3">
+        {showcase.useCases.map((item, index) => {
+          const UseCaseIcon = item.icon;
+          return (
+            <article
+              key={item.title}
+              className={`border-line px-[var(--fb-pad)] py-[clamp(30px,3.4vw,56px)] max-lg:border-b max-lg:last:border-b-0 lg:border-l lg:first:border-l-0 ${
+                index === 0 ? "bg-ink-2 text-white" : index === 2 ? "bg-panel" : ""
+              }`}
+            >
+              <UseCaseIcon
+                size={26}
+                strokeWidth={1.4}
+                className={index === 0 ? "text-accent" : "text-muted"}
+                aria-hidden
+              />
+              <h2 className="fb-wide mt-10 text-[22px] !leading-[1.08]">{item.title}</h2>
+              <p className={`mt-3.5 max-w-[400px] text-[15.5px] leading-[1.5] ${index === 0 ? "text-white/70" : "text-muted"}`}>
+                {item.copy}
+              </p>
+            </article>
+          );
+        })}
+      </section>
 
-      <section className="relative mt-7 overflow-hidden rounded-[18px] border border-line bg-[#f8f8f6]">
-        <BorderBeam
-          size={220}
-          duration={18}
-          colorFrom="#e55e40"
-          colorTo="#fda82b"
-          borderWidth={1}
-          className="opacity-50"
-        />
-        <div className="grid lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
-          <div className="p-6 sm:p-8">
-            <p className="text-micro font-medium text-faint">
-              <PointerHighlight
-                rectangleClassName="border-accent/30"
-                pointerClassName="text-accent"
-              >
-                <span className="px-0.5">{showcase.eyebrow}</span>
-              </PointerHighlight>
+      <section className="grid grid-cols-1 gap-y-10 px-[var(--fb-pad)] py-[clamp(48px,6vw,100px)] lg:grid-cols-[38%_minmax(0,1fr)]">
+        <div className="max-w-[420px]">
+          <h2 className="fb-wide text-[clamp(26px,2.7vw,44px)]">About {category.title.toLowerCase()}</h2>
+          {category.intro.map((paragraph) => (
+            <p key={paragraph} className="mt-5 text-[15.5px] leading-[1.55] text-muted">
+              {paragraph}
             </p>
-            <h2 className="mt-3 max-w-md font-display text-[26px] font-semibold leading-tight tracking-[-0.03em]">
-              {showcase.title}
-            </h2>
-            <p className="mt-3 max-w-lg text-ui leading-relaxed text-muted">{showcase.copy}</p>
-            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2">
-              {showcase.points.map((point) => (
-                <span key={point} className="flex items-center gap-1.5 text-micro text-muted">
-                  <Check size={12} className="text-ink" aria-hidden />
-                  {point}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div aria-hidden className="relative hidden min-h-[220px] overflow-hidden lg:block">
-            <span className="absolute -right-10 -top-20 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_35%_30%,#fff2dc_0%,#efc9a5_35%,#d58e72_70%,#93504b_100%)] opacity-80" />
-            <div className="absolute bottom-7 left-4 right-8 flex items-end gap-3">
-              {categoryTools.slice(0, 3).map((tool, index) => {
-                const ToolIcon = tool.icon;
-                return (
-                  <span
-                    key={tool.path}
-                    className="grid flex-1 place-items-center rounded-[14px] border border-white/70 bg-white/80 backdrop-blur-sm"
-                    style={{ height: `${78 + index * 22}px` }}
-                  >
-                    <ToolIcon size={23} strokeWidth={1.35} className="text-muted" />
-                  </span>
-                );
-              })}
-            </div>
-          </div>
+          ))}
         </div>
-      </section>
-
-      <section id="tools" className="mt-11 scroll-mt-24">
-        <div className="mb-5">
-          <h2 className="font-display text-[21px] font-semibold tracking-[-0.025em]">Find your tool</h2>
-          <p className="mt-1 text-ui text-muted">Search by task or narrow the list to free and AI tools.</p>
-        </div>
-        <ToolDirectory category={category.slug} />
-      </section>
-
-      <section className="mt-12">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-micro font-medium text-faint">Made for the everyday</p>
-            <h2 className="mt-1.5 font-display text-[21px] font-semibold tracking-[-0.025em]">One toolbox, fewer detours.</h2>
-          </div>
-          <ShieldCheck size={19} strokeWidth={1.4} className="text-faint" aria-hidden />
-        </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          {showcase.useCases.map((item, index) => {
-            const UseCaseIcon = item.icon;
-            return (
-              <CometCard key={item.title} className="h-full" rotateDepth={4} translateDepth={4}>
-                <article className="group relative h-full overflow-hidden rounded-[14px] border border-line bg-white p-5">
-                  <BorderBeam
-                    size={100}
-                    duration={8}
-                    radius={14}
-                    colorFrom="#e55e40"
-                    colorTo="#fda82b"
-                    className="opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                  />
-                  <div className="relative flex items-center justify-between">
-                    <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-rail text-muted">
-                      <UseCaseIcon size={17} strokeWidth={1.5} aria-hidden />
-                    </span>
-                    <span className="font-display text-[22px] font-medium text-line">0{index + 1}</span>
-                  </div>
-                  <h3 className="mt-5 text-sm font-semibold">{item.title}</h3>
-                  <p className="mt-1.5 text-ui leading-relaxed text-muted">{item.copy}</p>
-                </article>
-              </CometCard>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="mt-14 border-t border-line-soft pt-10">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <div>
-            <h2 className="text-[18px] font-semibold tracking-[-0.015em]">About {category.title.toLowerCase()}</h2>
-            {category.intro.map((paragraph) => (
-              <p key={paragraph} className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">{paragraph}</p>
-            ))}
-          </div>
-
-          <aside>
-            <h2 className="text-[18px] font-semibold tracking-[-0.015em]">Frequently asked questions</h2>
-            <div className="mt-3 border-t border-line-soft">
-              {category.faq.map((item) => (
-                <details key={item.q} className="group border-b border-line-soft py-4">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-ink">
-                    {item.q}
-                    <ChevronDown size={15} className="shrink-0 text-faint transition-transform group-open:rotate-180" aria-hidden />
-                  </summary>
-                  <p className="mt-2.5 text-ui leading-relaxed text-muted">{item.a}</p>
-                </details>
-              ))}
-            </div>
-          </aside>
-        </div>
+        <FaqList items={category.faq} />
       </section>
     </>
   );

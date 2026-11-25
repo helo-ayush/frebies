@@ -1,7 +1,9 @@
 "use client";
 
+import { buttonClasses } from "@/components/ui/Button";
 import { ArrowRightGlyph, LockGlyph } from "@/components/icons/NavGlyph";
 
+/** Run button for the paid audio tools: what it costs, then one loud action. */
 export function AudioRunCard({
   cost,
   verb,
@@ -24,15 +26,12 @@ export function AudioRunCard({
   const credits = `${cost} ${cost === 1 ? "credit" : "credits"}`;
 
   return (
-    <div className="rounded-[14px] border border-[#eadfd5] bg-[#fffdfa] p-4 shadow-[0_10px_24px_rgba(80,50,30,0.06)]">
-      <div className="flex items-center justify-between gap-3">
-        <span className="inline-flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-faint">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-          AI audio run
-        </span>
-        <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium tabular-nums text-[#a8432c]">
+    <div>
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <span className="text-[13px] font-semibold text-ink">Cost</span>
+        <span className="inline-flex h-6 items-center rounded-full bg-accent-soft px-2.5 text-[12px] font-medium tabular-nums text-accent-deep">
           {credits}
-          {unit ? <span className="font-normal"> {unit}</span> : null}
+          {unit ? <span className="ml-1 font-normal">{unit}</span> : null}
         </span>
       </div>
 
@@ -40,28 +39,27 @@ export function AudioRunCard({
         type="button"
         onClick={onRun}
         disabled={!ready}
-        className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-[9px] bg-ink text-[12.5px] font-medium text-white transition-colors hover:bg-[#2a2a2b] disabled:pointer-events-none disabled:opacity-40"
+        className={buttonClasses("accent", "xl", "w-full px-4")}
       >
         {!ready ? (
           emptyLabel
         ) : (
           <>
-            {guest && <LockGlyph size={12} />}
-            Sign in to {verb} · {credits}
-            <ArrowRightGlyph size={13} />
+            {guest && <LockGlyph size={13} />}
+            <span className="truncate">
+              Sign in to {verb} · {credits}
+            </span>
+            <ArrowRightGlyph size={14} />
           </>
         )}
       </button>
 
-      <p className="mt-2.5 text-[10px] leading-relaxed text-muted">
+      <p className="mt-2.5 text-[12px] leading-relaxed text-faint">
         {note ?? "No credits are used until the run starts. Failed runs are refunded."}
       </p>
-
-      <div className="mt-2.5 flex items-center justify-between border-t border-line-soft pt-2.5 text-[9px] text-faint">
-        <span>New accounts get 25 free credits</span>
-        <span>Files deleted in 1h</span>
-      </div>
+      <p className="mt-1.5 text-[12px] leading-relaxed text-faint">
+        New accounts get 25 free credits. Uploaded files are deleted within 1 hour.
+      </p>
     </div>
   );
 }
-

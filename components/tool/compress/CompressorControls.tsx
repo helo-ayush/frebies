@@ -79,7 +79,7 @@ export function CompressorControls({
           <h3 id="compressor-presets" className="text-ui font-semibold text-ink">
             Quick presets
           </h3>
-          <span className="text-[10px] text-faint">One tap targets</span>
+          <span className="text-[11.5px] text-faint">One tap targets</span>
         </div>
         <div className="mt-2 grid grid-cols-2 gap-2">
           {PRESETS.map((preset) => {
@@ -104,9 +104,9 @@ export function CompressorControls({
                     aria-hidden
                     className={selected ? "text-ink" : "text-faint"}
                   />
-                  <span className="text-[11.5px] font-medium text-ink">{preset.label}</span>
+                  <span className="text-[12.5px] font-medium text-ink">{preset.label}</span>
                 </span>
-                <span className="mt-0.5 block text-[10px] text-faint">{preset.detail}</span>
+                <span className="mt-0.5 block text-[11.5px] text-faint">{preset.detail}</span>
               </button>
             );
           })}
@@ -118,7 +118,7 @@ export function CompressorControls({
           <h3 id="compressor-goal" className="text-ui font-semibold text-ink">
             Compression goal
           </h3>
-          <span className="text-[10px] text-faint">Applies to all</span>
+          <span className="text-[11.5px] text-faint">Applies to all</span>
         </div>
 
         <div
@@ -136,7 +136,7 @@ export function CompressorControls({
                 onChange={() => onPatch({ goal: goal.value })}
                 className="peer sr-only"
               />
-              <span className="block rounded-[7px] py-1.5 text-center text-[11.5px] font-medium text-muted transition-colors peer-checked:bg-white peer-checked:text-ink peer-checked:shadow-[0_1px_2px_rgba(15,15,16,0.08)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
+              <span className="block rounded-[7px] py-1.5 text-center text-[12.5px] font-medium text-muted transition-colors peer-checked:bg-white peer-checked:text-ink peer-checked:shadow-[0_1px_2px_rgba(15,15,16,0.08)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
                 {goal.label}
               </span>
             </label>
@@ -161,7 +161,7 @@ export function CompressorControls({
           <h3 id="compressor-output" className="text-ui font-semibold text-ink">
             Output
           </h3>
-          <span className="text-[10px] text-faint">Free</span>
+          <span className="text-[11.5px] text-faint">Free</span>
         </div>
 
         <div
@@ -179,20 +179,20 @@ export function CompressorControls({
                 onChange={() => onPatch({ format: option.value })}
                 className="peer sr-only"
               />
-              <span className="block rounded-[8px] border border-line bg-white py-2 text-center text-[10.5px] font-medium text-muted transition-colors hover:border-[#d8d4cb] peer-checked:border-ink peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
+              <span className="block rounded-[8px] border border-line bg-white py-2 text-center text-[12px] font-medium text-muted transition-colors hover:border-[#d8d4cb] peer-checked:border-ink peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
                 {option.label}
               </span>
             </label>
           ))}
         </div>
-        <p className="mt-2 min-h-[26px] text-[10px] leading-relaxed text-faint">{format.hint}</p>
+        <p className="mt-2 min-h-[26px] text-[11.5px] leading-relaxed text-faint">{format.hint}</p>
 
         <div className="mt-2.5">
           <div className="flex items-baseline justify-between gap-3">
             <label htmlFor="compress-resize" className="text-ui font-medium text-ink">
               Max dimension
             </label>
-            <span className="text-[10px] text-faint">Longest edge</span>
+            <span className="text-[11.5px] text-faint">Longest edge</span>
           </div>
           <span className="relative mt-1.5 block">
             <select
@@ -213,17 +213,17 @@ export function CompressorControls({
               aria-hidden
             />
           </span>
-          <p className="mt-1.5 min-h-[26px] text-[10px] leading-relaxed text-faint">{resize.hint}</p>
+          <p className="mt-1.5 min-h-[26px] text-[11.5px] leading-relaxed text-faint">{resize.hint}</p>
         </div>
       </section>
 
       <details className="group overflow-hidden rounded-[11px] border border-line bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
-          <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink">
+          <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
             <SlidersHorizontal size={12} className="text-muted" aria-hidden />
             Advanced settings
           </span>
-          <span className="flex items-center gap-1 text-[10px] text-faint">
+          <span className="flex items-center gap-1 text-[11.5px] text-faint">
             6 controls
             <ChevronDown
               size={12}
@@ -277,7 +277,7 @@ export function CompressorControls({
         </div>
       </details>
 
-      <p className="border-t border-line-soft pt-3 text-[10px] leading-relaxed text-faint">
+      <p className="border-t border-line-soft pt-3 text-[11.5px] leading-relaxed text-faint">
         Sizes here are estimates. The encoder reports the exact size and checks it against
         your goal before you download.
       </p>
@@ -310,7 +310,7 @@ function QualityPanel({ settings, onPatch }: PanelProps) {
         style={rangeFill(settings.quality, MIN_QUALITY, MAX_QUALITY)}
         className="range mt-3"
       />
-      <div className="mt-1 flex justify-between text-[10px] text-faint">
+      <div className="mt-1 flex justify-between text-[11.5px] text-faint">
         <span>Smallest file</span>
         <span>Best detail</span>
       </div>
@@ -318,9 +318,9 @@ function QualityPanel({ settings, onPatch }: PanelProps) {
       <div className="mt-2.5 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2">
         <div className="flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" aria-hidden />
-          <span className="text-[11px] font-medium text-ink">{band.label}</span>
+          <span className="text-[12px] font-medium text-ink">{band.label}</span>
         </div>
-        <p className="mt-1 text-[10.5px] leading-relaxed text-muted">{band.hint}</p>
+        <p className="mt-1 text-[12px] leading-relaxed text-muted">{band.hint}</p>
       </div>
     </div>
   );
@@ -350,7 +350,7 @@ function TargetPanel({
         <label htmlFor="compress-target" className="text-ui font-medium text-ink">
           Final size
         </label>
-        <span className="text-[10px] text-faint">Per image</span>
+        <span className="text-[11.5px] text-faint">Per image</span>
       </div>
 
       <div className="mt-2 flex h-10 items-stretch overflow-hidden rounded-[10px] border border-line bg-white transition-colors focus-within:border-[#c3beb4]">
@@ -376,7 +376,7 @@ function TargetPanel({
               type="button"
               aria-pressed={settings.targetUnit === unit}
               onClick={() => onPatch({ targetUnit: unit })}
-              className={`h-full rounded-[7px] px-2 text-[10.5px] font-medium transition-colors ${
+              className={`h-full rounded-[7px] px-2 text-[12px] font-medium transition-colors ${
                 settings.targetUnit === unit
                   ? "bg-ink text-white"
                   : "text-muted hover:text-ink"
@@ -398,7 +398,7 @@ function TargetPanel({
               type="button"
               aria-pressed={selected}
               onClick={() => onPatch({ targetValue: chip.value, targetUnit: chip.unit })}
-              className={`h-7 rounded-full border px-2.5 text-[10.5px] font-medium tabular-nums transition-colors ${
+              className={`h-7 rounded-full border px-2.5 text-[12px] font-medium tabular-nums transition-colors ${
                 selected
                   ? "border-ink bg-ink text-white"
                   : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
@@ -412,22 +412,22 @@ function TargetPanel({
 
       <div id="compress-target-help" className="mt-2.5">
         {target <= 0 ? (
-          <p className="text-[10.5px] leading-relaxed text-muted">
+          <p className="text-[12px] leading-relaxed text-muted">
             Enter a final size, for example 200 KB. Quality adjusts automatically to fit.
           </p>
         ) : activeOriginal === null ? (
-          <p className="text-[10.5px] leading-relaxed text-muted">
+          <p className="text-[12px] leading-relaxed text-muted">
             Each image is tuned to fit {label}. An estimate appears once you add one.
           </p>
         ) : oversized && settings.keepSmaller ? (
-          <p className="flex items-start gap-1.5 rounded-[9px] border border-line bg-[#f4f7f1] px-2.5 py-2 text-[10.5px] leading-relaxed text-[#4a6650]">
+          <p className="flex items-start gap-1.5 rounded-[9px] border border-line bg-[#f4f7f1] px-2.5 py-2 text-[12px] leading-relaxed text-[#4a6650]">
             <Check size={12} strokeWidth={2.2} className="mt-px shrink-0" aria-hidden />
             <span>
               Already fits — the original is at or below {label}, so it will be kept as-is.
             </span>
           </p>
         ) : oversized ? (
-          <p className="flex items-start gap-1.5 rounded-[9px] border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-2 text-[10.5px] leading-relaxed text-[#786344]">
+          <p className="flex items-start gap-1.5 rounded-[9px] border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-2 text-[12px] leading-relaxed text-[#786344]">
             <TriangleAlert size={12} className="mt-px shrink-0" aria-hidden />
             <span>
               {label} is larger than this image, so the output would grow. Lower the target
@@ -435,7 +435,7 @@ function TargetPanel({
             </span>
           </p>
         ) : extreme ? (
-          <p className="flex items-start gap-1.5 rounded-[9px] border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-2 text-[10.5px] leading-relaxed text-[#786344]">
+          <p className="flex items-start gap-1.5 rounded-[9px] border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-2 text-[12px] leading-relaxed text-[#786344]">
             <TriangleAlert size={12} className="mt-px shrink-0" aria-hidden />
             <span>
               Needs −{reduction}%. That is an extreme target and usually shows visible
@@ -443,7 +443,7 @@ function TargetPanel({
             </span>
           </p>
         ) : (
-          <div className="flex items-center justify-between gap-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2 text-[10.5px]">
+          <div className="flex items-center justify-between gap-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2 text-[12px]">
             <span className="text-muted">
               To reach {label} from{" "}
               {activeOriginal ? formatBytes(activeOriginal) : "the original"}
@@ -484,7 +484,7 @@ function PercentPanel({ settings, onPatch }: PanelProps) {
         style={rangeFill(settings.percent, 10, 95)}
         className="range mt-3"
       />
-      <div className="mt-1 flex justify-between text-[10px] text-faint">
+      <div className="mt-1 flex justify-between text-[11.5px] text-faint">
         <span>Gentle</span>
         <span>Aggressive</span>
       </div>
@@ -498,7 +498,7 @@ function PercentPanel({ settings, onPatch }: PanelProps) {
               type="button"
               aria-pressed={selected}
               onClick={() => onPatch({ percent: value })}
-              className={`h-7 rounded-[7px] border text-[10.5px] font-medium tabular-nums transition-colors ${
+              className={`h-7 rounded-[7px] border text-[12px] font-medium tabular-nums transition-colors ${
                 selected
                   ? "border-ink bg-ink text-white"
                   : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
@@ -510,7 +510,7 @@ function PercentPanel({ settings, onPatch }: PanelProps) {
         })}
       </div>
 
-      <p className="mt-2 text-[10.5px] leading-relaxed text-muted">
+      <p className="mt-2 text-[12px] leading-relaxed text-muted">
         Output keeps about {100 - settings.percent}% of the original size, roughly{" "}
         {equivalent}% equivalent quality.
       </p>
@@ -532,8 +532,8 @@ function ToggleRow({
   return (
     <label className="flex cursor-pointer items-start justify-between gap-3">
       <span className="min-w-0">
-        <span className="block text-[11.5px] font-medium text-ink">{label}</span>
-        <span className="mt-0.5 block text-[10px] leading-relaxed text-faint">{description}</span>
+        <span className="block text-[12.5px] font-medium text-ink">{label}</span>
+        <span className="mt-0.5 block text-[11.5px] leading-relaxed text-faint">{description}</span>
       </span>
       <input
         type="checkbox"
@@ -562,12 +562,12 @@ function MiniSelect({
 }) {
   return (
     <label className="block">
-      <span className="block text-[10px] font-medium text-muted">{label}</span>
+      <span className="block text-[11.5px] font-medium text-muted">{label}</span>
       <span className="relative mt-1 block">
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-8 w-full appearance-none rounded-lg border border-line bg-white pl-2 pr-6 text-[11px] text-ink outline-none hover:border-[#d5d1c8]"
+          className="h-8 w-full appearance-none rounded-lg border border-line bg-white pl-2 pr-6 text-[12px] text-ink outline-none hover:border-[#d5d1c8]"
         >
           {options.map((option) => (
             <option key={option} value={option}>

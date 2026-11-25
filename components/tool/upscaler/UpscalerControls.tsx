@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Cpu, RotateCcw, SlidersHorizontal, Sparkles, Wand2 } from "lucide-react";
+import { Cpu, FileImage, Wand2 } from "lucide-react";
+import { Field, OptionCard, Segmented } from "@/components/tool/kit";
 import { PaidSlider, PaidToggle } from "@/components/tool/paid/PaidControls";
+import { RailSection } from "@/components/tool/studio/RailSection";
+import { RailColors, RailHint, RailLabel, RailPick, RailReset } from "@/components/tool/studio/RailControls";
 import {
   DEFAULT_UPSCALE_SETTINGS,
   FREE_UPSCALE_MODELS,
@@ -12,40 +14,51 @@ import {
   UPSCALE_PROFILES,
   UPSCALE_TARGET_PRESETS,
   getUpscaleModelMeta,
+  upscaleCredits,
   upscaleTarget,
   type UpscaleContentProfile,
   type UpscaleEngineModel,
+  type UpscaleFactor,
   type UpscaleFormat,
   type UpscaleSettings,
+  type UpscaleTargetPreset,
   type UpscaleTier,
 } from "./model";
 
-export type UpscaleSettingsTab = "engine" | "enhance" | "output";
+const FACTOR_OPTIONS = [
+  { value: "2", label: "2×" },
+  { value: "4", label: "4×" },
+] as const;
 
-function SectionLabel({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
-  return (
-    <div className="mb-2 flex items-baseline justify-between gap-2">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-        {children}
-      </span>
-      {aside ? <span className="text-[11px] text-faint">{aside}</span> : null}
-    </div>
-  );
-}
+/** Short labels for the size cap; the full wording stays in the tooltip. */
+const CAP_LABELS: Record<UpscaleTargetPreset, string> = {
+  exact: "Off",
+  "1080p": "1080p",
+  "2k": "2K",
+  "4k": "4K",
+};
 
-function chipClass(selected: boolean) {
-  return selected
-    ? "border-ink bg-ink text-white shadow-sm"
-    : "border-line bg-white text-ink hover:border-ink/30 hover:bg-rail";
-}
+/** What each free model is good at. The model name is shown underneath. */
+const MODEL_BENEFITS: Record<UpscaleEngineModel, string> = {
+  ultrasharp_v2_lite: "Fast all-rounder",
+  ultrasharp_v2: "More photo detail",
+  omnisr: "Anime, line art and UI",
+  hat: "Small text and hard edges",
+  realesrgan: "Noisy or compressed photos",
+  ultrasharp: "General graphics",
+  seedvr2_3b: "Best detail",
+};
 
-const TAB_META: { id: UpscaleSettingsTab; label: string; icon: ReactNode }[] = [
-  { id: "engine", label: "Engine", icon: <Cpu size={13} aria-hidden /> },
-  { id: "enhance", label: "Enhance", icon: <Wand2 size={13} aria-hidden /> },
-  { id: "output", label: "Output", icon: <SlidersHorizontal size={13} aria-hidden /> },
+const CLEANUP_LABELS: Record<string, string> = {
+  clean: "Remove noise",
+  raw: "No clean-up",
+};
+
+const BACKDROPS = [
+  { label: "White", value: "#ffffff" },
+  { label: "Paper", value: "#f7f7f5" },
+  { label: "Black", value: "#111113" },
 ];
-
-const BACKDROP_SWATCHES = ["#ffffff", "#f7f7f5", "#111113"] as const;
 
 function recommendedModelForProfile(profile: UpscaleContentProfile): UpscaleEngineModel {
   if (profile === "illustration") return "omnisr";
@@ -53,6 +66,10 @@ function recommendedModelForProfile(profile: UpscaleContentProfile): UpscaleEngi
   if (profile === "portrait") return "ultrasharp_v2";
   if (profile === "cinema") return "realesrgan";
   return "ultrasharp_v2_lite";
+}
+
+function creditsLabel(count: number) {
+  return `${count} ${count === 1 ? "credit" : "credits"}`;
 }
 
 export function UpscalerControls({
@@ -74,9 +91,16 @@ export function UpscalerControls({
   proUpscalerReady?: boolean;
   disabled?: boolean;
 }) {
-  const [tab, setTab] = useState<UpscaleSettingsTab>("engine");
-
   const activeModel = getUpscaleModelMeta(settings.engineModel);
+  const activeProfile = UPSCALE_PROFILES.find((profile) => profile.value === settings.profile);
+  const activeFormat = UPSCALE_FORMATS.find((format) => format.value === settings.format);
+  const activeCleanup = UPSCALE_ENHANCE_PRESETS.find(
+    (preset) =>
+      settings.denoise === preset.denoise &&
+      settings.sharpen === preset.sharpen &&
+      settings.colorFix === preset.colorFix &&
+      settings.face === preset.face,
+  );
   const targetDims = upscaleTarget(sourceWidth, sourceHeight, settings.factor, settings.targetPreset);
 
   function selectTier(tier: UpscaleTier) {
@@ -104,433 +128,258 @@ export function UpscalerControls({
   }
 
   return (
-    <div className="space-y-4">
-      <div
-        role="tablist"
-        aria-label="Upscaler settings"
-        className="grid grid-cols-3 gap-1 rounded-xl bg-[#f3f3f1] p-1"
-      >
-        {TAB_META.map((item) => {
-          const selected = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => setTab(item.id)}
-              className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-[9px] text-[11.5px] font-medium transition-all ${
-                selected
-                  ? "bg-white text-ink shadow-[0_1px_2px_rgba(15,15,16,0.08)]"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              <span className={selected ? "text-accent" : ""}>{item.icon}</span>
-              {item.label}
-            </button>
-          );
-        })}
+    <fieldset
+      disabled={disabled}
+      aria-label="Upscaler settings"
+      className="m-0 min-w-0 border-0 p-0"
+    >
+      <div className="space-y-7 pb-7">
+        <Field label="Quality">
+          <div className="space-y-2">
+            <OptionCard
+              active={settings.tier === "free"}
+              title={
+                <span className="flex items-baseline justify-between gap-2">
+                  <span>Fast</span>
+                  <span className="fb-num text-[13px] font-normal opacity-65">
+                    {creditsLabel(upscaleCredits("free", settings.factor))}
+                  </span>
+                </span>
+              }
+              detail="Sharp, clean result in a few seconds."
+              onClick={() => selectTier("free")}
+            />
+            <OptionCard
+              active={settings.tier === "pro"}
+              title={
+                <span className="flex items-baseline justify-between gap-2">
+                  <span>Best detail</span>
+                  <span className="fb-num text-[13px] font-normal opacity-65">
+                    {creditsLabel(upscaleCredits("pro", settings.factor))}
+                  </span>
+                </span>
+              }
+              detail="Rebuilds faces, skin and fine texture. Slower."
+              onClick={() => selectTier("pro")}
+            />
+          </div>
+          {settings.tier === "pro" && !proUpscalerReady ? (
+            <RailHint>The first Best detail run needs a short warm-up.</RailHint>
+          ) : null}
+        </Field>
+
+        <Field
+          label="Scale"
+          hint={hasImage && targetDims.width ? `${targetDims.width} × ${targetDims.height}` : undefined}
+        >
+          <Segmented
+            label="Scale"
+            options={FACTOR_OPTIONS}
+            value={String(settings.factor) as "2" | "4"}
+            onChange={(value) => onPatch({ factor: Number(value) as UpscaleFactor })}
+          />
+        </Field>
+
+        <Field label="Limit the longest side">
+          <Segmented
+            label="Limit the longest side"
+            options={UPSCALE_TARGET_PRESETS.map((preset) => ({
+              value: preset.value,
+              label: CAP_LABELS[preset.value],
+              title: preset.hint,
+            }))}
+            value={settings.targetPreset}
+            onChange={(targetPreset) => onPatch({ targetPreset })}
+          />
+        </Field>
+
+        <Field label="Image type">
+          <RailPick
+            label="Image type"
+            columns={3}
+            value={settings.profile}
+            options={UPSCALE_PROFILES.map((profile) => ({ value: profile.value, label: profile.label }))}
+            onChange={selectProfile}
+          />
+          {activeProfile ? <RailHint>{activeProfile.hint}</RailHint> : null}
+        </Field>
       </div>
 
-      {tab === "engine" ? (
-        <div className="space-y-4">
-          <div>
-            <SectionLabel aside={settings.tier === "pro" ? "FP8 DiT" : "Fast FP16"}>
-              Engine tier
-            </SectionLabel>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => selectTier("free")}
-                className={`rounded-xl border p-2.5 text-left transition ${chipClass(
-                  settings.tier === "free",
-                )}`}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[12px] font-semibold">Free · Lite</span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${
-                      settings.tier === "free"
-                        ? "bg-white/15 text-white"
-                        : "bg-emerald-50 text-emerald-700"
-                    }`}
-                  >
-                    FP16
-                  </span>
-                </div>
-                <p
-                  className={`mt-1 text-[10.5px] leading-snug ${
-                    settings.tier === "free" ? "text-white/75" : "text-faint"
-                  }`}
-                >
-                  Instant RRDB & Transformer models
-                </p>
-              </button>
-
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => selectTier("pro")}
-                className={`rounded-xl border p-2.5 text-left transition ${chipClass(
-                  settings.tier === "pro",
-                )}`}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="inline-flex items-center gap-1 text-[12px] font-semibold">
-                    <Sparkles size={11} className="text-accent" aria-hidden />
-                    Pro · 3B
-                  </span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${
-                      settings.tier === "pro"
-                        ? "bg-accent text-white"
-                        : proUpscalerReady
-                          ? "bg-accent-soft text-accent"
-                          : "bg-[#f3f3f1] text-muted"
-                    }`}
-                  >
-                    FP8
-                  </span>
-                </div>
-                <p
-                  className={`mt-1 text-[10.5px] leading-snug ${
-                    settings.tier === "pro" ? "text-white/75" : "text-faint"
-                  }`}
-                >
-                  SeedVR2-3B generative diffusion
-                </p>
-              </button>
-            </div>
-          </div>
-
-          {settings.tier === "pro" ? (
-            <div className="rounded-xl border border-accent/25 bg-accent-soft/45 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[12px] font-semibold text-ink">
-                  {PRO_UPSCALE_MODEL.label}
-                </span>
-                <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-accent shadow-sm">
-                  {proUpscalerReady ? "Ready on L20 GPU" : "FP8 · L20 GPU"}
-                </span>
-              </div>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
-                {PRO_UPSCALE_MODEL.hint}
-              </p>
-            </div>
-          ) : (
-            <div>
-              <SectionLabel aside={activeModel.precision}>Free model</SectionLabel>
-              <div className="grid max-h-[210px] gap-1.5 overflow-y-auto pr-0.5">
-                {FREE_UPSCALE_MODELS.map((m) => {
-                  const selected = settings.engineModel === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() =>
-                        onPatch({
-                          engineModel: m.id,
-                          profile: m.recommendedProfile,
-                        })
-                      }
-                      className={`flex items-start justify-between gap-2 rounded-lg border px-2.5 py-2 text-left transition ${chipClass(
-                        selected,
-                      )}`}
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate text-[12px] font-medium">{m.shortLabel}</span>
-                          <span
-                            className={`rounded px-1.5 py-0.5 text-[9.5px] font-medium ${
-                              selected ? "bg-white/15 text-white" : "bg-[#f3f3f1] text-muted"
-                            }`}
-                          >
-                            {m.badge}
-                          </span>
-                        </div>
-                        <p
-                          className={`mt-0.5 line-clamp-2 text-[10.5px] leading-snug ${
-                            selected ? "text-white/75" : "text-faint"
-                          }`}
-                        >
-                          {m.hint}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <SectionLabel>Content profile</SectionLabel>
-            <div className="flex flex-wrap gap-1.5">
-              {UPSCALE_PROFILES.map((p) => {
-                const selected = settings.profile === p.value;
-                return (
-                  <button
-                    key={p.value}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => selectProfile(p.value)}
-                    title={p.hint}
-                    className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${chipClass(
-                      selected,
-                    )}`}
-                  >
-                    {p.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <SectionLabel>Scale</SectionLabel>
-              <div className="grid grid-cols-2 gap-1.5">
-                {([2, 4] as const).map((factor) => {
-                  const selected = settings.factor === factor;
-                  return (
-                    <button
-                      key={factor}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => onPatch({ factor })}
-                      className={`h-9 rounded-lg border text-[12.5px] font-semibold transition ${chipClass(
-                        selected,
-                      )}`}
-                    >
-                      {factor}×
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <SectionLabel
-                aside={
-                  hasImage && targetDims.width
-                    ? `${targetDims.width}×${targetDims.height}`
-                    : undefined
+      <div className="-mx-4 border-t border-line px-4 sm:-mx-5 sm:px-5">
+        <RailSection
+          icon={Wand2}
+          title="Clean-up"
+          aside={activeCleanup ? (CLEANUP_LABELS[activeCleanup.id] ?? activeCleanup.label) : "Custom"}
+          defaultOpen={false}
+        >
+          <div className="space-y-4">
+            <RailPick
+              label="Clean-up presets"
+              columns={2}
+              value={activeCleanup?.id}
+              options={UPSCALE_ENHANCE_PRESETS.map((preset) => ({
+                value: preset.id,
+                label: CLEANUP_LABELS[preset.id] ?? preset.label,
+              }))}
+              onChange={(id) => {
+                const preset = UPSCALE_ENHANCE_PRESETS.find((entry) => entry.id === id);
+                if (preset) {
+                  onPatch({
+                    denoise: preset.denoise,
+                    sharpen: preset.sharpen,
+                    colorFix: preset.colorFix,
+                    face: preset.face,
+                  });
                 }
-              >
-                Target cap
-              </SectionLabel>
-              <div className="grid grid-cols-2 gap-1.5">
-                {UPSCALE_TARGET_PRESETS.map((preset) => {
-                  const selected = settings.targetPreset === preset.value;
-                  return (
-                    <button
-                      key={preset.value}
-                      type="button"
-                      disabled={disabled}
-                      title={preset.hint}
-                      onClick={() => onPatch({ targetPreset: preset.value })}
-                      className={`h-9 rounded-lg border px-1.5 text-[10.5px] font-medium transition ${chipClass(
-                        selected,
-                      )}`}
-                    >
-                      {preset.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+              }}
+            />
 
-      {tab === "enhance" ? (
-        <div className="space-y-4">
-          <div>
-            <SectionLabel>Quick presets</SectionLabel>
-            <div className="grid grid-cols-2 gap-1.5">
-              {UPSCALE_ENHANCE_PRESETS.map((preset) => {
-                const selected =
-                  settings.denoise === preset.denoise &&
-                  settings.sharpen === preset.sharpen &&
-                  settings.colorFix === preset.colorFix &&
-                  settings.face === preset.face;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() =>
-                      onPatch({
-                        denoise: preset.denoise,
-                        sharpen: preset.sharpen,
-                        colorFix: preset.colorFix,
-                        face: preset.face,
-                      })
-                    }
-                    className={`rounded-lg border px-2.5 py-2 text-left text-[11.5px] font-medium transition ${chipClass(
-                      selected,
-                    )}`}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+            <PaidSlider
+              label="Noise removal"
+              value={settings.denoise}
+              min={0}
+              max={100}
+              step={5}
+              suffix="%"
+              left="Off"
+              right="Strong"
+              disabled={disabled}
+              onChange={(denoise) => onPatch({ denoise })}
+            />
 
-          <PaidSlider
-            label="Denoise cleanup"
-            value={settings.denoise}
-            min={0}
-            max={100}
-            step={5}
-            suffix="%"
-            left="Off"
-            right="Strong"
-            disabled={disabled}
-            onChange={(denoise) => onPatch({ denoise })}
-          />
+            <PaidSlider
+              label="Sharpening"
+              value={settings.sharpen}
+              min={0}
+              max={100}
+              step={5}
+              suffix="%"
+              left="Soft"
+              right="Crisp"
+              disabled={disabled}
+              onChange={(sharpen) => onPatch({ sharpen })}
+            />
 
-          <PaidSlider
-            label="Post-upscale sharpen"
-            value={settings.sharpen}
-            min={0}
-            max={100}
-            step={5}
-            suffix="%"
-            left="Soft"
-            right="Crisp"
-            disabled={disabled}
-            onChange={(sharpen) => onPatch({ sharpen })}
-          />
-
-          <div className="space-y-2.5 pt-1">
             <PaidToggle
-              title="Face & eye recovery"
-              description="Prioritize facial clarity and natural hair detail"
+              title="Restore faces"
+              description="Clearer eyes, skin and hair in portraits."
               checked={settings.face}
               disabled={disabled}
               onChange={(face) => onPatch({ face })}
             />
             <PaidToggle
-              title="LAB color fidelity lock"
-              description="Preserve original skin tones and white balance"
+              title="Keep original colors"
+              description="Holds skin tones and white balance steady."
               checked={settings.colorFix}
               disabled={disabled}
               onChange={(colorFix) => onPatch({ colorFix })}
             />
           </div>
-        </div>
-      ) : null}
+        </RailSection>
 
-      {tab === "output" ? (
-        <div className="space-y-4">
-          <div>
-            <SectionLabel>Export format</SectionLabel>
-            <div className="grid grid-cols-3 gap-1.5">
-              {UPSCALE_FORMATS.map((fmt) => {
-                const selected = settings.format === fmt.value;
-                return (
-                  <button
-                    key={fmt.value}
-                    type="button"
-                    disabled={disabled}
-                    title={fmt.hint}
-                    onClick={() => onPatch({ format: fmt.value as UpscaleFormat })}
-                    className={`h-9 rounded-lg border text-[12px] font-semibold transition ${chipClass(
-                      selected,
-                    )}`}
-                  >
-                    {fmt.label}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-faint">
-              {UPSCALE_FORMATS.find((f) => f.value === settings.format)?.hint}
-            </p>
-          </div>
-
-          {settings.format !== "png" ? (
-            <PaidSlider
-              label={`${settings.format.toUpperCase()} compression quality`}
-              value={settings.quality}
-              min={60}
-              max={100}
-              step={1}
-              suffix="%"
-              left="60% small"
-              right="100% max"
-              disabled={disabled}
-              onChange={(quality) => onPatch({ quality })}
-            />
-          ) : null}
-
-          {settings.format !== "jpg" ? (
-            <PaidToggle
-              title="Preserve alpha transparency"
-              description="Keep transparent PNG/WebP background matte"
-              checked={settings.transparency}
-              disabled={disabled}
-              onChange={(transparency) => onPatch({ transparency })}
-            />
-          ) : null}
-
-          {settings.format === "jpg" || !settings.transparency ? (
+        <RailSection
+          icon={FileImage}
+          title="File format"
+          aside={activeFormat?.label ?? settings.format.toUpperCase()}
+          defaultOpen={false}
+        >
+          <div className="space-y-4">
             <div>
-              <SectionLabel aside={settings.backgroundColor}>Flatten backdrop</SectionLabel>
-              <div className="flex items-center gap-2">
-                {BACKDROP_SWATCHES.map((hex) => {
-                  const selected = settings.backgroundColor.toLowerCase() === hex;
-                  return (
-                    <button
-                      key={hex}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => onPatch({ backgroundColor: hex })}
-                      className={`h-7 w-7 rounded-lg border transition ${
-                        selected ? "ring-2 ring-ink ring-offset-1" : "border-line"
-                      }`}
-                      style={{ backgroundColor: hex }}
-                      aria-label={`Set backdrop ${hex}`}
-                    />
-                  );
-                })}
-                <input
-                  type="color"
-                  disabled={disabled}
+              <Segmented
+                label="File format"
+                options={UPSCALE_FORMATS.map((format) => ({
+                  value: format.value,
+                  label: format.label,
+                }))}
+                value={settings.format}
+                onChange={(format: UpscaleFormat) => onPatch({ format })}
+              />
+              {activeFormat ? <RailHint>{activeFormat.hint}</RailHint> : null}
+            </div>
+
+            {settings.format !== "png" ? (
+              <PaidSlider
+                label="Quality"
+                value={settings.quality}
+                min={60}
+                max={100}
+                step={1}
+                suffix="%"
+                left="Smaller file"
+                right="Best quality"
+                disabled={disabled}
+                onChange={(quality) => onPatch({ quality })}
+              />
+            ) : null}
+
+            {settings.format !== "jpg" ? (
+              <PaidToggle
+                title="Keep transparency"
+                description="Transparent areas stay transparent."
+                checked={settings.transparency}
+                disabled={disabled}
+                onChange={(transparency) => onPatch({ transparency })}
+              />
+            ) : null}
+
+            {settings.format === "jpg" || !settings.transparency ? (
+              <div>
+                <RailLabel value={settings.backgroundColor}>Background fill</RailLabel>
+                <RailColors
+                  label="Background fill"
+                  presets={BACKDROPS}
                   value={settings.backgroundColor}
-                  onChange={(e) => onPatch({ backgroundColor: e.target.value })}
-                  className="h-7 w-10 cursor-pointer rounded border border-line bg-white p-0.5"
-                  aria-label="Custom backdrop color"
+                  onChange={(backgroundColor) => onPatch({ backgroundColor })}
                 />
               </div>
+            ) : null}
+
+            <PaidToggle
+              title="Keep photo details"
+              description="Camera data and the color profile stay in the file."
+              checked={settings.metadata}
+              disabled={disabled}
+              onChange={(metadata) => onPatch({ metadata })}
+            />
+          </div>
+        </RailSection>
+
+        <RailSection icon={Cpu} title="Model" aside={MODEL_BENEFITS[settings.engineModel]} defaultOpen={false}>
+          {settings.tier === "pro" ? (
+            <p className="text-[13.5px] leading-relaxed text-muted">
+              Best detail always runs on one model ({PRO_UPSCALE_MODEL.label}). Switch to Fast to choose
+              between models.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {FREE_UPSCALE_MODELS.map((model) => (
+                <OptionCard
+                  key={model.id}
+                  active={settings.engineModel === model.id}
+                  title={MODEL_BENEFITS[model.id]}
+                  detail={model.label}
+                  onClick={() =>
+                    onPatch({
+                      engineModel: model.id,
+                      profile: model.recommendedProfile,
+                    })
+                  }
+                />
+              ))}
+              <RailHint>
+                Picking an image type chooses a model for you. Now using {activeModel.label}.
+              </RailHint>
             </div>
-          ) : null}
-
-          <PaidToggle
-            title="Keep EXIF & ICC profile"
-            description="Retain color management & camera metadata on export"
-            checked={settings.metadata}
-            disabled={disabled}
-            onChange={(metadata) => onPatch({ metadata })}
-          />
-        </div>
-      ) : null}
-
-      <div className="border-t border-line pt-3">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => (onReset ? onReset() : onPatch({ ...DEFAULT_UPSCALE_SETTINGS }))}
-          className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-muted transition hover:text-ink"
-        >
-          <RotateCcw size={12} aria-hidden />
-          Reset defaults
-        </button>
+          )}
+        </RailSection>
       </div>
-    </div>
+
+      <div className="pt-2">
+        <RailReset
+          label="Reset to defaults"
+          onClick={() => (onReset ? onReset() : onPatch({ ...DEFAULT_UPSCALE_SETTINGS }))}
+        />
+      </div>
+    </fieldset>
   );
 }

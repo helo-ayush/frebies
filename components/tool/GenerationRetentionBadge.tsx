@@ -8,10 +8,10 @@ import {
 } from "@/lib/storage/retention";
 
 const TONE_STYLES = {
-  healthy: "border-line bg-[#f7f7f5] text-muted",
-  warning: "border-amber-200 bg-amber-50 text-amber-800",
-  critical: "border-rose-200 bg-rose-50 text-rose-700",
-  expired: "border-rose-200 bg-rose-50/70 text-rose-600",
+  healthy: "border-line-strong text-muted",
+  warning: "border-accent text-accent-deep",
+  critical: "border-danger text-danger",
+  expired: "border-danger/50 text-danger",
 } as const;
 
 export function GenerationExpiryBadge({
@@ -30,9 +30,9 @@ export function GenerationExpiryBadge({
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium tabular-nums ${TONE_STYLES[tone]}`}
+      className={`fb-num inline-flex h-6 items-center gap-1.5 border px-2 text-[12px] font-medium ${TONE_STYLES[tone]}`}
     >
-      <Clock size={10} className="shrink-0 opacity-80" aria-hidden />
+      <Clock size={11} className="shrink-0 opacity-80" aria-hidden />
       <span>{label}</span>
     </span>
   );
@@ -47,15 +47,12 @@ export function GenerationStorageNotice({
 }) {
   const stayVerb = noun.trim().toLowerCase().endsWith("s") ? "stay" : "stays";
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white/80 px-3 py-2 text-[11px] text-muted">
-      <span className="inline-flex items-center gap-1.5">
-        <Clock size={12} className="shrink-0 text-faint" aria-hidden />
-        {noun} {stayVerb} saved for{" "}
-        <strong className="font-medium text-ink">{ttlHours} hours</strong>
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[13px] text-muted">
+      <span className="inline-flex items-center gap-2">
+        <Clock size={14} className="shrink-0 text-faint" aria-hidden />
+        {noun} {stayVerb} saved for <strong className="font-semibold text-ink">{ttlHours} hours</strong>
       </span>
-      <span className="text-[10.5px] text-faint">
-        Older items may be cleared earlier when space is needed
-      </span>
+      <span className="text-faint">Older items may be cleared earlier when space is needed</span>
     </div>
   );
 }

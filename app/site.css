@@ -1,0 +1,599 @@
+/*
+ * The frebies look, shared by the landing page, the workbench and auth.
+ * Loaded after Tailwind, so these classes win over utilities of equal weight.
+ */
+
+:root {
+  --fb-bg: #e9e9e6;
+  --fb-panel: #f4f4f1;
+  --fb-tint: #dfe6e7;
+  --fb-line: rgba(24, 24, 27, 0.14);
+  --fb-line-strong: rgba(24, 24, 27, 0.32);
+  --fb-ink: #1d1c1f;
+  --fb-ink-2: #2a292d;
+  --fb-muted: #57565c;
+  --fb-coral: #f2552c;
+  /* The fill under white text: same hue, dark enough to read on. */
+  --fb-coral-deep: #d8431b;
+  --fb-danger: #ad1f1a;
+
+  --fb-nav: 72px;
+  --fb-pad: clamp(16px, 2.1vw, 34px);
+  /* Workbench frame: top bar, tool header, side index. */
+  --fb-bar: 60px;
+  --fb-head: 76px;
+  --fb-side: 264px;
+}
+@media (max-width: 1023px) {
+  :root {
+    --fb-bar: 56px;
+  }
+}
+
+/* Arc controls follow the same palette and sharp corners. */
+:root[data-accent="coral"] {
+  --accent: var(--fb-coral);
+  --accent-strong: var(--fb-coral-deep);
+  --accent-subtle: rgba(242, 85, 44, 0.14);
+  --accent-foreground: #ffffff;
+  --background: var(--fb-panel);
+  --surface: var(--fb-panel);
+  --surface-raised: #ffffff;
+  --surface-muted: var(--fb-bg);
+  --foreground: var(--fb-ink);
+  --text-secondary: var(--fb-muted);
+  --text-muted: #6b6a70;
+  --border: #cfcfcb;
+  --border-subtle: #dddcd8;
+  --border-strong: #a5a4a2;
+  --control-on: var(--fb-coral);
+  --control-fill: var(--fb-coral);
+  --control-track: #c7c6c2;
+  --control-track-hover: #b7b6b2;
+  --control-thumb: #ffffff;
+  --control-thumb-on: #ffffff;
+  --control-glyph: #ffffff;
+  --control-thumb-shadow: none;
+  --focus-outline: var(--fb-coral);
+  --radius-control: 0px;
+  --radius-panel: 0px;
+  --primary: var(--fb-ink);
+  --ring: var(--fb-coral);
+  --input: #a5a4a2;
+  --muted-foreground: var(--fb-muted);
+  --secondary: var(--fb-bg);
+}
+
+body {
+  background: var(--fb-bg);
+  color: var(--fb-ink);
+  font-family: var(--font-host), system-ui, sans-serif;
+  font-size: 15px;
+  letter-spacing: -0.005em;
+}
+::selection {
+  background: var(--fb-coral);
+  color: #fff;
+}
+/* Zero weight on purpose, so a control that draws its own focus mark can opt out. */
+:where(:focus-visible) {
+  outline: 2px solid var(--fb-coral);
+  outline-offset: 2px;
+}
+
+/* ---------- Type ---------- */
+.fb-wide {
+  font-family: var(--font-wide), var(--font-host), system-ui, sans-serif;
+  font-stretch: 136%;
+  font-weight: 620;
+  text-transform: uppercase;
+  letter-spacing: -0.028em;
+  line-height: 0.96;
+}
+.fb-wide.lowercase { text-transform: lowercase; }
+.fb-wide.normal-case { text-transform: none; }
+.fb-label {
+  font-size: 13px;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--fb-muted);
+}
+.fb-body { font-size: 15.5px; line-height: 1.5; color: #3d3c41; }
+
+/* Numbers that change while you watch them. */
+.fb-num { font-variant-numeric: tabular-nums; }
+
+/* ---------- Marks ---------- */
+.fb-sq { width: 12px; height: 12px; background: var(--fb-coral); }
+:where(.fb-sq) { display: block; flex: none; }
+
+/* Dog-ear: every cut corner is the folded corner of a file. */
+.fb-ear {
+  --ear: 16px;
+  clip-path: polygon(0 0, calc(100% - var(--ear)) 0, 100% var(--ear), 100% 100%, 0 100%);
+}
+
+.fb-grid-bg {
+  background-image:
+    linear-gradient(var(--fb-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fb-line) 1px, transparent 1px);
+}
+.fb-hatch {
+  background-image: repeating-linear-gradient(45deg, var(--fb-line) 0 1px, transparent 1px 9px);
+}
+/* The stage every file sits on. */
+.fb-stage {
+  background: linear-gradient(180deg, var(--fb-bg), var(--fb-tint));
+}
+.fb-checker {
+  background-color: #fff;
+  background-image: repeating-conic-gradient(rgba(24, 24, 27, 0.07) 0% 25%, transparent 0% 50%);
+  background-size: 16px 16px;
+}
+
+/* Corner marks that frame a viewport. */
+.fb-corners::before,
+.fb-corners::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+.fb-corners::before { left: 10px; top: 10px; border-left: 1px solid var(--fb-ink); border-top: 1px solid var(--fb-ink); }
+.fb-corners::after { right: 10px; bottom: 10px; border-right: 1px solid var(--fb-ink); border-bottom: 1px solid var(--fb-ink); }
+
+/* ---------- Buttons ---------- */
+.fb-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 24px;
+  background: var(--fb-ink);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  white-space: nowrap;
+  isolation: isolate;
+  overflow: hidden;
+  user-select: none;
+}
+.fb-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--fb-coral);
+  transform: scaleX(0.03);
+  transform-origin: left;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s;
+}
+.fb-btn:hover:not(:disabled)::before,
+.fb-btn:focus-visible::before,
+.fb-btn[data-lit="true"]::before { transform: scaleX(1); background: var(--fb-coral-deep); }
+.fb-btn:disabled { background: #c9c8c4; color: #75747a; cursor: not-allowed; }
+.fb-btn:disabled::before { opacity: 0; }
+
+.fb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1px no-repeat;
+  transition: background-size 0.45s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s;
+}
+.fb-link:hover { background-size: 26px 1px; color: var(--fb-coral-deep); }
+.fb-link svg { transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+.fb-link:hover svg { transform: translateX(5px); }
+
+/* Two stacked copies of a label; hover rolls to the second. */
+.fb-roll { display: inline-block; position: relative; overflow: hidden; vertical-align: bottom; line-height: 1.3; }
+.fb-roll > span { display: block; transition: transform 0.42s cubic-bezier(0.65, 0, 0.2, 1); }
+.fb-roll > span + span { position: absolute; inset: 0; transform: translateY(105%); color: var(--fb-coral); }
+:where(a, button):hover > .fb-roll > span:first-child { transform: translateY(-105%); }
+:where(a, button):hover > .fb-roll > span + span { transform: none; }
+
+/*
+ * The one loud control of a tool. Coral to run it; ink with a coral cell once
+ * there is something to take away. Hover wipes a slanted page across it, the
+ * same move as the landing hero.
+ */
+.fb-run {
+  --ear: 16px;
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 60px;
+  align-items: stretch;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--fb-coral-deep);
+  color: #fff;
+  text-align: left;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.18;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  user-select: none;
+  clip-path: polygon(0 0, calc(100% - var(--ear)) 0, 100% var(--ear), 100% 100%, 0 100%);
+}
+.fb-run::before {
+  content: "";
+  position: absolute;
+  inset: 0 -44px 0 0;
+  z-index: -1;
+  background: var(--fb-ink);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 40px) 100%, 0 100%);
+  transform: translateX(-102%);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.fb-run:hover:not(:disabled)::before,
+.fb-run:focus-visible::before { transform: none; }
+.fb-run > .fb-run-icon {
+  display: grid;
+  width: 60px;
+  flex: none;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.16);
+}
+.fb-run > .fb-run-icon svg { transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.fb-run:hover:not(:disabled) > .fb-run-icon svg { transform: translateX(3px); }
+.fb-run > .fb-run-label {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  padding: 10px 20px 10px 18px;
+}
+.fb-run[data-tone="done"] { background: var(--fb-ink); }
+.fb-run[data-tone="done"]::before { background: var(--fb-coral-deep); }
+.fb-run[data-tone="done"] > .fb-run-icon { background: var(--fb-coral-deep); }
+.fb-run[data-tone="done"]:hover > .fb-run-icon svg { transform: translateY(3px); }
+.fb-run[data-tone="ink"] { background: var(--fb-ink); }
+.fb-run[data-tone="ink"]::before { background: var(--fb-coral-deep); }
+.fb-run:disabled:not([aria-busy="true"]) { background: #cbcac6; color: #6f6e74; cursor: not-allowed; }
+.fb-run:disabled:not([aria-busy="true"]) > .fb-run-icon { background: rgba(0, 0, 0, 0.07); }
+.fb-run[aria-busy="true"] { background: #8f2a10; cursor: progress; }
+.fb-run-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: -1;
+  background: repeating-linear-gradient(115deg, var(--fb-coral-deep) 0 16px, #c93c16 16px 32px);
+  background-size: 35.3px 100%;
+  transition: width 0.3s;
+  animation: fb-feed 0.9s linear infinite;
+}
+@keyframes fb-feed { to { background-position-x: 35.3px; } }
+
+/* The machine's button. Only play controls are round. */
+.fb-play {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 28%, #ff8a63 0%, #f2552c 42%, #cf3f17 100%);
+  color: #fff;
+  box-shadow: 0 0 0 4px #2f2e32, 0 0 0 5px #6d6c71, 0 5px 9px rgba(0, 0, 0, 0.4);
+  transition: transform 0.16s cubic-bezier(0.3, 1.4, 0.5, 1), box-shadow 0.16s, filter 0.2s;
+}
+.fb-play:hover:not(:disabled) { filter: brightness(1.07); }
+.fb-play:active:not(:disabled),
+.fb-play[data-playing] {
+  transform: scale(0.94);
+  box-shadow: 0 0 0 4px #2f2e32, 0 0 0 5px #6d6c71, inset 0 4px 9px rgba(96, 22, 2, 0.55);
+}
+.fb-play:disabled { opacity: 0.5; cursor: not-allowed; }
+.fb-play svg { filter: drop-shadow(0 1px 0 rgba(110, 28, 6, 0.5)); }
+.fb-play-sm { box-shadow: 0 0 0 2px #2f2e32, 0 2px 4px rgba(0, 0, 0, 0.28); }
+.fb-play-sm:active:not(:disabled),
+.fb-play-sm[data-playing] { box-shadow: 0 0 0 2px #2f2e32, inset 0 2px 5px rgba(96, 22, 2, 0.6); }
+.fb-deck-range::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--fb-coral) 0 var(--fill, 50%), rgba(255, 255, 255, 0.26) var(--fill, 50%) 100%); }
+.fb-deck-range::-webkit-slider-thumb { background: #fff; box-shadow: none; width: 12px; height: 16px; }
+.fb-deck-range::-moz-range-track { background: rgba(255, 255, 255, 0.26); }
+.fb-deck-range::-moz-range-thumb { background: #fff; box-shadow: none; width: 12px; height: 16px; }
+
+/* ---------- Form pieces ---------- */
+.fb-input {
+  height: 44px;
+  width: 100%;
+  border: 1px solid #a5a4a2;
+  background: #fff;
+  padding: 0 14px;
+  font-size: 15px;
+  color: var(--fb-ink);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.fb-input::placeholder { color: #85848a; }
+.fb-input:hover { border-color: #6b6a70; }
+.fb-input:focus, .fb-input:focus-visible { border-color: var(--fb-ink); box-shadow: inset 0 -2px 0 var(--fb-coral); outline: none !important; }
+.fb-input:disabled { opacity: 0.5; cursor: not-allowed; }
+textarea.fb-input { height: auto; padding: 12px 14px; line-height: 1.5; }
+select.fb-input { appearance: none; padding-right: 36px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='%231d1c1f' stroke-width='1.6'%3E%3Cpath d='M1 3l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 14px center; }
+
+/* Every field inside a settings rail, whatever markup it came from. */
+.studio-rail :is(input[type="number"], input[type="text"], input[type="search"], input[type="url"], input:not([type]), textarea, select):not(.fb-bare) {
+  border: 1px solid #a5a4a2;
+  background-color: #fff;
+  color: var(--fb-ink);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.studio-rail :is(input[type="number"], input[type="text"], input[type="search"], input[type="url"], input:not([type]), textarea, select):not(.fb-bare):hover { border-color: #6b6a70; }
+.studio-rail :is(input[type="number"], input[type="text"], input[type="search"], input[type="url"], input:not([type]), textarea, select):not(.fb-bare):focus {
+  border-color: var(--fb-ink);
+  box-shadow: inset 0 -2px 0 var(--fb-coral);
+  outline: none;
+}
+.studio-rail input[type="color"] { border: 1px solid #a5a4a2; background: #fff; padding: 4px; }
+
+/* ---------- Moving parts ---------- */
+@keyframes fb-marquee { to { transform: translateX(-50%); } }
+.fb-marquee { animation: fb-marquee 46s linear infinite; }
+.fb-marquee-wrap:hover .fb-marquee { animation-play-state: paused; }
+
+@keyframes fb-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.fb-blink { animation: fb-blink 1.8s ease-in-out infinite; }
+
+@keyframes fb-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+.fb-bob { animation: fb-bob 3.4s ease-in-out infinite; }
+
+@keyframes fb-unfold { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+.fb-unfold { animation: fb-unfold 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes fb-scan { from { transform: translateY(0); } to { transform: translateY(var(--scan, 300px)); } }
+
+/* The reader passing over a picture while it is being worked on. */
+.fb-scanline {
+  background: linear-gradient(180deg, transparent 0 62%, rgba(242, 85, 44, 0.3) 99.2%, var(--fb-coral) 99.2%);
+  animation: fb-scanline 1.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes fb-scanline { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+
+/* Text rises out of a mask. */
+.fb-mask { display: block; overflow: hidden; padding-bottom: 0.06em; margin-bottom: -0.06em; }
+
+.fb-plus svg { transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+details[open] > summary .fb-plus { background: var(--fb-coral); color: #fff; }
+details[open] > summary .fb-plus svg { transform: rotate(45deg); }
+
+/* Dialogs sit on a flat ink scrim. */
+dialog::backdrop { background: rgba(29, 28, 31, 0.55); backdrop-filter: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-marquee, .fb-blink, .fb-bob, .fb-run-fill, .fb-unfold, .fb-scanline { animation: none; }
+  .fb-run::before, .fb-btn::before { transition: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Stage strips that answer to the width of the stage, not the window  */
+/* ------------------------------------------------------------------ */
+
+.fb-filerow {
+  container: filerow / inline-size;
+}
+.fb-filerow-replace > svg {
+  display: none;
+}
+
+/* Tight: one line, with Replace and extras as icons. */
+@container filerow (min-width: 640px) and (max-width: 859.98px) {
+  [data-extras] .fb-filerow-replace > svg {
+    display: block;
+  }
+  [data-extras] .fb-filerow-replace > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Narrow: extras get a line of their own. */
+@container filerow (max-width: 639.98px) {
+  .fb-filerow-extras {
+    order: 9;
+    flex-basis: calc(100% + 22px);
+    margin: 0 -8px 0 -14px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--fb-line);
+  }
+}
+
+@container filerow (max-width: 499.98px) {
+  .fb-filerow-extras [data-compact] {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .fb-filerow-extras [data-compact] > span {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@container filerow (min-width: 640px) and (max-width: 859.98px) {
+  .fb-filerow-extras [data-compact] {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .fb-filerow-extras [data-compact] > span {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.fb-result {
+  container: result / inline-size;
+}
+@container result (max-width: 559.98px) {
+  .fb-result-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* One-line player: the wave keeps its room, speed and mute go first. */
+.fb-deckrow {
+  container: deckrow / inline-size;
+}
+@container deckrow (max-width: 419.98px) {
+  .fb-deckrow-keys {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Dashboard shelves                                                   */
+/* ------------------------------------------------------------------ */
+
+.fb-shelves {
+  container: shelves / inline-size;
+  display: flex;
+  flex-direction: column;
+}
+.fb-shelf-list {
+  display: grid;
+  gap: 28px;
+}
+.fb-shelf {
+  display: grid;
+  gap: 12px;
+}
+.fb-shelf-name {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+}
+.fb-shelf-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  line-height: 1;
+}
+.fb-shelf-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.fb-shelf-cards > li {
+  display: grid;
+  min-height: 140px;
+}
+@container shelves (min-width: 620px) {
+  .fb-shelf-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+/* Laptop: six to a shelf, the name above them. */
+@container shelves (min-width: 900px) {
+  .fb-shelf-list {
+    gap: 20px;
+  }
+  .fb-shelf {
+    gap: 10px;
+  }
+  .fb-shelf-cards {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .fb-shelf-cards > li {
+    min-height: 126px;
+  }
+}
+/* Wide: the name stands beside its six cards, and the shelves share the height. */
+@container shelves (min-width: 1080px) {
+  .fb-shelf-list {
+    flex: 1;
+    grid-auto-rows: minmax(128px, 1fr);
+    gap: 12px;
+    max-height: 660px;
+  }
+  .fb-shelf {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 16px;
+  }
+  .fb-shelf-name {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 16px;
+    padding-top: 15px;
+  }
+  .fb-shelf-cards {
+    gap: 12px;
+  }
+  .fb-shelf-cards > li {
+    min-height: 0;
+  }
+  .fb-shelf-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+/* A card is a sheet with its corner folded. --fold colours the fold. */
+.fb-card {
+  --ear: 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 14px 14px 13px;
+  background: var(--fb-panel);
+  color: var(--fb-ink);
+  box-shadow: inset 0 0 0 1px var(--fb-line);
+  clip-path: polygon(0 0, calc(100% - var(--ear)) 0, 100% var(--ear), 100% 100%, 0 100%);
+  transition: background-color 0.18s, color 0.18s, opacity 0.18s;
+}
+.fb-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--ear);
+  height: var(--ear);
+  background: var(--fold, var(--fb-coral));
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+.fb-card:hover,
+.fb-card:focus-visible {
+  background: var(--fb-ink);
+  color: #fff;
+  opacity: 1;
+}
+.fb-card:hover::after,
+.fb-card:focus-visible::after {
+  background: var(--fb-coral);
+}
+.fb-card:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px var(--fb-coral);
+}

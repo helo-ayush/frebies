@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Check, Loader2, Mic, Square, Trash2, Upload, Volume2, X } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Check, Loader2, Mic, Square, Trash2, Upload, X } from "lucide-react";
+import { AudioPlayer } from "@/components/tool/audio/AudioPlayer";
+import { Note, ToolIcon, ToolText } from "@/components/tool/kit";
+import { buttonClasses } from "@/components/ui/Button";
 import type { SavedCustomVoice } from "./model";
 import {
   MAX_CLONE_SECONDS,
@@ -37,6 +40,7 @@ export function VoiceClonePanel({
   onClose,
   showSavedList = true,
 }: VoiceClonePanelProps) {
+  const panelRef = useRef<HTMLElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -54,6 +58,8 @@ export function VoiceClonePanel({
   const [draftDurationSeconds, setDraftDurationSeconds] = useState<number | undefined>(undefined);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const nameId = useId();
+  const transcriptId = useId();
 
   const stopTracksAndTimer = () => {
     if (timerRef.current !== null) {
@@ -67,6 +73,11 @@ export function VoiceClonePanel({
       streamRef.current = null;
     }
   };
+
+  // The panel opens under the button, often past the end of the rail.
+  useEffect(() => {
+    if (open) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [open]);
 
   useEffect(() => {
     return () => {
@@ -218,70 +229,56 @@ export function VoiceClonePanel({
   };
 
   return (
-    <section
-      aria-label="Voice cloning studio"
-      className="mt-2.5 rounded-xl border border-line bg-[#fbfbfa] p-3.5 transition-all"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-[13.5px] font-semibold tracking-tight text-ink">
-              Clone a voice
-            </h3>
-            <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-medium text-muted ring-1 ring-line">
-              5–{MAX_CLONE_SECONDS}s sample
-            </span>
-          </div>
-          <p className="mt-0.5 text-[12px] text-muted">
-            Record with your mic or upload clean speech (WAV, MP3, M4A). Trimmed automatically for fast cloning.
+    <section ref={panelRef} aria-label="Voice cloning" className="mt-4 scroll-mb-[150px] scroll-mt-[76px] space-y-4 border border-line-strong bg-canvas p-4 lg:scroll-mb-4 lg:scroll-mt-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="fb-wide text-[17px]">Clone a voice</h3>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
+            Record or upload 5 to {MAX_CLONE_SECONDS} seconds of clear speech. Longer clips are
+            trimmed.
           </p>
         </div>
 
-        <button
-          type="button"
+        <ToolIcon
+          label="Close voice cloner"
+          slot="cloner-close"
           onClick={() => {
             if (recording) stopRecording();
             onClose();
           }}
-          aria-label="Close voice cloner"
-          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white hover:text-ink"
         >
-          <X size={15} aria-hidden />
-        </button>
+          <X size={16} aria-hidden />
+        </ToolIcon>
       </div>
 
-      {/* Reusable saved cloned voices inside cloner */}
+      {/* Saved voices, only when the parent does not already list them */}
       {showSavedList && customVoices.length > 0 && (
-        <div className="mt-3 rounded-lg border border-line bg-white p-2.5">
-          <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-muted">
-            <span>Saved cloned voices ({customVoices.length}/4)</span>
-            <span>Click to select</span>
-          </div>
+        <div>
+          <p className="mb-1.5 text-[12.5px] font-medium text-muted">
+            Saved voices ({customVoices.length} of 4)
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {customVoices.map((entry) => {
               const selected = activeVoiceId === entry.id;
               return (
                 <div
                   key={entry.id}
-                  className={`inline-flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-1 text-[12px] transition-colors ${
+                  className={`inline-flex items-center gap-1 border py-1 pl-3 pr-1 text-[13px] transition-colors ${
                     selected
                       ? "border-ink bg-ink text-white"
-                      : "border-line bg-[#fbfbfa] text-ink hover:border-ink/30"
+                      : "border-line-strong bg-white hover:border-ink"
                   }`}
                 >
                   <button
                     type="button"
+                    aria-pressed={selected}
                     onClick={() => onSelectVoice(entry)}
                     className="inline-flex items-center gap-1.5 font-medium"
                   >
-                    {selected && <Check size={11} aria-hidden />}
+                    {selected && <Check size={12} aria-hidden />}
                     <span>{entry.name}</span>
                     {entry.durationLabel && (
-                      <span
-                        className={`font-mono text-[10.5px] ${
-                          selected ? "text-white/75" : "text-muted"
-                        }`}
-                      >
+                      <span className={`tabular-nums ${selected ? "text-white/75" : "text-faint"}`}>
                         {entry.durationLabel}
                       </span>
                     )}
@@ -290,13 +287,13 @@ export function VoiceClonePanel({
                     type="button"
                     aria-label={`Delete ${entry.name}`}
                     onClick={() => onDeleteVoice(entry.id)}
-                    className={`rounded-full p-1 transition-colors ${
+                    className={`grid h-6 w-6 place-items-center transition-colors ${
                       selected
                         ? "text-white/75 hover:bg-white/15 hover:text-white"
-                        : "text-muted hover:bg-rose-50 hover:text-rose-600"
+                        : "text-faint hover:bg-danger-soft hover:text-danger"
                     }`}
                   >
-                    <Trash2 size={11} aria-hidden />
+                    <Trash2 size={12} aria-hidden />
                   </button>
                 </div>
               );
@@ -305,7 +302,7 @@ export function VoiceClonePanel({
         </div>
       )}
 
-      {/* Input area: record or upload */}
+      {/* Input: record or upload */}
       {!draftAudioBase64 && (
         <div
           onDragOver={(e) => {
@@ -318,164 +315,152 @@ export function VoiceClonePanel({
             setDragActive(false);
             handleFilePicked(e.dataTransfer.files?.[0]);
           }}
-          className={`mt-3 rounded-xl border border-dashed p-4 transition-colors ${
-            dragActive
-              ? "border-accent bg-accent/[0.04]"
-              : "border-[#d6d4cc] bg-white"
+          className={`border border-dashed p-3 transition-colors ${
+            dragActive ? "border-accent bg-accent-soft" : "border-line-strong bg-white"
           }`}
         >
           <input
             ref={fileInputRef}
             type="file"
             accept=".wav,.mp3,.m4a,.ogg,.webm,audio/*"
-            className="hidden"
+            aria-label="Upload a voice sample"
+            tabIndex={-1}
+            className="sr-only"
             onChange={(e) => {
               handleFilePicked(e.target.files?.[0]);
               e.target.value = "";
             }}
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {!recording ? (
-                <button
-                  type="button"
-                  disabled={processing}
-                  onClick={startRecording}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-ink px-3.5 text-[12.5px] font-medium text-white transition-colors hover:bg-ink/90 disabled:opacity-50"
-                >
-                  <Mic size={14} aria-hidden />
-                  <span>Record mic</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={stopRecording}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-rose-600 px-3.5 text-[12.5px] font-medium text-white transition-colors hover:bg-rose-700"
-                >
-                  <Square size={12} className="fill-current" aria-hidden />
-                  <span>
-                    Stop ({recordSeconds}s / {MAX_CLONE_SECONDS}s)
-                  </span>
-                </button>
-              )}
-
+          <div className="grid grid-cols-2 gap-2">
+            {!recording ? (
               <button
                 type="button"
-                disabled={recording || processing}
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-[#fbfbfa] px-3.5 text-[12.5px] font-medium text-ink transition-colors hover:border-ink/35 hover:bg-white disabled:opacity-50"
+                disabled={processing}
+                onClick={startRecording}
+                className={buttonClasses("primary", "md", "!h-12 px-2")}
               >
-                <Upload size={14} aria-hidden />
-                <span>Upload audio</span>
+                <Mic size={14} aria-hidden />
+                Record
               </button>
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="inline-flex h-12 items-center justify-center gap-2 bg-accent-deep px-2 text-[13.5px] font-semibold uppercase tabular-nums text-white transition-colors hover:bg-ink"
+              >
+                <Square size={11} className="fill-current" aria-hidden />
+                Stop · {recordSeconds}s
+              </button>
+            )}
 
-            <div className="flex items-center gap-1.5 text-[11.5px] text-muted">
-              {processing ? (
-                <>
-                  <Loader2 size={13} className="animate-spin text-accent" aria-hidden />
-                  <span>Preparing clean WAV clip…</span>
-                </>
-              ) : recording ? (
-                <span className="font-medium text-rose-600">
-                  Recording live — speak naturally…
-                </span>
-              ) : (
-                <span>Or drag & drop an audio file here</span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Loaded clip editor & preview */}
-      {draftAudioBase64 && (
-        <div className="mt-3 space-y-3 rounded-xl border border-line bg-white p-3.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-[12px] font-medium text-ink">
-              <Volume2 size={14} className="text-accent" aria-hidden />
-              <span>Sample ready</span>
-              {draftDurationSeconds !== undefined && (
-                <span className="rounded-full bg-[#f3f3f1] px-2 py-0.5 font-mono text-[11px] text-muted">
-                  {draftDurationSeconds.toFixed(1)}s WAV
-                </span>
-              )}
-            </div>
             <button
               type="button"
-              onClick={resetDraft}
-              className="text-[11.5px] font-medium text-muted hover:text-ink"
+              disabled={recording || processing}
+              onClick={() => fileInputRef.current?.click()}
+              className={buttonClasses("secondary", "md", "!h-12 px-2")}
             >
-              Replace clip
+              <Upload size={14} aria-hidden />
+              Upload
             </button>
           </div>
 
+          <p
+            role="status"
+            className={`mt-3 flex items-center justify-center gap-1.5 text-center text-[13px] leading-snug ${
+              recording ? "font-medium text-accent-deep" : "text-muted"
+            }`}
+          >
+            {processing ? (
+              <>
+                <Loader2 size={13} className="shrink-0 animate-spin text-accent" aria-hidden />
+                Preparing your sample…
+              </>
+            ) : recording ? (
+              `Recording, up to ${MAX_CLONE_SECONDS}s. Speak naturally.`
+            ) : (
+              "WAV, MP3 or M4A, up to 15 MB. Or drop a file here."
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* Loaded clip: preview, name, save */}
+      {draftAudioBase64 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[14.5px] font-semibold">
+              Sample ready
+              {draftDurationSeconds !== undefined && (
+                <span className="fb-num font-normal text-faint"> {draftDurationSeconds.toFixed(1)} s</span>
+              )}
+            </p>
+            <ToolText onClick={resetDraft}>Replace</ToolText>
+          </div>
+
           {previewUrl && (
-            <audio
-              controls
-              preload="metadata"
+            <AudioPlayer
               src={previewUrl}
-              className="h-9 w-full"
+              duration={draftDurationSeconds ?? 1}
+              peaks={[]}
+              fileName="Voice sample"
+              compact
+              tone="light"
+              className="bg-white"
             />
           )}
 
-          <div className="grid gap-2.5">
-            <div>
-              <label className="mb-1 block text-[11.5px] font-medium text-muted">
-                Voice name
-              </label>
-              <input
-                type="text"
-                value={voiceName}
-                onChange={(e) => setVoiceName(e.target.value)}
-                maxLength={40}
-                placeholder="e.g. Narrator, Founder, Alex"
-                className="h-9 w-full rounded-lg border border-line bg-[#fbfbfa] px-3 text-[12.5px] text-ink outline-none focus:border-ink/40 focus:bg-white"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-[11.5px] font-medium text-muted">
-                Transcript <span className="font-normal">(optional, boosts clarity)</span>
-              </label>
-              <input
-                type="text"
-                value={transcript}
-                onChange={(e) => setTranscript(e.target.value)}
-                maxLength={500}
-                placeholder="Words spoken in your sample"
-                className="h-9 w-full rounded-lg border border-line bg-[#fbfbfa] px-3 text-[12.5px] text-ink outline-none focus:border-ink/40 focus:bg-white"
-              />
-            </div>
+          <div>
+            <label htmlFor={nameId} className="mb-2 block text-[14px] font-medium">
+              Voice name
+            </label>
+            <input
+              id={nameId}
+              type="text"
+              value={voiceName}
+              onChange={(e) => setVoiceName(e.target.value)}
+              maxLength={40}
+              placeholder="e.g. Narrator, Founder, Alex"
+              className="fb-input"
+            />
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-0.5">
+          <div>
+            <label htmlFor={transcriptId} className="mb-2 block text-[14px] font-medium">
+              What the sample says <span className="font-normal text-faint">(optional)</span>
+            </label>
+            <input
+              id={transcriptId}
+              type="text"
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              maxLength={500}
+              placeholder="Typing the words improves the match"
+              className="fb-input"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={resetDraft}
-              className="h-8 rounded-lg border border-line px-3 text-[12px] font-medium text-muted transition-colors hover:bg-[#fbfbfa] hover:text-ink"
+              className={buttonClasses("secondary", "md", "!h-12 px-2")}
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[12px] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
+              className={buttonClasses("primary", "md", "!h-12 px-2")}
             >
-              <Check size={13} aria-hidden />
-              <span>Save &amp; use voice</span>
+              <Check size={14} aria-hidden />
+              Save and use
             </button>
           </div>
         </div>
       )}
 
-      {error && (
-        <p className="mt-2.5 rounded-lg bg-rose-50 px-3 py-2 text-[12px] text-rose-700 ring-1 ring-rose-200">
-          {error}
-        </p>
-      )}
+      {error && <Note tone="error">{error}</Note>}
     </section>
   );
 }
-

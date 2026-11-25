@@ -27,22 +27,22 @@ export function PagePaper({
 
   const paper = (
     <span
-      className={`relative block w-full overflow-hidden rounded-[5px] border bg-white text-left shadow-[0_6px_16px_rgba(45,36,60,0.10)] transition-[border-color,box-shadow] ${
-        selected ? "border-ink ring-2 ring-ink/15" : "border-[#e2dee8]"
+      className={`relative block w-full overflow-hidden border bg-white text-left shadow-[0_6px_16px_rgba(45,36,60,0.10)] transition-[border-color,box-shadow] ${
+        selected ? "border-ink ring-2 ring-ink/15" : "border-line-strong"
       }`}
       style={{ aspectRatio: "1 / 1.32" }}
     >
       <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: accent }} aria-hidden />
       <span className="flex h-full flex-col p-[9%]">
         <span className="flex items-center justify-between gap-1">
-          <span className="h-[3px] w-[38%] rounded-full bg-[#c9c4d2]" />
-          <span className="h-[3px] w-[16%] rounded-full bg-[#e4e0e9]" />
+          <span className="h-[3px] w-[38%] bg-line-strong" />
+          <span className="h-[3px] w-[16%] bg-line" />
         </span>
-        <span className="mt-[8%] block h-[5px] w-[64%] rounded-full bg-[#a9a3b6]" />
+        <span className="mt-[8%] block h-[5px] w-[64%] bg-line-strong" />
         <span className="mt-[5%] grid grid-cols-3 gap-[3%]">
           {[0, 1, 2].map((cell) => (
             <span key={cell} className="block" style={{ aspectRatio: "1 / 0.72" }}>
-              <span className="block h-full w-full rounded-[2px]" style={{ background: accent, opacity: 0.55 }} />
+              <span className="block h-full w-full" style={{ background: accent, opacity: 0.55 }} />
             </span>
           ))}
         </span>
@@ -50,26 +50,26 @@ export function PagePaper({
           {Array.from({ length: lines }).map((_, line) => (
             <span
               key={line}
-              className="block h-[2.5px] rounded-full bg-[#e6e2ec]"
+              className="block h-[2.5px] bg-line"
               style={{ width: `${LINE_WIDTHS[(line + index) % LINE_WIDTHS.length]}%` }}
             />
           ))}
         </span>
         <span className="mt-auto flex items-center justify-between pt-[6%]">
-          <span className="text-[7px] font-medium tabular-nums text-[#aaa4b8]">
+          <span className="text-[7px] font-medium tabular-nums text-faint">
             {label ?? `Page ${index}`}
           </span>
-          <span className="h-[2px] w-[18%] rounded-full bg-[#ece9f1]" />
+          <span className="h-[2px] w-[18%] bg-line" />
         </span>
       </span>
 
       {onSelect && (
         <span
           aria-hidden
-          className={`absolute right-1.5 top-1.5 grid h-[18px] w-[18px] place-items-center rounded-full border transition-colors ${
+          className={`absolute right-1.5 top-1.5 grid h-[18px] w-[18px] place-items-center border transition-colors ${
             selected
               ? "border-ink bg-ink text-white"
-              : "border-[#d8d3e0] bg-white/95 text-transparent"
+              : "border-line-strong bg-white/95 text-transparent"
           }`}
         >
           <Check size={10} strokeWidth={3} />
@@ -86,7 +86,7 @@ export function PagePaper({
       onClick={onSelect}
       aria-pressed={selected}
       aria-label={label ?? `Page ${index}`}
-      className={`group block w-full rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${className}`}
+      className={`group block w-full outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${className}`}
     >
       {paper}
     </button>
@@ -135,13 +135,13 @@ export function PageGrid({
 export function PaperStack({ className = "" }: { className?: string }) {
   return (
     <span aria-hidden className={`relative block h-[72px] w-[60px] ${className}`}>
-      <span className="absolute left-3 top-0 h-[58px] w-[42px] -rotate-[8deg] rounded-[5px] border border-[#ded8e6] bg-white shadow-sm" />
-      <span className="absolute left-1 top-2 h-[58px] w-[42px] rotate-[3deg] rounded-[5px] border border-[#d8d1e2] bg-white shadow-sm" />
-      <span className="absolute left-2 top-1 grid h-[58px] w-[42px] place-items-center rounded-[5px] border border-[#d2cade] bg-white text-[#6b6384] shadow-[0_8px_16px_rgba(60,48,80,0.14)]">
+      <span className="absolute left-3 top-0 h-[58px] w-[42px] -rotate-[8deg] border border-line-strong bg-white" />
+      <span className="absolute left-1 top-2 h-[58px] w-[42px] rotate-[3deg] border border-line-strong bg-white" />
+      <span className="absolute left-2 top-1 grid h-[58px] w-[42px] place-items-center border border-line-strong bg-white text-faint shadow-[0_8px_16px_rgba(60,48,80,0.14)]">
         <span className="flex flex-col gap-1">
-          <span className="block h-[2px] w-5 rounded-full bg-[#bdb6cc]" />
-          <span className="block h-[2px] w-4 rounded-full bg-[#d8d2e4]" />
-          <span className="block h-[2px] w-5 rounded-full bg-[#d8d2e4]" />
+          <span className="block h-[2px] w-5 bg-line-strong" />
+          <span className="block h-[2px] w-4 bg-line-strong" />
+          <span className="block h-[2px] w-5 bg-line-strong" />
         </span>
       </span>
     </span>

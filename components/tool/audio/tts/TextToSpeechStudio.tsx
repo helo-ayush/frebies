@@ -2,32 +2,45 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
-  AlertCircle,
   AudioLines,
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
   ChevronRight,
-  Clock,
   Download,
   Loader2,
   Lock,
-  Mic2,
+  Play,
   RotateCcw,
-  SlidersHorizontal,
-  Sparkles,
   Trash2,
-  TriangleAlert,
 } from "lucide-react";
 import { Progress } from "@/components/arc/progress/progress";
 import { useAuthSession } from "@/components/auth/AuthContext";
 import { AudioPlayer } from "@/components/tool/audio/AudioPlayer";
 import { formatBytes, formatTime } from "@/components/tool/audio/format";
+import { GenerationExpiryBadge } from "@/components/tool/GenerationRetentionBadge";
 import {
-  GenerationExpiryBadge,
-  GenerationStorageNotice,
-} from "@/components/tool/GenerationRetentionBadge";
+  ActionRow,
+  DownloadAction,
+  Note,
+  PrimaryAction,
+  STUDIO_GRID,
+  STUDIO_HEIGHT,
+  StageBar,
+  SecondaryAction,
+  StageFoot,
+  StudioFrame,
+  StudioStage,
+  ToolIcon,
+  ToolText,
+} from "@/components/tool/kit";
+import {
+  HistoryButton,
+  HistoryEmpty,
+  HistoryList,
+  HistoryPager,
+  HistoryRow,
+  HistorySection,
+} from "@/components/tool/kit/History";
 import { CreditGate } from "@/components/tool/paid/CreditGate";
+import { StudioRail } from "@/components/tool/studio/StudioRail";
 import type { PoolStatusSnapshot, TtsJobSnapshot } from "@/lib/audio/tts-manager";
 import type { GenerationStorageStats } from "@/lib/storage/generation-store";
 import {
@@ -43,11 +56,13 @@ import { VoiceClonePanel } from "./VoiceClonePanel";
 import {
   DEFAULT_TTS_SETTINGS,
   SAMPLE_SCRIPT,
+  TTS_CREDITS_PER_1K,
   TTS_LANGUAGES,
   TTS_MAX_CHARS,
   TTS_STYLES,
   estimateSpeechSeconds,
   formatElapsedClock,
+  speechCredits,
   voiceMeta,
   type SavedCustomVoice,
   type TtsSettings,
@@ -100,63 +115,37 @@ function friendlyJobError(raw: string | null | undefined): string {
   return raw;
 }
 
-function jobStatusPill(job: TtsJobSnapshot): { label: string; className: string } {
+/** State tag for a history row. Finished clips need none: the player says it. */
+function jobStatusTag(job: TtsJobSnapshot): { label: string; className: string } | null {
   switch (job.status) {
     case "waiting_for_server":
-      return { label: "Warming up", className: "bg-amber-50 text-amber-800 ring-amber-200" };
+      return { label: "Warming up", className: "border-ink text-ink" };
     case "queued":
       return {
         label: job.queuePosition ? `Queued #${job.queuePosition}` : "Queued",
-        className: "bg-slate-50 text-slate-700 ring-slate-200",
+        className: "border-line-strong text-muted",
       };
     case "synthesizing":
       return {
         label: job.chunksTotal > 1 ? `Creating ${job.chunksDone}/${job.chunksTotal}` : "Creating",
-        className: "bg-accent/[0.08] text-[#a8432c] ring-accent/25",
+        className: "border-accent text-accent-deep",
       };
     case "processing_audio":
       return {
         label: `Saving ${job.format.toUpperCase()}`,
-        className: "bg-sky-50 text-sky-800 ring-sky-200",
+        className: "border-accent text-accent-deep",
       };
     case "completed":
-      return { label: "Ready", className: "bg-emerald-50 text-emerald-800 ring-emerald-200" };
+      return null;
     case "failed":
-      return { label: "Failed", className: "bg-rose-50 text-rose-700 ring-rose-200" };
-  }
-}
-
-function JobStatusIcon({ job }: { job: TtsJobSnapshot }) {
-  const base = "grid h-9 w-9 shrink-0 place-items-center rounded-xl";
-  switch (job.status) {
-    case "completed":
-      return (
-        <span className={`${base} bg-emerald-50 text-emerald-600`}>
-          <CheckCircle2 size={18} aria-hidden />
-        </span>
-      );
-    case "failed":
-      return (
-        <span className={`${base} bg-rose-50 text-rose-600`}>
-          <AlertCircle size={18} aria-hidden />
-        </span>
-      );
-    case "waiting_for_server":
-      return (
-        <span className={`${base} bg-amber-50 text-amber-600`}>
-          <Clock size={18} aria-hidden />
-        </span>
-      );
-    default:
-      return (
-        <span className={`${base} bg-accent/[0.1] text-accent`}>
-          <Loader2 size={18} className="animate-spin" aria-hidden />
-        </span>
-      );
+      return { label: "Failed", className: "border-danger text-danger" };
   }
 }
 
 const DRAFT_SCRIPT_STORAGE_KEY = "frebies.tts.draftScript.v1";
+
+/** Both left-hand blocks (script, history) share the column beside the sticky rail. */
+const LEFT_COLUMN = "lg:col-start-1 lg:self-stretch";
 
 export function TextToSpeechStudio() {
   const { isLoaded, isSignedIn, user } = useAuthSession();
@@ -164,6 +153,8 @@ export function TextToSpeechStudio() {
 
   const [text, setText] = useState("");
   const [gateOpen, setGateOpen] = useState(false);
+  /** The job started from exactly this script and these settings. */
+  const [lastRun, setLastRun] = useState<{ id: string; key: string } | null>(null);
   const [settings, setSettings] = useState<TtsSettings>(DEFAULT_TTS_SETTINGS);
   const [savedClones, setSavedClones] = useState<SavedCustomVoice[]>([]);
   const [activeCloneId, setActiveCloneId] = useState<string | null>(null);
@@ -176,7 +167,6 @@ export function TextToSpeechStudio() {
 
   // Settings panel
   const [activeTab, setActiveTab] = useState<SettingsTab>("voice");
-  const [settingsOpenMobile, setSettingsOpenMobile] = useState(false);
 
   const [pool, setPool] = useState<PoolStatusSnapshot | null>(null);
   const [jobs, setJobs] = useState<TtsJobSnapshot[]>([]);
@@ -192,7 +182,7 @@ export function TextToSpeechStudio() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const resultsRef = useRef<HTMLElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const prevOwnerIdRef = useRef<string | null | undefined>(undefined);
@@ -444,7 +434,6 @@ export function TextToSpeechStudio() {
   const langLabel =
     TTS_LANGUAGES.find((l) => l.value === settings.language)?.label ?? settings.language;
   const styleLabel = TTS_STYLES.find((s) => s.value === settings.style)?.label ?? settings.style;
-  const settingsSummary = `${voiceLabel} · ${langLabel} · ${styleLabel} · ${settings.speed.toFixed(2)}×`;
 
   const insertExpressionTag = useCallback((tag: string) => {
     const el = textareaRef.current;
@@ -470,7 +459,6 @@ export function TextToSpeechStudio() {
 
   const openSettings = useCallback((tab: SettingsTab) => {
     setActiveTab(tab);
-    setSettingsOpenMobile(true);
     requestAnimationFrame(() => {
       document.getElementById("tts-settings-panel")?.scrollIntoView({
         behavior: "smooth",
@@ -485,8 +473,13 @@ export function TextToSpeechStudio() {
     });
   };
 
+  const runKey = JSON.stringify([trimmed, settings, customVoice?.name ?? null]);
+  const lastJob = lastRun && lastRun.key === runKey ? (jobs.find((job) => job.id === lastRun.id) ?? null) : null;
+  const runningJob = lastJob && ACTIVE_STATUSES.has(lastJob.status) ? lastJob : null;
+  const finishedJob = lastJob && lastJob.status === "completed" && lastJob.downloadUrl ? lastJob : null;
+
   const handleGenerate = async () => {
-    if (!isLoaded) return;
+    if (!isLoaded || runningJob) return;
     if (!isSignedIn) {
       setGateOpen(true);
       return;
@@ -538,6 +531,7 @@ export function TextToSpeechStudio() {
       }
 
       setCurrentPage(1);
+      setLastRun({ id: data.job.id, key: runKey });
       const nextJobs = [data.job, ...jobs.filter((j) => j.id !== data.job!.id)];
       if (data.pool) {
         applySync(data.pool, nextJobs, data.storage);
@@ -629,563 +623,485 @@ export function TextToSpeechStudio() {
 
   const queueing = isBooting && readyCount === 0;
 
+  const signedOut = isLoaded && !isSignedIn;
+  const credits = speechCredits(text);
+  const latestJob = jobs[0] ?? null;
+  const ttlHours = storage?.ttlHours ?? 24;
+
+  const pageSize = 5;
+  const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const visibleJobs = jobs.slice(startIndex, startIndex + pageSize);
+
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_372px] lg:grid-rows-[auto_1fr] lg:gap-x-6">
-      {/* ============================================================ */}
-      {/* 1 · Script card                                               */}
-      {/* ============================================================ */}
-      <section
-        aria-label="Write your script"
-        className="min-w-0 overflow-hidden rounded-[22px] border border-line bg-white shadow-[0_1px_2px_rgba(15,15,16,0.04),0_12px_32px_-18px_rgba(15,15,16,0.16)] lg:col-start-1 lg:row-start-1"
+    <>
+      <StudioFrame
+        id="text-to-speech"
+        label="Text to speech studio"
+        fill={false}
+        gridClassName={`${STUDIO_GRID} lg:grid-rows-[auto_1fr]`}
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-4 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-ink text-white">
-              <AudioLines size={16} aria-hidden />
-            </span>
-            <div>
-              <label htmlFor="tts-script-input" className="block text-[14px] font-semibold text-ink">
-                Your script
-              </label>
-              <p className="text-[11.5px] text-faint">Type or paste what you want spoken.</p>
-            </div>
-          </div>
-        </div>
+        {/* ============================================================ */}
+        {/* 1 · Script                                                    */}
+        {/* ============================================================ */}
+        <StudioStage flush className={`lg:row-start-1 ${LEFT_COLUMN} ${STUDIO_HEIGHT}`}>
+          {/* Scroll target: the newest clip and any error show up right here. */}
+          <div ref={resultsRef} aria-hidden className="h-0 scroll-mt-24" />
 
-        {pool && !pool.configured && (
-          <div className="mx-5 mt-3 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[12px] text-rose-800 sm:mx-6">
-            <TriangleAlert size={14} className="shrink-0" aria-hidden />
-            <span>Voice generation is temporarily unavailable. Please try again shortly.</span>
-          </div>
-        )}
+          {/* Drives the finished / problem sounds */}
+          <span aria-hidden className="hidden" data-success={finishedJob?.id} data-error={submitError ?? undefined} />
+          {pool && !pool.configured && (
+            <Note tone="error" className="m-3 shrink-0">
+              Voice generation is temporarily unavailable. Please try again shortly.
+            </Note>
+          )}
 
-        {pool && pool.configured && isBooting && readyCount === 0 && (
-          <div className="mx-5 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200/80 bg-amber-50/80 px-3.5 py-2.5 text-[12px] text-amber-900 sm:mx-6">
-            <div className="flex items-center gap-2.5">
-              <Loader2 size={14} className="shrink-0 animate-spin text-amber-700" aria-hidden />
-              <span>
-                <span className="font-semibold">Preparing voice studio…</span>{" "}
-                You can still press <strong>Queue audio</strong> — your audio will start
-                automatically as soon as it’s ready.
-              </span>
-            </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/80 bg-white/85 px-2.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-amber-900">
-              <Clock size={11} aria-hidden />
-              {formatElapsedClock(displayBootElapsedMs)}
-            </span>
-          </div>
-        )}
+          {pool && pool.configured && queueing && (
+            <Note tone="warn" className="m-3 shrink-0">
+              The voice engine is starting up ({formatElapsedClock(displayBootElapsedMs)}). Queue your
+              script now and it will start on its own.
+            </Note>
+          )}
 
-        <div className="px-5 pt-3 sm:px-6">
-          <div
-            className={`rounded-2xl border bg-[#fbfbfa] transition-colors focus-within:bg-white ${
-              overLimit
-                ? "border-rose-400 focus-within:border-rose-500"
-                : "border-line focus-within:border-ink/40"
-            }`}
+          {submitError && (
+            <Note tone="error" className="m-3 shrink-0">
+              {submitError}
+            </Note>
+          )}
+
+          {latestJob && (latestJob.status !== "completed" || latestJob.id === lastRun?.id) && (
+            <LatestJob
+              job={latestJob}
+              elapsedMs={
+                ACTIVE_STATUSES.has(latestJob.status)
+                  ? latestJob.elapsedMs + driftMs
+                  : latestJob.elapsedMs
+              }
+              retrying={retryingId === latestJob.id}
+              onRetry={() => handleRetry(latestJob.id)}
+            />
+          )}
+
+          <StageBar
+            end={
+              !hasText ? (
+                <ToolText
+                  onClick={() => {
+                    setText(SAMPLE_SCRIPT);
+                    setSubmitError(null);
+                  }}
+                >
+                  Try a sample
+                </ToolText>
+              ) : (
+                <ToolText
+                  onClick={() => {
+                    setText("");
+                    setSubmitError(null);
+                  }}
+                >
+                  Clear
+                </ToolText>
+              )
+            }
           >
+            <span className="fb-num flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[13.5px] text-muted">
+              <span className={overLimit ? "font-semibold text-danger" : "font-semibold text-ink"}>
+                {charCount.toLocaleString()} / {TTS_MAX_CHARS.toLocaleString()}
+              </span>
+              {wordCount > 0 ? (
+                <span>
+                  {wordCount.toLocaleString()} {wordCount === 1 ? "word" : "words"}, about {formatTime(estSeconds)} of
+                  audio
+                </span>
+              ) : (
+                <span className="max-sm:hidden">characters</span>
+              )}
+            </span>
+          </StageBar>
+
+          <div className={`relative flex min-h-[260px] flex-1 flex-col lg:min-h-0 ${overLimit ? "bg-danger-soft" : "bg-panel"}`}>
+            <span aria-hidden className="absolute inset-y-0 left-0 w-[5px] bg-accent" />
             <textarea
               id="tts-script-input"
               ref={textareaRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleEditorKeyDown}
-              placeholder="Write or paste anything you want spoken aloud…"
+              placeholder="Type or paste what you want spoken…"
               rows={8}
               aria-label="Script to turn into speech"
-              className="block min-h-[220px] w-full resize-y rounded-2xl bg-transparent px-4 py-4 text-[15px] leading-relaxed text-ink placeholder:text-faint focus:outline-none"
+              aria-invalid={overLimit || undefined}
+              className="studio-main block w-full flex-1 resize-none bg-transparent px-6 py-6 text-[clamp(17px,1.35vw,21px)] leading-[1.6] outline-none placeholder:text-[#85848a] focus-visible:outline-none sm:px-9 sm:py-8"
             />
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft px-4 py-2.5 text-[11.5px] text-faint">
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 tabular-nums">
-                <span className={overLimit ? "font-semibold text-rose-700" : ""}>
-                  {charCount.toLocaleString()} / {TTS_MAX_CHARS.toLocaleString()} chars
-                </span>
-                {wordCount > 0 && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span>{wordCount} words</span>
-                    <span aria-hidden>·</span>
-                    <span>~{formatTime(estSeconds)} of audio</span>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5">
-                {!hasText ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setText(SAMPLE_SCRIPT);
-                      setSubmitError(null);
-                    }}
-                    className="rounded-full border border-line bg-white px-2.5 py-1 font-medium text-muted transition hover:border-ink/30 hover:text-ink"
-                  >
-                    Try a sample
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setText("");
-                      setSubmitError(null);
-                    }}
-                    className="rounded-full px-2.5 py-1 font-medium text-faint transition hover:bg-[#f3f3f1] hover:text-ink"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
+            <span className="pointer-events-none absolute bottom-3 right-4 hidden text-[12.5px] text-faint lg:block">
+              Ctrl + Enter to generate
+            </span>
           </div>
 
           {overLimit && (
-            <p className="mt-2 flex items-center gap-1.5 text-[12px] font-medium text-rose-700">
-              <TriangleAlert size={13} aria-hidden />
-              Please keep your script under {TTS_MAX_CHARS.toLocaleString()} characters.
-            </p>
+            <Note tone="error" className="shrink-0 border-x-0">
+              Keep your script under {TTS_MAX_CHARS.toLocaleString()} characters.
+            </Note>
           )}
 
-          <div className="mt-3">
+          <StageFoot className="px-4 py-3 sm:px-5">
             <CueBar onInsertTag={insertExpressionTag} />
-          </div>
+          </StageFoot>
 
-          {submitError && (
-            <div
-              role="alert"
-              className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[12px] text-rose-800"
-            >
-              <TriangleAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
-              <span>{submitError}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Action bar */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line-soft bg-[#fbfbfa] px-5 py-3.5 sm:px-6">
+          {/* Phones: the settings sit below the script, so offer a jump to them. */}
           <button
             type="button"
             onClick={() => openSettings("voice")}
-            title="Change voice & settings"
-            className="group inline-flex min-w-0 max-w-full items-center gap-2.5 rounded-xl border border-line bg-white py-1.5 pl-1.5 pr-3 text-left transition hover:border-ink/30"
+            className="flex min-h-[64px] shrink-0 items-center gap-3 border-t border-line bg-panel px-4 py-3 text-left transition-colors hover:bg-ink hover:text-white lg:hidden"
           >
-            <span
-              className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
-                customVoice ? "bg-accent/[0.12] text-accent" : "bg-ink text-white"
-              }`}
-            >
-              {customVoice ? (
-                <Mic2 size={14} aria-hidden />
-              ) : (
-                <span className="text-[13px] font-semibold">{voiceLabel.charAt(0)}</span>
-              )}
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-[12.5px] font-semibold text-ink">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-semibold">
                 {voiceLabel}
-                {customVoice && (
-                  <span className="ml-1.5 rounded-full bg-accent/[0.1] px-1.5 py-0.5 text-[9.5px] font-medium text-[#a8432c]">
-                    Cloned
-                  </span>
-                )}
+                {customVoice ? " (cloned)" : ""}
               </span>
-              <span className="block truncate text-[11px] text-faint">
-                {langLabel} · {styleLabel} · {settings.format.toUpperCase()}
+              <span className="block truncate text-[13px] opacity-65">
+                {langLabel} · {styleLabel} · {settings.speed.toFixed(2)}× · {settings.format.toUpperCase()}
               </span>
             </span>
-            <SlidersHorizontal
-              size={13}
-              className="ml-1 shrink-0 text-faint transition group-hover:text-ink"
-              aria-hidden
-            />
+            <span className="shrink-0 text-[12.5px] font-medium uppercase">Change</span>
+            <ChevronRight size={16} className="shrink-0" aria-hidden />
           </button>
+        </StudioStage>
 
-          <div className="flex items-center gap-3">
-            <span className="hidden text-[11px] text-faint md:inline">Ctrl + Enter</span>
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={!isLoaded || (isSignedIn && !hasText) || overLimit || submitting}
-              className="inline-flex h-11 min-w-[168px] items-center justify-center gap-2 rounded-xl bg-ink px-6 text-[14px] font-semibold text-white shadow-[0_6px_16px_-6px_rgba(15,15,16,0.55)] transition hover:bg-[#222225] active:translate-y-px disabled:cursor-not-allowed disabled:bg-line disabled:text-faint disabled:shadow-none"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" aria-hidden />
-                  Starting…
-                </>
-              ) : isLoaded && !isSignedIn ? (
-                <>
-                  <Lock size={14} aria-hidden />
-                  Sign in to create audio
-                </>
-              ) : queueing ? (
-                <>
-                  <Clock size={15} aria-hidden />
-                  Queue audio
-                </>
-              ) : (
-                <>
-                  <Sparkles size={15} aria-hidden />
-                  Create audio
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================ */}
-      {/* 2 · Settings sidebar (sticky on desktop, collapsible on mobile) */}
-      {/* ============================================================ */}
-      <aside
-        id="tts-settings-panel"
-        aria-label="Voice and output settings"
-        className="min-w-0 lg:sticky lg:top-[72px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:max-h-[calc(100vh-88px)] lg:self-start lg:overflow-y-auto lg:rounded-[22px]"
-      >
-        <div className="overflow-hidden rounded-[22px] border border-line bg-white shadow-[0_1px_2px_rgba(15,15,16,0.04)]">
-          {/* Mobile header: collapses the whole panel */}
-          <button
-            type="button"
-            aria-expanded={settingsOpenMobile}
-            onClick={() => setSettingsOpenMobile((v) => !v)}
-            className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left lg:hidden"
-          >
-            <span className="flex min-w-0 items-center gap-2.5">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-rail text-ink ring-1 ring-line">
-                <SlidersHorizontal size={15} aria-hidden />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[13px] font-semibold text-ink">Voice &amp; settings</span>
-                <span className="block truncate text-[11.5px] text-faint">{settingsSummary}</span>
-              </span>
-            </span>
-            <ChevronDown
-              size={16}
-              className={`shrink-0 text-faint transition-transform ${settingsOpenMobile ? "rotate-180" : ""}`}
-              aria-hidden
-            />
-          </button>
-
-          {/* Desktop header */}
-          <div className="hidden items-center gap-2.5 px-5 pt-5 lg:flex">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-rail text-ink ring-1 ring-line">
-              <SlidersHorizontal size={15} aria-hidden />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[14px] font-semibold text-ink">Voice &amp; settings</p>
-              <p className="truncate text-[11.5px] text-faint">{settingsSummary}</p>
-            </div>
-          </div>
-
-          <div className={`${settingsOpenMobile ? "block" : "hidden"} px-4 pb-5 pt-2 lg:block lg:px-5 lg:pt-4`}>
+        {/* ============================================================ */}
+        {/* 2 · Action + settings (sticky on desktop, docked on phones)   */}
+        {/* ============================================================ */}
+        <StudioRail
+          sticky
+          label="Voice and output settings"
+          className="lg:col-start-2 lg:row-span-2 lg:row-start-1"
+          action={
+            finishedJob ? (
+              <>
+                <DownloadAction
+                  label={`Download ${finishedJob.format.toUpperCase()}`}
+                  href={finishedJob.downloadUrl ?? undefined}
+                  filename={finishedJob.fileName}
+                  hint={[
+                    finishedJob.voiceName,
+                    finishedJob.durationSeconds ? formatTime(finishedJob.durationSeconds) : null,
+                    finishedJob.byteLength ? formatBytes(finishedJob.byteLength) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                />
+                <ActionRow>
+                  <SecondaryAction
+                    onClick={handleGenerate}
+                    disabled={submitting}
+                    icon={<AudioLines size={15} aria-hidden />}
+                    title={`Say it again for ${credits} ${credits === 1 ? "credit" : "credits"}`}
+                  >
+                    Another take
+                  </SecondaryAction>
+                </ActionRow>
+              </>
+            ) : (
+              <PrimaryAction
+                label={signedOut ? "Sign in to generate" : queueing ? "Queue speech" : "Generate speech"}
+                busyLabel={runningJob ? "Speaking…" : "Starting…"}
+                progress={runningJob ? runningJob.progress / 100 : undefined}
+                icon={
+                  signedOut ? <Lock size={18} aria-hidden /> : <AudioLines size={19} aria-hidden />
+                }
+                busy={submitting || Boolean(runningJob)}
+                disabled={!isLoaded || (isSignedIn && !hasText) || overLimit}
+                onClick={handleGenerate}
+                hint={
+                  overLimit ? (
+                    <span className="text-danger">
+                      {(charCount - TTS_MAX_CHARS).toLocaleString()} characters over the limit
+                    </span>
+                  ) : hasText ? (
+                    <>
+                      <span>{voiceLabel}</span>
+                      <span aria-hidden>·</span>
+                      <span className="tabular-nums">{charCount.toLocaleString()} characters</span>
+                      <span aria-hidden>·</span>
+                      <span className="tabular-nums">
+                        {credits} {credits === 1 ? "credit" : "credits"}
+                      </span>
+                    </>
+                  ) : (
+                    `${TTS_CREDITS_PER_1K} credit per 1,000 characters`
+                  )
+                }
+              />
+            )
+          }
+        >
+          <div id="tts-settings-panel" className="scroll-mt-20 space-y-6">
             <SettingsTabs value={activeTab} onChange={setActiveTab} />
 
-            <div className="mt-4">
-              <TabPanel tab="voice" active={activeTab}>
-                <VoicePanel
-                  settings={settings}
-                  activeCloneId={activeCloneId}
-                  savedClones={savedClones}
-                  clonerOpen={clonerOpen}
-                  onPickPreset={(id: VoiceId) => {
-                    setActiveCloneId(null);
-                    patch({ voice: id });
-                  }}
-                  onPickClone={(id) => setActiveCloneId(id)}
-                  onDeleteClone={handleDeleteClone}
-                  onToggleCloner={() => {
-                    if (!isSignedIn) {
-                      setGateOpen(true);
-                      return;
-                    }
-                    setClonerOpen((v) => !v);
-                  }}
-                  onPatch={patch}
-                  cloner={
-                    <VoiceClonePanel
-                      open={clonerOpen}
-                      customVoices={savedClones}
-                      activeVoiceId={activeCloneId}
-                      showSavedList={false}
-                      onSelectVoice={(voice) => setActiveCloneId(voice.id)}
-                      onSaveVoice={handleSaveClone}
-                      onDeleteVoice={handleDeleteClone}
-                      onClose={() => setClonerOpen(false)}
-                    />
+            <TabPanel tab="voice" active={activeTab}>
+              <VoicePanel
+                settings={settings}
+                activeCloneId={activeCloneId}
+                savedClones={savedClones}
+                clonerOpen={clonerOpen}
+                onPickPreset={(id: VoiceId) => {
+                  setActiveCloneId(null);
+                  patch({ voice: id });
+                }}
+                onPickClone={(id) => setActiveCloneId(id)}
+                onDeleteClone={handleDeleteClone}
+                onToggleCloner={() => {
+                  if (!isSignedIn) {
+                    setGateOpen(true);
+                    return;
                   }
-                />
-              </TabPanel>
+                  setClonerOpen((v) => !v);
+                }}
+                onPatch={patch}
+                cloner={
+                  <VoiceClonePanel
+                    open={clonerOpen}
+                    customVoices={savedClones}
+                    activeVoiceId={activeCloneId}
+                    showSavedList={false}
+                    onSelectVoice={(voice) => setActiveCloneId(voice.id)}
+                    onSaveVoice={handleSaveClone}
+                    onDeleteVoice={handleDeleteClone}
+                    onClose={() => setClonerOpen(false)}
+                  />
+                }
+              />
+            </TabPanel>
 
-              <TabPanel tab="mood" active={activeTab}>
-                <MoodPanel settings={settings} onPatch={patch} />
-              </TabPanel>
+            <TabPanel tab="mood" active={activeTab}>
+              <MoodPanel settings={settings} onPatch={patch} />
+            </TabPanel>
 
-              <TabPanel tab="output" active={activeTab}>
-                <OutputPanel settings={settings} onPatch={patch} />
-              </TabPanel>
-            </div>
+            <TabPanel tab="output" active={activeTab}>
+              <OutputPanel settings={settings} onPatch={patch} />
+            </TabPanel>
           </div>
-        </div>
-      </aside>
+        </StudioRail>
 
-      {/* ============================================================ */}
-      {/* 3 · Results feed (always visible, directly under the script)   */}
-      {/* ============================================================ */}
-      <section
-        ref={resultsRef}
-        aria-label="Your generated audio"
-        className="min-w-0 scroll-mt-20 lg:col-start-1 lg:row-start-2"
-      >
-        <div className="mb-3 flex items-center justify-between gap-2 px-1">
-          <h2 className="flex items-center gap-2 text-[14px] font-semibold text-ink">
-            Your audio
-            {jobs.length > 0 && (
-              <span className="rounded-full bg-[#f3f3f1] px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted">
-                {jobs.length}
-              </span>
-            )}
-          </h2>
-        </div>
-
-        {jobs.length > 0 && (
-          <div className="mb-3">
-            <GenerationStorageNotice ttlHours={storage?.ttlHours ?? 24} />
-          </div>
-        )}
-
-        {jobsLoading && jobs.length === 0 && isSignedIn ? (
-          <div className="space-y-3" aria-busy="true" aria-label="Loading audio history">
-            {[0, 1, 2].map((skeletonIdx) => (
-              <div
-                key={skeletonIdx}
-                className="overflow-hidden rounded-[20px] border border-line bg-white p-4 shadow-[0_1px_2px_rgba(15,15,16,0.03)] sm:p-5"
-              >
-                <div className="flex items-start gap-3 animate-pulse">
-                  <div className="h-9 w-9 shrink-0 rounded-xl bg-[#efeeea]" />
-                  <div className="min-w-0 flex-1 space-y-2.5">
-                    <div className="h-3.5 w-4/5 rounded-full bg-[#efeeea]" />
-                    <div className="h-3.5 w-1/2 rounded-full bg-[#f4f3ef]" />
-                    <div className="flex items-center gap-1.5 pt-0.5">
-                      <div className="h-5 w-16 rounded-full bg-[#efeeea]" />
-                      <div className="h-5 w-14 rounded-full bg-[#f4f3ef]" />
-                      <div className="h-5 w-10 rounded-full bg-[#f4f3ef]" />
-                    </div>
-                  </div>
-                  <div className="h-4 w-12 shrink-0 rounded-full bg-[#f4f3ef]" />
-                </div>
-                <div className="mt-4 h-12 rounded-xl bg-[#f7f6f3] animate-pulse" />
-              </div>
-            ))}
-          </div>
-        ) : jobs.length === 0 ? (
-          isLoaded && !isSignedIn ? (
-            <div className="flex flex-col items-center rounded-[22px] border border-dashed border-[#d6d4cc] bg-white/60 px-6 py-11 text-center">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-rail text-ink ring-1 ring-line">
-                <Lock size={20} aria-hidden />
-              </span>
-              <p className="mt-3.5 text-[14px] font-semibold text-ink">
-                Sign in to create &amp; save audio
-              </p>
-              <p className="mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted">
-                Voice generation is available for signed-in accounts. Each user&apos;s generated
-                clips and cloned voices stay private in their own workspace.
-              </p>
-              <button
-                type="button"
-                onClick={() => setGateOpen(true)}
-                className="mt-4 inline-flex h-9 items-center gap-2 rounded-full bg-ink px-4 text-[12.5px] font-medium text-white transition hover:bg-[#222225]"
-              >
-                <Lock size={13} aria-hidden />
-                Sign in or create free account
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center rounded-[22px] border border-dashed border-[#d6d4cc] bg-white/60 px-6 py-12 text-center">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-rail text-faint ring-1 ring-line">
-                <AudioLines size={22} aria-hidden />
-              </span>
-              <p className="mt-3.5 text-[14px] font-semibold text-ink">Nothing generated yet</p>
-              <p className="mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted">
-                Write a script above and press <strong className="font-semibold text-ink">Create audio</strong>.
-                Progress, playback and downloads will show up right here.
-              </p>
-            </div>
-          )
-        ) : (
-          (() => {
-            const pageSize = 5;
-            const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
-            const safePage = Math.min(currentPage, totalPages);
-            const startIndex = (safePage - 1) * pageSize;
-            const visibleJobs = jobs.slice(startIndex, startIndex + pageSize);
-
-            return (
-              <div className="space-y-3">
+        {/* ============================================================ */}
+        {/* 3 · Everything generated so far                               */}
+        {/* ============================================================ */}
+        <div className={`min-w-0 border-t border-line lg:row-start-2 ${LEFT_COLUMN}`}>
+          <HistorySection
+            title="Your audio"
+            label="Your generated audio"
+            count={jobs.length}
+            note={`Kept for ${ttlHours} hours. Older clips can be cleared sooner if space runs out.`}
+            pager={totalPages > 1 ? <HistoryPager page={safePage} pages={totalPages} onPage={setCurrentPage} /> : null}
+          >
+            {jobsLoading && jobs.length === 0 && isSignedIn ? (
+              <HistoryEmpty>
+                <Loader2 size={16} className="animate-spin" aria-hidden />
+                Loading your audio…
+              </HistoryEmpty>
+            ) : jobs.length === 0 ? (
+              signedOut ? (
+                <HistoryEmpty>
+                  <span>
+                    Sign in to generate speech. Your clips and cloned voices stay private to your account.{" "}
+                    <button
+                      type="button"
+                      onClick={() => setGateOpen(true)}
+                      className="font-semibold text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:text-accent-deep"
+                    >
+                      Sign in or create a free account
+                    </button>
+                  </span>
+                </HistoryEmpty>
+              ) : (
+                <HistoryEmpty>
+                  Nothing generated yet. Clips you make appear here with a player and a download button.
+                </HistoryEmpty>
+              )
+            ) : (
+              <HistoryList>
                 {visibleJobs.map((job) => {
-              const badge = jobStatusPill(job);
-              const isActive = ACTIVE_STATUSES.has(job.status);
-              const canDelete = job.status !== "synthesizing" && job.status !== "processing_audio";
-              const liveJobElapsed = isActive ? job.elapsedMs + driftMs : job.elapsedMs;
+                  const tag = jobStatusTag(job);
+                  const isActive = ACTIVE_STATUSES.has(job.status);
+                  const canDelete = job.status !== "synthesizing" && job.status !== "processing_audio";
+                  const liveJobElapsed = isActive ? job.elapsedMs + driftMs : job.elapsedMs;
+                  const format = job.format.toUpperCase();
+                  const facts = [
+                    job.voiceName,
+                    format,
+                    job.status === "completed" && job.durationSeconds ? formatTime(job.durationSeconds, true) : null,
+                    job.status === "completed" && job.byteLength ? formatBytes(job.byteLength) : null,
+                    isActive ? formatElapsedClock(liveJobElapsed) : null,
+                  ].filter(Boolean);
 
-              return (
-                <article
-                  key={job.id}
-                  className={`overflow-hidden rounded-[20px] border bg-white shadow-[0_1px_2px_rgba(15,15,16,0.03)] transition-colors ${
-                    isActive ? "border-accent/35" : job.status === "failed" ? "border-rose-200" : "border-line"
-                  }`}
-                >
-                  <div className="flex items-start gap-3 p-4 sm:p-5">
-                    <JobStatusIcon job={job} />
-
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-[13.5px] font-medium leading-snug text-ink">
-                        {job.textPreview}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ring-1 ring-inset ${badge.className}`}
-                        >
-                          {badge.label}
-                        </span>
-                        <span className="rounded-full bg-[#f3f3f1] px-2 py-0.5 font-medium text-ink">
-                          {job.voiceName}
-                        </span>
-                        <span className="rounded-full bg-[#f3f3f1] px-2 py-0.5 font-medium uppercase">
-                          {job.format}
-                        </span>
-                        {!isActive && job.expiresAt && (
-                          <GenerationExpiryBadge expiresAt={job.expiresAt} nowMs={nowMs} />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums text-muted">
-                        <Clock size={11} className="text-faint" aria-hidden />
-                        {formatElapsedClock(liveJobElapsed)}
-                      </span>
-                      {canDelete && (
-                        <button
-                          type="button"
-                          aria-label="Remove audio item"
-                          disabled={deletingId === job.id}
-                          onClick={() => handleDeleteJob(job.id)}
-                          className="grid h-8 w-8 place-items-center rounded-lg text-faint transition hover:bg-[#f3f3f1] hover:text-ink disabled:opacity-40"
-                        >
-                          <Trash2 size={14} aria-hidden />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {isActive && (
-                    <div className="border-t border-line-soft bg-accent/[0.025] px-4 py-3.5 sm:px-5">
-                      <Progress
-                        value={job.progress}
-                        max={100}
-                        label={friendlyJobStage(job)}
-                        showValue
-                      />
-                    </div>
-                  )}
-
-                  {job.status === "completed" && job.audioUrl && (
-                    <div className="space-y-3 border-t border-line-soft bg-[#fbfbfa] p-4 sm:p-5">
-                      <AudioPlayer
-                        src={job.audioUrl}
-                        duration={Math.max(1, job.durationSeconds ?? 1)}
-                        peaks={job.peaks}
-                        fileName={job.fileName}
-                        formatLabel={job.format.toUpperCase()}
-                        compact
-                      />
-                      {job.downloadUrl && (
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-[11.5px] text-muted">
-                            {job.durationSeconds ? formatTime(job.durationSeconds, true) : "—"} ·{" "}
-                            {job.format.toUpperCase()}
-                            {job.byteLength ? ` · ${formatBytes(job.byteLength)}` : ""}
-                          </span>
-                          <a
-                            href={job.downloadUrl}
-                            download={job.fileName}
-                            className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-[#222225]"
-                          >
-                            <Download size={13} aria-hidden />
-                            Download {job.format.toUpperCase()}
-                          </a>
+                  return (
+                    <HistoryRow
+                      key={job.id}
+                      title={job.textPreview}
+                      badge={
+                        <>
+                          {tag ? (
+                            <span
+                              className={`fb-num inline-flex h-6 items-center border px-2 text-[12px] font-medium ${tag.className}`}
+                            >
+                              {tag.label}
+                            </span>
+                          ) : null}
+                          {!isActive && job.expiresAt ? (
+                            <GenerationExpiryBadge expiresAt={job.expiresAt} nowMs={nowMs} />
+                          ) : null}
+                        </>
+                      }
+                      meta={facts.join(" · ")}
+                      progress={isActive ? job.progress : undefined}
+                      progressLabel={friendlyJobStage(job)}
+                      actions={
+                        <>
+                          {job.status === "completed" && job.downloadUrl ? (
+                            <HistoryButton
+                              loud
+                              href={job.downloadUrl}
+                              filename={job.fileName}
+                              icon={<Download size={14} aria-hidden />}
+                            >
+                              {format}
+                            </HistoryButton>
+                          ) : null}
+                          {canDelete ? (
+                            <ToolIcon
+                              label="Remove audio item"
+                              slot="history-remove"
+                              disabled={deletingId === job.id}
+                              onClick={() => handleDeleteJob(job.id)}
+                            >
+                              <Trash2 size={15} aria-hidden />
+                            </ToolIcon>
+                          ) : null}
+                        </>
+                      }
+                    >
+                      {job.status === "completed" && job.audioUrl ? (
+                        <div className="px-4 pb-4 sm:px-6">
+                          <AudioPlayer
+                            src={job.audioUrl}
+                            duration={Math.max(1, job.durationSeconds ?? 1)}
+                            peaks={job.peaks}
+                            fileName={job.fileName}
+                            compact
+                            tone="light"
+                          />
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {job.status === "failed" && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-rose-100 bg-rose-50/70 px-4 py-3 text-[12px] text-rose-800 sm:px-5">
-                      <span className="min-w-0 flex-1 break-words">
-                        {friendlyJobError(job.error)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRetry(job.id)}
-                        disabled={retryingId === job.id}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-rose-300 bg-white px-3.5 py-1.5 text-[11.5px] font-medium text-rose-800 transition hover:bg-rose-50 disabled:opacity-50"
-                      >
-                        {retryingId === job.id ? (
-                          <Loader2 size={11} className="animate-spin" aria-hidden />
-                        ) : (
-                          <RotateCcw size={11} aria-hidden />
-                        )}
-                        Try again
-                      </button>
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-
-                {totalPages > 1 && (
-                  <nav
-                    aria-label="Audio history pages"
-                    className="flex flex-wrap items-center justify-between gap-2 pt-2"
-                  >
-                    <span className="text-[12px] tabular-nums text-muted">
-                      Showing {startIndex + 1}–{Math.min(startIndex + pageSize, jobs.length)} of {jobs.length}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
-                        disabled={safePage <= 1}
-                        className="inline-flex h-8 items-center gap-1 rounded-full border border-line bg-white px-3 text-[12px] font-medium text-ink transition hover:bg-[#f7f7f5] disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <ChevronLeft size={13} aria-hidden />
-                        Prev
-                      </button>
-                      <span className="px-2 text-[12px] font-medium tabular-nums text-ink">
-                        Page {safePage} / {totalPages}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
-                        disabled={safePage >= totalPages}
-                        className="inline-flex h-8 items-center gap-1 rounded-full border border-line bg-white px-3 text-[12px] font-medium text-ink transition hover:bg-[#f7f7f5] disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        Next
-                        <ChevronRight size={13} aria-hidden />
-                      </button>
-                    </div>
-                  </nav>
-                )}
-              </div>
-            );
-          })()
-        )}
-      </section>
+                      ) : null}
+                      {job.status === "failed" ? (
+                        <div className="px-4 pb-4 sm:px-6">
+                          <FailedNote
+                            message={friendlyJobError(job.error)}
+                            retrying={retryingId === job.id}
+                            onRetry={() => handleRetry(job.id)}
+                          />
+                        </div>
+                      ) : null}
+                    </HistoryRow>
+                  );
+                })}
+              </HistoryList>
+            )}
+          </HistorySection>
+        </div>
+      </StudioFrame>
 
       <CreditGate
         open={gateOpen}
         onClose={() => setGateOpen(false)}
-        action="generate AI voices"
+        action="generate speech"
         cost={1}
       />
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Presentational pieces                                               */
+/* ------------------------------------------------------------------ */
+
+/** Play / pause for the newest clip, without opening the full player. */
+function FailedNote({
+  message,
+  retrying,
+  onRetry,
+  className = "",
+}: {
+  message: string;
+  retrying: boolean;
+  onRetry: () => void;
+  className?: string;
+}) {
+  return (
+    <Note tone="error" className={className}>
+      <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className="min-w-0 flex-1 basis-[200px] break-words">{message}</span>
+        <ToolText
+          onClick={onRetry}
+          disabled={retrying}
+          icon={
+            retrying ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <RotateCcw size={14} aria-hidden />
+          }
+        >
+          Try again
+        </ToolText>
+      </span>
+    </Note>
+  );
+}
+
+/** The newest job, pinned above the script: progress, then the clip itself. */
+function LatestJob({
+  job,
+  elapsedMs,
+  retrying,
+  onRetry,
+}: {
+  job: TtsJobSnapshot;
+  elapsedMs: number;
+  retrying: boolean;
+  onRetry: () => void;
+}) {
+  if (job.status === "failed") {
+    return (
+      <FailedNote
+        className="m-3 shrink-0"
+        message={friendlyJobError(job.error)}
+        retrying={retrying}
+        onRetry={onRetry}
+      />
+    );
+  }
+
+  if (job.status === "completed") {
+    if (!job.audioUrl) return null;
+    return (
+      <AudioPlayer
+        src={job.audioUrl}
+        duration={Math.max(1, job.durationSeconds ?? 1)}
+        peaks={job.peaks}
+        fileName={job.fileName}
+        formatLabel={job.voiceName}
+        compact
+        tone="light"
+        className="shrink-0 !border-x-0 !border-t-0"
+      />
+    );
+  }
+
+  return (
+    <div className="shrink-0 border-b border-line bg-panel px-4 py-4 sm:px-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-[15px] font-semibold">{job.textPreview}</p>
+        <span className="fb-num shrink-0 text-[13px] text-faint">{formatElapsedClock(elapsedMs)}</span>
+      </div>
+      <Progress value={job.progress} max={100} label={friendlyJobStage(job)} showValue />
     </div>
   );
 }

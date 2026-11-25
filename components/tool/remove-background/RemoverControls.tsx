@@ -1,11 +1,8 @@
 "use client";
 
-import { Cloud, Droplets, Sparkles } from "lucide-react";
-import {
-  PaidSection,
-  PaidSlider,
-  PaidToggle,
-} from "@/components/tool/paid/PaidControls";
+import { Field, Segmented } from "@/components/tool/kit";
+import { PaidSlider, PaidToggle } from "@/components/tool/paid/PaidControls";
+import { RailCards, RailHint } from "@/components/tool/studio/RailControls";
 import {
   REMOVER_BACKGROUNDS,
   REMOVER_FORMATS,
@@ -16,49 +13,40 @@ import {
   type SubjectType,
 } from "./model";
 
+const SUBJECT_DETAIL: Record<SubjectType, string> = {
+  auto: "Detect automatically",
+  person: "Hair and skin",
+  product: "Hard edges",
+  graphic: "Logos and icons",
+};
+
 export function RemoverControls({
   settings,
   onPatch,
-  hasImage,
 }: {
   settings: RemoverSettings;
   onPatch: (patch: Partial<RemoverSettings>) => void;
-  hasImage: boolean;
 }) {
-  const subject = SUBJECT_TYPES.find((entry) => entry.value === settings.subject);
   const format = REMOVER_FORMATS.find((entry) => entry.value === settings.format);
 
   return (
-    <div className="space-y-5">
-      <PaidSection title="Subject" hint={hasImage ? "AI detection" : "Add an image"}>
-        <div className="grid grid-cols-2 gap-1.5">
-          {SUBJECT_TYPES.map((entry) => {
-            const selected = settings.subject === entry.value;
-            return (
-              <button
-                key={entry.value}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => onPatch({ subject: entry.value as SubjectType })}
-                className={`rounded-[9px] border px-2.5 py-2 text-left transition-colors ${
-                  selected
-                    ? "border-ink bg-rail text-ink"
-                    : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
-                }`}
-              >
-                <span className="block text-[11px] font-medium">{entry.label}</span>
-                <span className="mt-0.5 block text-[9px] text-faint">
-                  {entry.value === "auto" ? "Detect automatically" : entry.value === "person" ? "Hair & skin" : entry.value === "product" ? "Hard edges" : "Logos & icons"}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-1.5 min-h-[26px] text-[10px] leading-relaxed text-faint">
-          {subject?.hint}
-        </p>
+    <div className="space-y-7">
+      <Field label="Subject">
+        <RailCards
+          label="Subject"
+          value={settings.subject}
+          options={SUBJECT_TYPES.map((entry) => ({
+            value: entry.value,
+            label: entry.label,
+            note: SUBJECT_DETAIL[entry.value],
+            title: entry.hint,
+          }))}
+          onChange={(subject) => onPatch({ subject })}
+        />
+      </Field>
 
-        <div className="mt-2 space-y-3">
+      <Field label="Edges">
+        <div className="space-y-4">
           <PaidSlider
             label="Edge feather"
             value={settings.feather}
@@ -70,7 +58,7 @@ export function RemoverControls({
             right="Soft"
           />
           <PaidToggle
-            title="Hair & fine detail"
+            title="Hair and fine detail"
             description="Preserve strands, fuzz and thin edges."
             checked={settings.fineDetail}
             onChange={(fineDetail) => onPatch({ fineDetail })}
@@ -82,37 +70,33 @@ export function RemoverControls({
             onChange={(cropToSubject) => onPatch({ cropToSubject })}
           />
         </div>
-      </PaidSection>
+      </Field>
 
-      <PaidSection title="Background" hint="Output fill">
-        <div className="grid grid-cols-2 gap-1.5">
+      <Field label="Background">
+        <div role="group" aria-label="Background" className="grid grid-cols-2 gap-px border border-line-strong bg-line-strong">
           {REMOVER_BACKGROUNDS.map((entry) => {
             const selected = settings.background === entry.value;
+            const cell = `relative flex h-11 items-center gap-2.5 px-3 text-left text-[13.5px] font-medium transition-colors ${
+              selected ? "bg-ink text-white" : "bg-white hover:bg-hover"
+            }`;
+            const mark = selected ? <span aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] bg-accent" /> : null;
             if (entry.value === "color") {
               return (
                 <label
                   key={entry.value}
-                  className={`relative flex cursor-pointer items-center gap-2 rounded-[9px] border px-2.5 py-2 text-[10.5px] font-medium transition-colors ${
-                    selected
-                      ? "border-ink bg-rail text-ink"
-                      : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
-                  }`}
+                  className={`cursor-pointer focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent ${cell}`}
                 >
                   <input
                     type="color"
                     value={settings.color}
                     onClick={() => onPatch({ background: "color" })}
-                    onChange={(event) =>
-                      onPatch({ color: event.target.value, background: "color" })
-                    }
-                    aria-label="Custom background colour"
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    onChange={(event) => onPatch({ color: event.target.value, background: "color" })}
+                    aria-label="Custom background color"
+                    className="!absolute !inset-0 h-full w-full cursor-pointer opacity-0"
                   />
-                  <span
-                    className="h-4 w-4 shrink-0 rounded-[4px] border border-[#d8d5cf]"
-                    style={{ background: settings.color }}
-                  />
+                  <span className="h-[18px] w-[18px] shrink-0 border border-black/25" style={{ background: settings.color }} />
                   Custom
+                  {mark}
                 </label>
               );
             }
@@ -122,31 +106,25 @@ export function RemoverControls({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => onPatch({ background: entry.value as RemoverBackground })}
-                className={`flex items-center gap-2 rounded-[9px] border px-2.5 py-2 text-left text-[10.5px] font-medium transition-colors ${
-                  selected
-                    ? "border-ink bg-rail text-ink"
-                    : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
-                }`}
+                className={cell}
               >
                 <span
-                  className={`h-4 w-4 shrink-0 rounded-[4px] border ${
+                  className={`h-[18px] w-[18px] shrink-0 border border-black/25 ${
                     entry.value === "transparent"
-                      ? "checkerboard border-line"
+                      ? "fb-checker !bg-[length:9px_9px]"
                       : entry.value === "black"
-                        ? "border-ink bg-ink"
-                        : "border-[#e5e1d8] bg-white"
+                        ? "bg-black"
+                        : "bg-white"
                   }`}
                 />
                 {entry.label}
+                {mark}
               </button>
             );
           })}
         </div>
-        <p className="mt-1.5 min-h-[26px] text-[10px] leading-relaxed text-faint">
-          Transparent PNG keeps the alpha channel. Solid fills are baked into the export.
-        </p>
 
-        <div className="mt-2 space-y-3">
+        <div className="mt-4 space-y-4">
           <PaidToggle
             title="Drop shadow"
             description="Add a soft shadow around the cut-out."
@@ -165,42 +143,25 @@ export function RemoverControls({
             />
           )}
         </div>
-      </PaidSection>
+      </Field>
 
-      <PaidSection title="Output" hint="Cut-out file">
-        <div
-          role="radiogroup"
-          aria-label="Output format"
-          className="grid grid-cols-3 gap-1"
-        >
-          {REMOVER_FORMATS.map((entry) => (
-            <label key={entry.value} className="relative cursor-pointer">
-              <input
-                type="radio"
-                name="remover-format"
-                value={entry.value}
-                checked={settings.format === entry.value}
-                onChange={() =>
-                  onPatch({
-                    format: entry.value as RemoverFormat,
-                    ...(entry.value === "jpg" && settings.background === "transparent"
-                      ? { background: "white" as RemoverBackground }
-                      : null),
-                  })
-                }
-                className="peer sr-only"
-              />
-              <span className="block rounded-[8px] border border-line bg-white py-2 text-center text-[10.5px] font-medium text-muted transition-colors hover:border-[#d8d4cb] peer-checked:border-ink peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
-                {entry.label}
-              </span>
-            </label>
-          ))}
-        </div>
-        <p className="mt-1.5 min-h-[26px] text-[10px] leading-relaxed text-faint">
-          {format?.hint}
-        </p>
+      <Field label="Output format">
+        <Segmented
+          label="Output format"
+          options={REMOVER_FORMATS.map((entry) => ({ value: entry.value, label: entry.label }))}
+          value={settings.format}
+          onChange={(value) =>
+            onPatch({
+              format: value as RemoverFormat,
+              ...(value === "jpg" && settings.background === "transparent"
+                ? { background: "white" as RemoverBackground }
+                : null),
+            })
+          }
+        />
+        <RailHint>{format?.hint}</RailHint>
 
-        <div className="mt-2 space-y-3">
+        <div className="mt-4">
           <PaidToggle
             title="Keep metadata"
             description="Carry camera details into the cut-out file."
@@ -208,32 +169,7 @@ export function RemoverControls({
             onChange={(metadata) => onPatch({ metadata })}
           />
         </div>
-
-        <div className="mt-3 flex items-center gap-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2">
-          <Droplets size={13} className="shrink-0 text-faint" aria-hidden />
-          <span className="text-[10px] leading-relaxed text-muted">
-            {settings.background === "transparent" && settings.format !== "jpg"
-              ? "Transparent alpha is preserved."
-              : settings.background === "transparent" && settings.format === "jpg"
-                ? "JPG fills transparency with white."
-                : `Background filled with ${settings.background === "color" ? settings.color.toUpperCase() : settings.background}.`}
-          </span>
-        </div>
-      </PaidSection>
-
-      <div className="flex items-start gap-2 rounded-[10px] border border-line bg-[#fbfaf7] px-3 py-2.5">
-        <Cloud size={12} className="mt-px shrink-0 text-faint" aria-hidden />
-        <p className="text-[10px] leading-relaxed text-muted">
-          The file uploads only when the run starts and is deleted within 1 hour.
-        </p>
-      </div>
-
-      <div className="flex items-start gap-2 rounded-[10px] border border-line px-3 py-2.5">
-        <Sparkles size={12} className="mt-px shrink-0 text-accent" aria-hidden />
-        <p className="text-[10px] leading-relaxed text-muted">
-          One credit covers a single image and is refunded if the AI run fails.
-        </p>
-      </div>
+      </Field>
     </div>
   );
 }

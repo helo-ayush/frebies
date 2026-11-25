@@ -1,0 +1,22 @@
+/* Landing page only. The shared look lives in app/site.css. */
+.fb-title { font-size: clamp(30px, 4.6vw, 76px); }
+.fb-sub { font-size: clamp(19px, 1.75vw, 29px); line-height: 1.14; letter-spacing: -0.02em; }
+
+.fb-stripes {
+  background-color: #4b4a4e;
+  background-image: repeating-linear-gradient(65deg, #2c2b2f 0 62px, transparent 62px 153.8px);
+  background-size: 169.7px 100%;
+}
+
+@keyframes fb-spin {
+  from { transform: rotateX(-18deg) rotateY(0deg); }
+  to { transform: rotateX(-18deg) rotateY(360deg); }
+}
+.fb-cube { transform-style: preserve-3d; animation: fb-spin 14s linear infinite; }
+.fb-cube > i { position: absolute; inset: 0; background: var(--fb-coral); border: 1.5px solid #fff; }
+
+@keyframes fb-knob { 0%, 100% { left: 4%; } 45%, 55% { left: 62%; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-cube { animation: none; }
+}

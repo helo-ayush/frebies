@@ -94,11 +94,11 @@ export const categories: Category[] = [
       },
       {
         q: "Do my images get uploaded?",
-        a: "Not for browser tools. They run on your device. AI tools upload a temporary copy that is deleted after processing or within one hour.",
+        a: "Not for browser tools. They run on your device. AI tools upload a copy when you press run, and keep the result in your account for 24 hours.",
       },
       {
         q: "Which image formats are supported?",
-        a: "JPG, PNG and WebP at launch, up to 25 MB per image. More formats will be added as the engines are connected.",
+        a: "JPG, PNG, WebP, HEIC, AVIF, SVG, TIFF, BMP, GIF and ICO, up to 25 MB per image.",
       },
       {
         q: "Do I need an account?",
@@ -127,7 +127,7 @@ export const categories: Category[] = [
       },
       {
         q: "Are my documents uploaded?",
-        a: "Browser tools process files on your device. Server tools use private storage and delete the files after processing or within one hour.",
+        a: "No. Merging, splitting and converting run on your device. OCR and the AI editor are previews for now and upload nothing.",
       },
       {
         q: "Is there a file size limit?",
@@ -203,9 +203,9 @@ export const tools: Tool[] = [
     name: "Image Converter",
     shortName: "Convert",
     h1: "Image Converter",
-    tagline: "Convert between 12 formats: JPG, PNG, WebP, AVIF, PDF, SVG, TIFF, BMP, ICO, TGA, GIF & EPS.",
+    tagline: "Turn JPG, PNG, HEIC, WebP or SVG into the format you need.",
     description:
-      "Convert image formats in your browser with quality and background controls. Supports 12 output formats: JPG, PNG, WebP, AVIF, PDF, SVG, TIFF, BMP, ICO, TGA, GIF and EPS. Free, on-device and no sign-up.",
+      "Convert image formats in your browser with quality and background controls. Saves JPG, PNG, WebP, SVG, TIFF, BMP, ICO, TGA, GIF and EPS, plus AVIF where the browser can write it. Free, on-device and no sign-up.",
     keywords: [
       "image converter",
       "convert image online",
@@ -223,7 +223,7 @@ export const tools: Tool[] = [
     engine: "browser",
     status: "live",
     featured: true,
-    limits: { maxSizeMB: 25, formats: ["JPG", "PNG", "WebP", "AVIF", "PDF", "SVG", "TIFF", "BMP", "ICO", "TGA", "GIF", "EPS"] },
+    limits: { maxSizeMB: 25, formats: ["JPG", "PNG", "WebP", "AVIF", "HEIC", "SVG", "TIFF", "BMP", "ICO", "TGA", "GIF", "EPS"] },
     resumeBehavior: "auto",
     seo: {
       title: "Image Converter — Convert JPG, PNG, WebP, HEIC & AVIF Free",
@@ -510,7 +510,7 @@ export const tools: Tool[] = [
     name: "Image Upscaler",
     shortName: "Upscale",
     h1: "Image Upscaler",
-    tagline: "Enlarge images 2× or 4× with Free FP16 & Pro SeedVR2-3B FP8 AI.",
+    tagline: "Enlarge images 2× or 4× with AI, keeping edges and detail sharp.",
     description:
       "Async GPU image super-resolution with 4x-UltraSharpV2 Lite (FP16) or Pro SeedVR2-3B (FP8), split/loupe comparison, and 24-hour cloud vault retention.",
     keywords: ["image upscaler", "upscale image", "ai image upscaler", "4x image"],
@@ -525,7 +525,7 @@ export const tools: Tool[] = [
     seo: {
       title: "Free Image Upscaler — Upscale Images 2× or 4× Online",
       metaDescription:
-        "Upscale images 2× or 4× with AI, with face restore and denoise. 2 credits per image, clear pricing and no watermark. Up to 25 MB per image.",
+        "Upscale images 2× or 4× with AI, with face restore and denoise. From 1 credit per image, clear pricing and no watermark. Up to 25 MB per image.",
       howItWorks: [
         "Add a JPG, PNG or WebP image. It stays in this browser until you run it.",
         "Pick 2× or 4×, a detail model and enhancements such as face restore.",
@@ -533,13 +533,13 @@ export const tools: Tool[] = [
       ],
       benefits: [
         "2× or 4× detail recovery with separate controls for faces, noise and sharpness.",
-        "The exact cost is shown before sign-in — 2 credits per image, no watermark.",
-        "Private cloud processing with files deleted within one hour.",
+        "The exact cost is shown before sign-in: 1 to 4 credits per image, no watermark.",
+        "Private cloud processing. Results stay in your account for 24 hours, then they are deleted.",
       ],
       faq: [
         {
           q: "How much does the image upscaler cost?",
-          a: "2 credits per image. New accounts get 25 free credits, and failed AI runs are refunded automatically. The cost is shown on the run button before any upload.",
+          a: "Fast costs 1 credit at 2× and 2 at 4×. Best detail costs 3 at 2× and 4 at 4×. New accounts get 25 free credits, and the cost is shown under the run button before any upload.",
         },
         {
           q: "How large can I upscale an image?",
@@ -551,7 +551,7 @@ export const tools: Tool[] = [
         },
         {
           q: "Is my image uploaded before I sign in?",
-          a: "No. The image stays in your browser while you configure the upscale and sign in. It uploads only when the run starts and is deleted within one hour.",
+          a: "No. The image stays in your browser while you configure the upscale and sign in. It uploads only when the run starts, and is kept in your account for 24 hours so you can compare and download again.",
         },
         {
           q: "Do I need an account to use the upscaler?",
@@ -598,7 +598,7 @@ export const tools: Tool[] = [
       benefits: [
         "Product, person and graphic modes with edge feathering and fine-detail preservation.",
         "Transparent, solid or custom-colour backgrounds, plus an optional drop shadow.",
-        "One credit per image, with private processing and files deleted within one hour.",
+        "A preview for now: every control works, nothing is uploaded and no credits are used.",
       ],
       faq: [
         {
@@ -619,7 +619,7 @@ export const tools: Tool[] = [
         },
         {
           q: "Is the image uploaded before I sign in?",
-          a: "No. The file stays in your browser while you set up the cutout and sign in. It uploads only when the run starts and is deleted within one hour.",
+          a: "No. The tool is a preview for now, so the file never leaves your browser.",
         },
         {
           q: "Can it keep hair and fine edges?",
@@ -706,17 +706,50 @@ export const tools: Tool[] = [
     icon: Scissors,
     tier: "free",
     engine: "browser",
-    status: "soon",
+    status: "live",
     featured: true,
-    limits: { maxSizeMB: 25, formats: ["PDF"], maxPages: 100 },
+    limits: { maxSizeMB: 25, formats: ["PDF"] },
     resumeBehavior: "auto",
     seo: {
       title: "Split PDF Online Free — Extract Pages from a PDF",
       metaDescription:
-        "Split a PDF into separate files or extract page ranges in your browser. Free and private.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Split a PDF into separate files or extract page ranges in your browser. Pick pages on real thumbnails, split every N pages or by odd and even. Free and private.",
+      howItWorks: [
+        "Add a PDF. Its pages are read and drawn as thumbnails in your browser.",
+        "Click the pages to keep, type ranges like 1-3, 6, or split the whole file every N pages.",
+        "Split, then download one PDF or a ZIP with every part.",
+      ],
+      benefits: [
+        "Pages are copied, not re-rendered, so text, links and image quality stay intact.",
+        "Three ways to split: picked pages, even chunks, or odd and even sides.",
+        "Runs on your device with no account, no upload and no watermark.",
+      ],
+      faq: [
+        {
+          q: "Is Split PDF free?",
+          a: "Yes. Extracting pages and splitting a document are free and unlimited, with no account.",
+        },
+        {
+          q: "Is my PDF uploaded?",
+          a: "No. The file is opened and split inside your browser, and the new PDFs are created on your device.",
+        },
+        {
+          q: "How do I extract just a few pages?",
+          a: "Choose Extract pages, then click the thumbnails or type ranges such as 1-3, 6. Turn on One file per page to save each picked page separately.",
+        },
+        {
+          q: "Can I split a PDF into single pages?",
+          a: "Yes. Choose Split every N pages and set it to 1. You get one PDF per page in a single ZIP.",
+        },
+        {
+          q: "Does splitting reduce quality?",
+          a: "No. Pages are copied as they are, so nothing is recompressed.",
+        },
+        {
+          q: "Can I split a password-protected PDF?",
+          a: "Not directly. Remove the password first, then add the file again.",
+        },
+      ],
       related: ["merge-pdf", "pdf-to-jpg", "ocr"],
     },
   },
@@ -727,22 +760,55 @@ export const tools: Tool[] = [
     name: "PDF to JPG",
     shortName: "PDF to JPG",
     h1: "PDF to JPG",
-    tagline: "Turn PDF pages into images.",
+    tagline: "Turn PDF pages into JPG, PNG or WebP images.",
     description: "Export selected PDF pages as high-quality JPG images.",
     keywords: ["pdf to jpg", "pdf to image", "convert pdf to jpeg"],
     icon: FileImage,
     tier: "free",
     engine: "browser",
-    status: "soon",
-    limits: { maxSizeMB: 25, formats: ["PDF"], maxPages: 100 },
+    status: "live",
+    limits: { maxSizeMB: 25, formats: ["PDF"] },
     resumeBehavior: "auto",
     seo: {
       title: "PDF to JPG — Convert PDF Pages to Images Free",
       metaDescription:
-        "Convert PDF pages into JPG images in your browser. Free, private and no sign-up.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Convert PDF pages into JPG, PNG or WebP images in your browser at up to 300 DPI. Pick pages, download one image or a ZIP. Free, private and no sign-up.",
+      howItWorks: [
+        "Add a PDF. Every page appears as a thumbnail, all selected by default.",
+        "Choose JPG, PNG or WebP, a resolution from 72 to 300 DPI, and the pages you want.",
+        "Convert, preview the images, then download one file or a ZIP.",
+      ],
+      benefits: [
+        "Screen, standard and print resolutions, with the exact pixel size shown before you run.",
+        "Transparent PNG and WebP output, plus an option to trim empty page margins.",
+        "Runs on your device with no account, no upload and no watermark.",
+      ],
+      faq: [
+        {
+          q: "Is PDF to JPG free?",
+          a: "Yes. Converting PDF pages to images is free and unlimited, with no account.",
+        },
+        {
+          q: "Is my PDF uploaded?",
+          a: "No. Pages are rendered inside your browser and the images are created on your device.",
+        },
+        {
+          q: "Which resolution should I choose?",
+          a: "Standard (150 DPI) suits sharing and slides. Use Print (300 DPI) for paper or zooming in, and Screen (72 DPI) for the smallest files.",
+        },
+        {
+          q: "Can I convert only some pages?",
+          a: "Yes. Click thumbnails to include or skip pages, or type ranges such as 1-3, 6.",
+        },
+        {
+          q: "JPG, PNG or WebP?",
+          a: "JPG works everywhere. PNG is lossless and keeps text crisp. WebP gives the smallest files and supports transparency.",
+        },
+        {
+          q: "How do I download every page at once?",
+          a: "When more than one page is converted, the download button saves all images in a single ZIP. Each image can also be saved on its own.",
+        },
+      ],
       related: ["merge-pdf", "split-pdf", "ocr"],
     },
   },
@@ -807,7 +873,7 @@ export const tools: Tool[] = [
     name: "Audio Converter",
     shortName: "Convert",
     h1: "Audio Converter",
-    tagline: "Convert MP3, WAV, M4A and OGG — preview, tune, export.",
+    tagline: "Turn MP3, WAV, M4A or OGG into the one you need.",
     description:
       "Preview the waveform and control bitrate, sample rate and channels in the browser.",
     keywords: ["audio converter", "mp3 to wav", "wav to mp3", "m4a converter", "ogg converter"],
@@ -947,8 +1013,8 @@ export const tools: Tool[] = [
         "Sign in and generate the voiceover. The exact credit cost is shown first.",
       ],
       benefits: [
-        "Four distinct voices with language, style, pace and pitch controls.",
-        "A local browser preview lets you test pacing before spending a credit.",
+        "23 voices with language, style, pace and pitch controls.",
+        "Play a sample of any voice before spending a credit, or clone your own.",
         "MP3 or lossless WAV output with a live character count and cost estimate.",
       ],
       faq: [
@@ -958,11 +1024,11 @@ export const tools: Tool[] = [
         },
         {
           q: "Can I preview the voice before paying?",
-          a: "Yes. The player uses your browser's local system voice so you can test pace and pitch. The natural AI voice is generated when you run the tool.",
+          a: "Yes. Every voice has a sample you can play for free. Your own script is spoken when you run the tool.",
         },
         {
           q: "Which languages and voices are available?",
-          a: "English (US and UK), Hindi, Spanish and French, with Aria, Kai, Mira and Noah voice characters. More voices can be added as the engine is connected.",
+          a: "English (US and UK), Hindi, Spanish and French, with 23 built-in voices. You can also clone a voice from a short recording.",
         },
         {
           q: "How many characters can I generate?",
@@ -974,7 +1040,7 @@ export const tools: Tool[] = [
         },
         {
           q: "Is my script uploaded before I sign in?",
-          a: "No. The script stays in your browser while you configure the voice. It is sent only when the run starts and is deleted within one hour.",
+          a: "No. The script stays in your browser while you configure the voice. It is sent only when the run starts, and the finished audio is kept in your account for 24 hours.",
         },
         {
           q: "Can I use the audio commercially?",
@@ -991,7 +1057,7 @@ export const tools: Tool[] = [
     name: "Speech to Text",
     shortName: "Speech to text",
     h1: "Speech to Text",
-    tagline: "Transcribe audio and video with AI.",
+    tagline: "Turn a recording into text, with speakers and timestamps.",
     description: "Timestamps, speaker labels and TXT, SRT or VTT export.",
     keywords: ["speech to text", "audio transcription", "transcribe mp3", "whisper online", "srt generator"],
     icon: Mic,
@@ -1005,7 +1071,7 @@ export const tools: Tool[] = [
     seo: {
       title: "Speech to Text — Transcribe Audio Online",
       metaDescription:
-        "Transcribe audio and video with AI. Add timestamps and speaker labels, then export TXT, SRT or VTT. 2 credits per started minute, no subscription.",
+        "Transcribe audio with AI. Add timestamps and speaker labels, then export TXT, SRT or VTT. 2 credits per started minute, no subscription.",
       howItWorks: [
         "Add an audio file. The waveform and duration load locally.",
         "Choose the language, model, timestamps and speaker labels.",
@@ -1039,7 +1105,7 @@ export const tools: Tool[] = [
         },
         {
           q: "Is my audio uploaded?",
-          a: "The file stays in your browser until the run starts. Server processing uses private temporary storage, and files are deleted within one hour.",
+          a: "No. The tool is a preview for now, so the file never leaves your browser.",
         },
         {
           q: "How accurate is the transcript?",
@@ -1056,7 +1122,7 @@ export const tools: Tool[] = [
     name: "Vocal Remover",
     shortName: "Vocal remover",
     h1: "Vocal Remover",
-    tagline: "Separate studio-clean vocals and instrumentals with BS-RoFormer GPU AI.",
+    tagline: "Split a song into clean vocals and an instrumental.",
     description:
       "Async BS-RoFormer ViperX & MDX-Net stem separation with phase-locked Mute/Solo mixer, custom WAV mixdown, and 24-hour cloud vault retention.",
     keywords: ["vocal remover", "remove vocals from song", "instrumental maker", "stem separation", "karaoke maker"],
@@ -1066,38 +1132,38 @@ export const tools: Tool[] = [
     engine: "worker",
     status: "live",
     featured: true,
-    limits: { maxSizeMB: 50, formats: ["MP3", "WAV", "M4A"], maxDurationMin: 10 },
+    limits: { maxSizeMB: 50, formats: ["MP3", "WAV", "M4A", "OGG"], maxDurationMin: 30 },
     resumeBehavior: "auto",
     seo: {
       title: "Vocal Remover — Instrumental & Acapella Online",
       metaDescription:
-        "Separate vocals and instrumentals with AI. Choose two stems or four, then download WAV or MP3 files. 4 credits per started minute, no subscription.",
+        "Separate vocals and instrumentals with AI, rebalance them in a mixer, then download WAV or MP3 files. 2 credits per track, no subscription.",
       howItWorks: [
         "Add a song or recording. The waveform and duration load locally.",
-        "Choose two stems for karaoke or four for a full remix session.",
+        "Ask for both stems, or only the vocals or the instrumental.",
         "Sign in and run the separation, then download each stem.",
       ],
       benefits: [
         "Vocals and instrumental stems for karaoke, covers and practice.",
-        "Four-stem mode adds drums, bass and an “other” lane for production.",
-        "Mute and solo previews, WAV or MP3 output, and 4 credits per started minute.",
+        "A mixer with mute, solo and volume for each stem, and a WAV of your own mix.",
+        "WAV or MP3 output, and 2 credits per track.",
       ],
       faq: [
         {
           q: "How much does vocal removal cost?",
-          a: "4 credits per started minute, with a minimum of 4 credits per run. A 3-minute song costs 12 credits; the exact cost is shown before sign-in.",
+          a: "2 credits per track, up to 30 minutes long. The cost is shown before sign-in.",
         },
         {
-          q: "What is the difference between two and four stems?",
-          a: "Two stems gives you vocals and instrumental, perfect for karaoke or an acapella. Four stems adds drums, bass and an “other” lane for remixing.",
+          q: "What do I get back?",
+          a: "Two tracks, the vocals and the instrumental, or just the one you ask for. Play them together in the mixer, change the balance and export it.",
         },
         {
           q: "Which formats and limits are supported?",
-          a: "MP3, WAV and M4A uploads up to 50 MB and 10 minutes. Stems download as lossless WAV or compressed MP3.",
+          a: "MP3, WAV, M4A and OGG uploads up to 50 MB and 30 minutes. Stems download as lossless WAV or compressed MP3.",
         },
         {
           q: "Can I keep backing vocals in the instrumental?",
-          a: "Use Keep backing vocals on the two-stem mode to include harmonies in the vocal stem; turn it off for a cleaner karaoke track. The exact result depends on the mix.",
+          a: "Use Keep backing vocals to include harmonies in the vocal stem; turn it off for a cleaner karaoke track. The exact result depends on the mix.",
         },
         {
           q: "Does separation always sound perfect?",
@@ -1105,7 +1171,7 @@ export const tools: Tool[] = [
         },
         {
           q: "Is my track uploaded before I sign in?",
-          a: "No. The file stays in your browser while you configure the stems. It uploads only when the run starts and is deleted within one hour.",
+          a: "No. The file stays in your browser while you configure the stems. It uploads only when the run starts, and the stems are kept in your account for 24 hours.",
         },
         {
           q: "Can I use the stems commercially?",
@@ -1122,8 +1188,8 @@ export const tools: Tool[] = [
     name: "AI Dubbing Studio",
     shortName: "AI Dubbing",
     h1: "AI Video & Audio Dubbing",
-    tagline: "Extract audio in-browser, transcribe with Deepgram, translate with emotion tags, and dub up to 2 hours.",
-    description: "Zero-video-upload dubbing studio: extracts and normalizes audio in your browser, transcribes via Deepgram, translates with Drama 3 expression tags, and lets you download or bind back to your video.",
+    tagline: "Dub a video or audio file into another language, up to 2 hours long.",
+    description: "Transcribe, translate and dub a video or audio file. The video stays on your device; only its audio is sent.",
     keywords: [
       "video dubbing",
       "ai video translator",
@@ -1149,35 +1215,35 @@ export const tools: Tool[] = [
       metaDescription:
         "Dub videos and audio up to 2 hours into Hindi, Spanish, French, German, Japanese, English and more. Zero video upload: extract audio locally, clone the speaker from a 20s VAD sample or custom upload, and bind multi-audio & subtitles back onto your video.",
       howItWorks: [
-        "Drop a video (MP4, MOV, WebM, MKV) or audio file up to 2 hours. Audio is extracted and normalized in your browser — heavy video never leaves your device.",
-        "Deepgram extracts word-accurate timestamps while OpenRouter segments meaning-aware dialogue lines with Drama 3 expression tags, and VAD selects a clean ~20s speaker sample (or use your own uploaded voice clip).",
-        "Download the finished dubbed MP3 and Original/Translated/Dual SRT subtitles from your 24-hour vault, or click Bind Audio to Video to mux dual audio tracks and subtitles in-browser.",
+        "Add a video or audio file, up to 2 hours long. Your browser takes the audio out of it, so the video itself is never uploaded.",
+        "The speech is transcribed and translated into lines you can edit. About 20 seconds of clear speech becomes the voice sample, or you upload your own.",
+        "Download the dubbed MP3 and the subtitles, or press Add to video to put both back on your video in the browser.",
       ],
       benefits: [
-        "Saves storage and bandwidth by uploading only extracted normalized audio instead of multi-gigabyte video files.",
-        "Smart ~20s VAD continuous-speech cloning plus dedicated custom reference audio upload for rock-solid speaker consistency.",
-        "In-browser video binding verifies video duration match and supports keeping both original & dubbed audio tracks plus soft or burned dual subtitles.",
+        "Only the audio is uploaded, never the multi-gigabyte video.",
+        "The dub keeps the original speaker’s voice, or a voice you upload, or one of 23 ready-made voices.",
+        "Add to video checks that the lengths match, and can keep both audio tracks with switchable or burned-in subtitles.",
       ],
       faq: [
         {
           q: "How much does dubbing cost and what is the maximum duration?",
-          a: "Dubbing costs 5 credits per started minute and supports videos or audio files up to 2 hours (120 minutes). Extracting audio in-browser is always fast and private.",
+          a: "Dubbing costs 5 credits per started minute, for video or audio files up to 2 hours long. Taking the audio out of your video happens in the browser and is free.",
         },
         {
           q: "Are my large video files uploaded to the server?",
-          a: "No. Your browser extracts and normalizes the audio track before upload, saving bandwidth and cloud storage. When binding back to video later, duration matching and muxing also run directly in your browser.",
+          a: "No. Your browser takes the audio track out and only that is uploaded. Adding the dub back to the video later also runs in your browser.",
         },
         {
           q: "Can I keep both the original audio and the dubbed audio in my final video?",
-          a: "Yes. Inside the Bind Audio to Video panel you can keep both audio tracks as selectable streams, replace original audio, or mix dubbed dialogue over ducked background ambience, alongside original, translated, or dual subtitles.",
+          a: "Yes. In Add to video you can keep both audio tracks and switch between them in your player, lay the dub over a quieter original, or replace the original. Subtitles can be original, translated or both.",
         },
         {
           q: "How does voice cloning pick the right speaker sample?",
-          a: "Our VAD engine analyzes speech energy and Deepgram diarized word timestamps to extract a clean ~20-second continuous speaking segment instead of blindly sampling intro music at 0:00 — or you can upload any custom reference clip.",
+          a: "It looks for about 20 seconds of one person speaking clearly, instead of taking whatever plays at the start. You can listen to the sample, pick a different line, or upload your own clip.",
         },
         {
-          q: "Can I bind a saved dubbed audio back onto my video later from my profile?",
-          a: "Yes. Open Bind Audio to Video on any saved dub in your 24-hour vault, select your original video file, and we verify the duration match before binding your chosen audio and subtitle tracks.",
+          q: "Can I add a saved dub to my video later?",
+          a: "Yes, for 24 hours. Press Add to video on any dub in the list, choose the original video, and the lengths are checked before the tracks are added.",
         },
       ],
       related: [],

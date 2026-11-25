@@ -48,13 +48,13 @@ export function ResizeWorkspace({ tool }: { tool: Tool }) {
         }
       >
         <Dropzone tool={tool} compact />
-        <div className="mt-3 rounded-[12px] border border-line bg-[#fafaf9] p-4">
+        <div className="mt-3 border border-line bg-panel p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Crop size={15} className="text-muted" aria-hidden />
               <p className="text-ui font-medium">Crop presets</p>
             </div>
-            <span className="text-micro text-faint">Choose after adding an image</span>
+            <span className="text-[12px] text-faint">Choose after adding an image</span>
           </div>
           <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-7">
             {["1:1", "4:5", "3:2", "16:9", "9:16", "4:3", "Free"].map((ratio) => (
@@ -62,7 +62,7 @@ export function ResizeWorkspace({ tool }: { tool: Tool }) {
                 key={ratio}
                 type="button"
                 disabled
-                className="rounded-lg border border-line bg-white px-2 py-2.5 text-micro font-medium text-muted disabled:opacity-60"
+                className="rounded-lg border border-line bg-white px-2 py-2.5 text-[12px] font-medium text-muted disabled:opacity-60"
               >
                 {ratio}
               </button>
@@ -87,14 +87,14 @@ export function AiPdfWorkspace({ tool }: { tool: Tool }) {
             <SelectField label="Output language" options={["Keep original", "English", "Hindi"]} />
             <Toggle label="Preserve layout" description="Keep fonts, spacing and page structure where possible." defaultChecked />
             <Toggle label="Review changes first" description="Show a before-and-after preview before download." defaultChecked />
-            <div className="rounded-[10px] border border-line bg-rail p-3 text-micro leading-relaxed text-muted">
+            <div className="border border-line bg-rail p-3 text-[12px] leading-relaxed text-muted">
               Complex layouts may need a quick review. The final run cost is always confirmed first.
             </div>
           </>
         }
       >
         <Dropzone tool={tool} compact />
-        <div className="mt-3 overflow-hidden rounded-[12px] border border-line bg-white">
+        <div className="mt-3 overflow-hidden border border-line bg-white">
           <div className="flex items-center gap-2 border-b border-line-soft px-3.5 py-3">
             <WandSparkles size={14} className="text-accent" aria-hidden />
             <label htmlFor="pdf-prompt" className="text-ui font-semibold">Describe your edit</label>
@@ -107,7 +107,7 @@ export function AiPdfWorkspace({ tool }: { tool: Tool }) {
           />
           <div className="flex flex-wrap gap-1.5 border-t border-line-soft px-3.5 py-3">
             {["Make it concise", "Fix the details", "Rewrite a clause"].map((suggestion) => (
-              <span key={suggestion} className="rounded-full border border-line bg-rail px-2.5 py-1 text-micro text-muted">
+              <span key={suggestion} className="border border-line bg-rail px-2.5 py-1 text-[12px] text-muted">
                 {suggestion}
               </span>
             ))}
@@ -140,21 +140,21 @@ export function AudioTrimWorkspace({ tool }: { tool: Tool }) {
       >
         <Dropzone tool={tool} compact />
         <div className="mt-3">
-          <div className="mb-2 flex items-center justify-between text-micro text-faint">
+          <div className="mb-2 flex items-center justify-between text-[12px] text-faint">
             <span>00:00</span><span>00:15</span><span>00:30</span>
           </div>
           <Waveform label="Trim timeline placeholder" />
-          <div className="mt-2 flex items-center gap-3 rounded-[11px] border border-line bg-white px-3 py-2.5">
+          <div className="mt-2 flex items-center gap-3 border border-line bg-white px-3 py-2.5">
             <button
               type="button"
               disabled
               aria-label="Play audio preview"
-              className="grid h-8 w-8 place-items-center rounded-full bg-ink text-white disabled:opacity-40"
+              className="grid h-8 w-8 place-items-center bg-ink text-white disabled:opacity-40"
             >
               <Play size={13} fill="currentColor" aria-hidden />
             </button>
-            <span className="text-micro tabular-nums text-muted">00:00.000 / 00:30.000</span>
-            <span className="ml-auto rounded-md bg-rail px-2 py-1 text-micro text-faint">Preview</span>
+            <span className="text-[12px] tabular-nums text-muted">00:00.000 / 00:30.000</span>
+            <span className="ml-auto rounded-md bg-rail px-2 py-1 text-[12px] text-faint">Preview</span>
           </div>
         </div>
         <ActionBar tool={tool} label="Trim audio" />
@@ -171,16 +171,16 @@ export function TextToSpeechWorkspace({ tool }: { tool: Tool }) {
         settings={
           <>
             <SelectField label="Voice" options={["Aria — warm and natural", "Rohan — clear narrator", "Mira — calm and expressive", "Dev — grounded and conversational"]} />
-            <div className="rounded-[11px] border border-line bg-white p-3">
+            <div className="border border-line bg-white p-3">
               <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_30%,#ffe2d6_0%,#c99a91_45%,#735a6b_100%)] text-white">
+                <span className="grid h-10 w-10 place-items-center bg-[radial-gradient(circle_at_35%_30%,#ffe2d6_0%,#c99a91_45%,#735a6b_100%)] text-white">
                   <AudioLines size={17} aria-hidden />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-ui font-medium">Aria</p>
-                  <p className="text-micro text-faint">Warm · Natural · English</p>
+                  <p className="text-[12px] text-faint">Warm · Natural · English</p>
                 </div>
-                <button type="button" disabled aria-label="Preview Aria voice" className="grid h-8 w-8 place-items-center rounded-full border border-line disabled:opacity-40">
+                <button type="button" disabled aria-label="Preview Aria voice" className="grid h-8 w-8 place-items-center border border-line disabled:opacity-40">
                   <Play size={12} fill="currentColor" aria-hidden />
                 </button>
               </div>
@@ -193,13 +193,13 @@ export function TextToSpeechWorkspace({ tool }: { tool: Tool }) {
           </>
         }
       >
-        <div className="overflow-hidden rounded-[13px] border border-line bg-white">
+        <div className="overflow-hidden border border-line bg-white">
           <div className="flex items-center justify-between border-b border-line-soft px-4 py-3">
             <div className="flex items-center gap-1 rounded-lg bg-rail p-1">
-              <span className="rounded-md border border-line bg-white px-3 py-1.5 text-micro font-medium text-ink">Single voice</span>
-              <span className="px-3 py-1.5 text-micro font-medium text-faint">Dialogue</span>
+              <span className="rounded-md border border-line bg-white px-3 py-1.5 text-[12px] font-medium text-ink">Single voice</span>
+              <span className="px-3 py-1.5 text-[12px] font-medium text-faint">Dialogue</span>
             </div>
-            <span className="text-micro text-faint">0 / 10,000</span>
+            <span className="text-[12px] text-faint">0 / 10,000</span>
           </div>
           <label htmlFor="speech-text" className="sr-only">Text to turn into speech</label>
           <textarea
@@ -208,17 +208,17 @@ export function TextToSpeechWorkspace({ tool }: { tool: Tool }) {
             placeholder="Start typing or paste your script here…"
             className="min-h-[280px] w-full resize-none bg-white px-4 py-4 text-[15px] leading-7 text-ink outline-none placeholder:text-faint"
           />
-          <div className="flex flex-wrap items-center gap-2 border-t border-line-soft px-4 py-3 text-micro text-faint">
+          <div className="flex flex-wrap items-center gap-2 border-t border-line-soft px-4 py-3 text-[12px] text-faint">
             <Languages size={13} aria-hidden />
             <span>English (auto detect)</span>
             <span className="ml-auto">Estimated duration: —</span>
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-3 rounded-[11px] border border-line bg-[#fdfdfc] px-3.5 py-3">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#fff2ec] text-accent">
+        <div className="mt-3 flex items-center gap-3 border border-line bg-panel px-3.5 py-3">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent-soft text-accent">
             <Sparkles size={14} aria-hidden />
           </span>
-          <p className="text-micro leading-relaxed text-muted">
+          <p className="text-[12px] leading-relaxed text-muted">
             Add paragraphs and pauses to shape the delivery. Your script stays here while you explore voices.
           </p>
         </div>
@@ -246,16 +246,16 @@ export function SpeechToTextWorkspace({ tool }: { tool: Tool }) {
         }
       >
         <Dropzone tool={tool} compact />
-        <div className="my-3 flex items-center gap-3 text-micro text-faint">
+        <div className="my-3 flex items-center gap-3 text-[12px] text-faint">
           <span className="h-px flex-1 bg-line" /><span>or</span><span className="h-px flex-1 bg-line" />
         </div>
-        <div className="flex flex-col items-center rounded-[12px] border border-line bg-[#fafaf9] px-5 py-6 text-center">
-          <span className="relative grid h-12 w-12 place-items-center rounded-full bg-ink text-white">
+        <div className="flex flex-col items-center border border-line bg-panel px-5 py-6 text-center">
+          <span className="relative grid h-12 w-12 place-items-center bg-ink text-white">
             <Mic size={19} strokeWidth={1.5} aria-hidden />
-            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-accent" />
+            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 border-2 border-white bg-accent" />
           </span>
           <p className="mt-3 text-ui font-semibold">Record something new</p>
-          <p className="mt-1 text-micro text-faint">Use your microphone and transcribe the recording.</p>
+          <p className="mt-1 text-[12px] text-faint">Use your microphone and transcribe the recording.</p>
           <button
             type="button"
             disabled
