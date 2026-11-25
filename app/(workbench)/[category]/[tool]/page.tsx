@@ -21,7 +21,7 @@ import { VocalRemoverStudio } from "@/components/tool/audio/vocal/VocalRemoverSt
 import { VideoDubbingStudio } from "@/components/tool/video/dub/VideoDubbingStudio";
 import { ToolHeader } from "@/components/tool/ToolHeader";
 import { ToolWorkspace } from "@/components/tool/ToolWorkspace";
-import { getCategory, getTool, tools } from "@/lib/registry/tools";
+import { getCategory, getTool, tools, type Tool } from "@/lib/registry/tools";
 import { toolMetadata } from "@/lib/seo/metadata";
 import { toolJsonLd } from "@/lib/seo/schema";
 
@@ -46,207 +46,70 @@ export default async function ToolPage({ params }: ToolParams) {
 
   if (!tool || !category) notFound();
 
-  let workspace = (
-    <>
-      <ToolHeader tool={tool} category={category} />
-      <section className="mt-6">
-        <ToolWorkspace tool={tool} />
-      </section>
-    </>
-  );
-
-  if (tool.path === "/image/convert") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <ImageConvertStudio path={tool.path} maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/image/compress") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <CompressorStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/image/resize") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <ResizeCropStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/image/to-pdf") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <ImageToPdfStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/document/merge-pdf") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <MergePdfStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/document/split-pdf") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <SplitPdfStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/document/pdf-to-jpg") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <PdfToJpgStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/document/ocr") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <OcrStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/document/ai-editor") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <AiEditorStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/image/upscaler") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} showTierBadge={false} showEngineBadge={false} />
-        <section className="mt-5">
-          <UpscalerStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/image/remove-background") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <RemoveBackgroundStudio maxSizeMB={tool.limits.maxSizeMB ?? 25} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/audio/convert") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <AudioConverterStudio maxSizeMB={tool.limits.maxSizeMB ?? 50} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/audio/trim") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <AudioTrimmerStudio maxSizeMB={tool.limits.maxSizeMB ?? 50} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/audio/text-to-speech") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} showTierBadge={false} showEngineBadge={false} />
-        <section className="mt-5">
-          <TextToSpeechStudio />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/audio/speech-to-text") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} />
-        <section className="mt-5">
-          <SpeechToTextStudio maxSizeMB={tool.limits.maxSizeMB ?? 50} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/audio/vocal-remover") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} showTierBadge={false} showEngineBadge={false} />
-        <section className="mt-5">
-          <VocalRemoverStudio maxSizeMB={tool.limits.maxSizeMB ?? 50} />
-        </section>
-      </>
-    );
-  }
-
-  if (tool.path === "/video/dubbing") {
-    workspace = (
-      <>
-        <ToolHeader tool={tool} category={category} showTierBadge={false} showEngineBadge={false} />
-        <section className="mt-5">
-          <VideoDubbingStudio maxSizeMB={tool.limits.maxSizeMB ?? 2048} />
-        </section>
-      </>
-    );
-  }
+  const studio = studioFor(tool);
+  const hideBadges = PLAIN_HEADER.has(tool.path);
 
   return (
     <>
       <JsonLd data={toolJsonLd(tool, category)} />
-      {workspace}
+      <ToolHeader
+        tool={tool}
+        category={category}
+        showTierBadge={!hideBadges}
+        showEngineBadge={!hideBadges}
+      />
+      <section className="mt-3.5">{studio ?? <ToolWorkspace tool={tool} />}</section>
       <SeoContent tool={tool} category={category} />
     </>
   );
+}
+
+/** Tools whose studio shows its own Free / Pro pricing, so the header stays plain. */
+const PLAIN_HEADER = new Set([
+  "/image/upscaler",
+  "/audio/text-to-speech",
+  "/audio/vocal-remover",
+  "/video/dubbing",
+]);
+
+function studioFor(tool: Tool) {
+  const size = tool.limits.maxSizeMB;
+  switch (tool.path) {
+    case "/image/convert":
+      return <ImageConvertStudio path={tool.path} maxSizeMB={size ?? 25} />;
+    case "/image/compress":
+      return <CompressorStudio maxSizeMB={size ?? 25} />;
+    case "/image/resize":
+      return <ResizeCropStudio maxSizeMB={size ?? 25} />;
+    case "/image/to-pdf":
+      return <ImageToPdfStudio maxSizeMB={size ?? 25} />;
+    case "/image/upscaler":
+      return <UpscalerStudio maxSizeMB={size ?? 25} />;
+    case "/image/remove-background":
+      return <RemoveBackgroundStudio maxSizeMB={size ?? 25} />;
+    case "/document/merge-pdf":
+      return <MergePdfStudio maxSizeMB={size ?? 25} />;
+    case "/document/split-pdf":
+      return <SplitPdfStudio maxSizeMB={size ?? 25} />;
+    case "/document/pdf-to-jpg":
+      return <PdfToJpgStudio maxSizeMB={size ?? 25} />;
+    case "/document/ocr":
+      return <OcrStudio maxSizeMB={size ?? 25} />;
+    case "/document/ai-editor":
+      return <AiEditorStudio maxSizeMB={size ?? 25} />;
+    case "/audio/convert":
+      return <AudioConverterStudio maxSizeMB={size ?? 50} />;
+    case "/audio/trim":
+      return <AudioTrimmerStudio maxSizeMB={size ?? 50} />;
+    case "/audio/text-to-speech":
+      return <TextToSpeechStudio />;
+    case "/audio/speech-to-text":
+      return <SpeechToTextStudio maxSizeMB={size ?? 50} />;
+    case "/audio/vocal-remover":
+      return <VocalRemoverStudio maxSizeMB={size ?? 50} />;
+    case "/video/dubbing":
+      return <VideoDubbingStudio maxSizeMB={size ?? 2048} />;
+    default:
+      return null;
+  }
 }

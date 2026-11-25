@@ -1,73 +1,65 @@
-import { Cloud, Lock, MonitorDown } from "lucide-react";
+import { Cloud, MonitorSmartphone } from "lucide-react";
 import type { Category, Tool } from "@/lib/registry/tools";
-import { PointerHighlight } from "@/components/aceternity/pointer-highlight";
-import { Badge } from "@/components/ui/Badge";
-import { Breadcrumb } from "@/components/arc/breadcrumb/breadcrumb";
+import { ToolGlyph } from "@/components/icons/NavGlyph";
 
+/**
+ * Compact page header for a tool: one row, so the studio underneath starts
+ * right below the topbar and the tool is usable without scrolling.
+ */
 export function ToolHeader({
   tool,
-  category,
   showTierBadge = true,
   showEngineBadge = true,
 }: {
   tool: Tool;
-  category: Category;
+  category?: Category;
   showTierBadge?: boolean;
   showEngineBadge?: boolean;
 }) {
-  const Icon = tool.icon;
-  const EngineIcon = tool.engine === "browser" ? MonitorDown : Cloud;
+  const onDevice = tool.engine === "browser";
+  const EngineIcon = onDevice ? MonitorSmartphone : Cloud;
 
   return (
-    <header className="flex flex-wrap items-start justify-between gap-5">
-      <div className="flex min-w-0 items-start gap-3.5">
-        <span className="mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-[12px] border border-line bg-rail text-ink">
-          <Icon size={21} strokeWidth={1.5} aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <Breadcrumb
-            items={[
-              { label: category.title, href: `/${category.slug}` },
-              { label: "Workspace" },
-            ]}
-          />
-          <h1 className="mt-1.5 flex items-center gap-2 font-display text-[30px] font-semibold tracking-[-0.035em]">
-            <PointerHighlight
-              rectangleClassName="border-accent/30"
-              pointerClassName="text-accent"
-            >
-              <span className="px-0.5">{tool.h1}</span>
-            </PointerHighlight>
-            {showTierBadge && tool.tier === "credits" && (
-              <span title="Uses credits — sign in to run" className="mt-1">
-                <Lock size={14} strokeWidth={1.8} className="text-faint" aria-hidden />
-              </span>
-            )}
-          </h1>
-          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted">{tool.tagline}</p>
-        </div>
+    <header className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
+      <span className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[13px] bg-ink text-white shadow-[0_10px_20px_-10px_rgba(15,15,16,0.55)]">
+        <ToolGlyph path={tool.path} size={21} />
+      </span>
+
+      <div className="min-w-0 flex-1 basis-[240px]">
+        <h1 className="font-display text-[22px] font-semibold leading-[1.15] tracking-[-0.03em] text-ink">
+          {tool.h1}
+        </h1>
+        <p className="mt-0.5 text-[13.5px] leading-snug text-muted max-sm:line-clamp-2 sm:truncate">{tool.tagline}</p>
       </div>
 
-      {(showTierBadge || showEngineBadge) && (
-        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          {tool.status === "soon" && <Badge tone="soon">UI preview</Badge>}
-          {showTierBadge &&
-            (tool.tier === "free" ? (
-              <Badge tone="free">Free</Badge>
-            ) : (
-              <Badge tone="credits">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                {tool.creditCost} {tool.creditCost === 1 ? "credit" : "credits"}
-              </Badge>
-            ))}
-          {showEngineBadge && (
-            <Badge tone="neutral">
-              <EngineIcon size={11} aria-hidden />
-              {tool.engine === "browser" ? "On-device" : "Cloud"}
-            </Badge>
-          )}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {tool.status === "soon" && (
+          <span className="inline-flex h-7 items-center rounded-full bg-[#fdf3e2] px-3 text-[12px] font-medium text-[#8a6320]">
+            Preview
+          </span>
+        )}
+        {showTierBadge &&
+          (tool.tier === "free" ? (
+            <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-success-soft px-3 text-[12px] font-semibold text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden />
+              Free
+            </span>
+          ) : (
+            <span
+              title="Uses credits. Sign in to run."
+              className="inline-flex h-7 items-center gap-1.5 rounded-full bg-accent-soft px-3 text-[12px] font-semibold text-accent-deep"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+              {tool.creditCost} {tool.creditCost === 1 ? "credit" : "credits"}
+            </span>
+          ))}
+        {showEngineBadge && (
+          <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-line bg-white px-3 text-[12px] font-medium text-muted">
+            <EngineIcon size={13} aria-hidden />
+            {onDevice ? "Runs on your device" : "Cloud"}
+          </span>
+        )}
+      </div>
     </header>
   );
 }

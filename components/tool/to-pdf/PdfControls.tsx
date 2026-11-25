@@ -1,28 +1,22 @@
 "use client";
 
-import {
-  Check,
-  FileText,
-  FileCog,
-  Layers3,
-  Palette,
-  ScanLine,
-  Sparkles,
-} from "lucide-react";
-import { RailSection } from "@/components/tool/studio/RailSection";
-import { RailSlider } from "@/components/tool/studio/RailSlider";
+import { FileCog, Sparkles } from "lucide-react";
 import { Switch } from "@/components/arc/switch/switch";
+import { Field, Segmented } from "@/components/tool/kit";
+import {
+  RailSection,
+  RAIL_CARD_ACTIVE,
+  RAIL_CARD_IDLE,
+} from "@/components/tool/studio/RailSection";
+import { RailSlider } from "@/components/tool/studio/RailSlider";
 import {
   MARGINS,
   ORIENTATIONS,
   PAGE_SIZES,
   PDF_BACKGROUNDS,
   PDF_FITS,
-  formatBytes,
   marginMeta,
-  pageLabel,
   pageSizeMeta,
-  pdfFilename,
   type MarginId,
   type PageNumberPosition,
   type PageOrientation,
@@ -31,497 +25,282 @@ import {
   type PdfSettings,
 } from "./model";
 
-const FIELD_LABEL = "block text-[12px] font-medium text-ink";
-const FIELD_META = "text-[11px] text-faint tabular-nums";
-const CARD_IDLE =
-  "border-line bg-white hover:border-[#cfc9bd] hover:bg-[#fdfdfc]";
-const CARD_ACTIVE =
-  "border-ink bg-[#fbfaf7] shadow-[inset_0_0_0_1px_#0f0f10]";
+const SUB_LABEL = "block text-[13px] font-medium text-ink";
+const CHIP_ON = "border-ink bg-ink text-white";
+const CHIP_OFF = "border-line bg-white text-ink hover:border-[#cfc9bd]";
+
+const ORIENTATION_OPTIONS: { value: PageOrientation; label: string }[] = ORIENTATIONS.map((option) => ({
+  value: option.id,
+  label: option.label,
+}));
+
+const MARGIN_OPTIONS: { value: MarginId; label: string }[] = MARGINS.map((option) => ({
+  value: option.id,
+  label: option.label,
+}));
+
+const FIT_OPTIONS: { value: PdfFit; label: string }[] = PDF_FITS.map((option) => ({
+  value: option.id,
+  label: option.label,
+}));
+
+const NUMBER_POSITIONS: { value: PageNumberPosition; label: string }[] = [
+  { value: "bottom-left", label: "Left" },
+  { value: "bottom-center", label: "Center" },
+  { value: "bottom-right", label: "Right" },
+];
+
+const QUALITY_PRESETS = [
+  { label: "Compact", value: 65 },
+  { label: "Balanced", value: 82 },
+  { label: "Crisp", value: 92 },
+];
+
+/** Flat switch row: a label, an optional line of help, and the switch. */
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <button type="button" onClick={() => onChange(!checked)} className="min-w-0 flex-1 text-left">
+        <span className="block text-[13px] font-medium text-ink">{label}</span>
+        {description ? (
+          <span className="mt-0.5 block text-[12px] leading-relaxed text-faint">{description}</span>
+        ) : null}
+      </button>
+      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} className="mt-0.5 shrink-0" />
+    </div>
+  );
+}
 
 export function PdfControls({
   settings,
   onPatch,
   pageCount,
-  totalInput,
-  estimate,
-  aspect,
-  empty,
 }: {
   settings: PdfSettings;
   onPatch: (patch: Partial<PdfSettings>) => void;
   pageCount: number;
-  totalInput: number;
-  estimate: number;
-  aspect: number;
-  empty: boolean;
 }) {
   const margin = marginMeta(settings.margin);
   const size = pageSizeMeta(settings.pageSize);
-  const orientationText =
-    settings.orientation === "auto"
-      ? "Auto"
-      : settings.orientation === "portrait"
-        ? "Portrait"
-        : "Landscape";
+  const fitsImage = settings.pageSize === "fit";
 
   return (
-    <div className="space-y-3.5">
-      {/* Document summary */}
-      <div className="rounded-[16px] border border-line bg-white p-4 shadow-2xs">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-faint">
-              Your document
-            </p>
-            <p className="mt-1.5 flex items-baseline gap-1.5">
-              <span className="font-display text-[26px] font-semibold leading-none tabular-nums text-ink">
-                {pageCount || 0}
-              </span>
-              <span className="text-[12px] font-medium text-muted">
-                {pageCount === 1 ? "page" : "pages"}
-              </span>
-            </p>
-          </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-[#faf9f6] px-2.5 py-1 text-[11px] font-medium text-ink">
-            <Layers3 size={11} aria-hidden />
-            {empty ? "Empty" : pageLabel(settings, aspect)}
-          </span>
+    <div className="space-y-6">
+      <Field label="Paper size" hint={size.detail}>
+        <div className="grid grid-cols-3 gap-2">
+          {PAGE_SIZES.map((option) => {
+            const selected = settings.pageSize === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={selected}
+                title={option.detail}
+                onClick={() => onPatch({ pageSize: option.id as PageSizeId })}
+                className={`flex h-12 items-center gap-2 rounded-[11px] border px-2.5 text-left text-[13px] font-medium text-ink transition-colors ${
+                  selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
+                } ${option.id === "fit" ? "col-span-2" : ""}`}
+              >
+                <PaperMiniature id={option.id} active={selected} />
+                <span className="min-w-0 truncate">{option.label}</span>
+              </button>
+            );
+          })}
         </div>
+      </Field>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="rounded-[10px] border border-line-soft bg-[#fbfaf8] px-2.5 py-2">
-            <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-faint">
-              Estimated PDF
+      {!fitsImage && (
+        <Field label="Orientation">
+          <Segmented
+            label="Page orientation"
+            options={ORIENTATION_OPTIONS}
+            value={settings.orientation}
+            onChange={(orientation) => onPatch({ orientation })}
+          />
+          {settings.orientation === "auto" ? (
+            <p className="mt-2 text-[12.5px] leading-relaxed text-faint">
+              Wide images get a landscape page, tall ones a portrait page.
             </p>
-            <p className="mt-0.5 text-[13px] font-semibold tabular-nums text-[#305e2b]">
-              {pageCount ? `≈ ${formatBytes(estimate)}` : "—"}
-            </p>
-          </div>
-          <div className="rounded-[10px] border border-line-soft bg-[#fbfaf8] px-2.5 py-2">
-            <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-faint">
-              Source images
-            </p>
-            <p className="mt-0.5 text-[13px] font-semibold tabular-nums text-ink">
-              {pageCount ? formatBytes(totalInput) : "—"}
-            </p>
-          </div>
+          ) : null}
+        </Field>
+      )}
+
+      {!fitsImage && (
+        <Field
+          label="Margin"
+          hint={settings.margin === "none" ? "Edge to edge" : `${margin.percent}% of the page`}
+        >
+          <Segmented
+            label="Page margin"
+            options={MARGIN_OPTIONS}
+            value={settings.margin}
+            onChange={(next) => onPatch({ margin: next })}
+          />
+        </Field>
+      )}
+
+      {!fitsImage && (
+        <Field label="Image fit">
+          <Segmented
+            label="Image fit"
+            options={FIT_OPTIONS}
+            value={settings.fit}
+            onChange={(fit) => onPatch({ fit })}
+          />
+          <p className="mt-2 text-[12.5px] leading-relaxed text-faint">
+            {settings.fit === "cover"
+              ? "Fills the page and crops whatever hangs over the edge."
+              : "Shows the whole image, with paper left around it."}
+          </p>
+        </Field>
+      )}
+
+      <Field label="Paper color">
+        <div className="grid grid-cols-3 gap-2">
+          {PDF_BACKGROUNDS.map((background) => {
+            const selected = settings.background === background.id;
+            return (
+              <button
+                key={background.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onPatch({ background: background.id })}
+                className={`flex h-[58px] flex-col items-center justify-center gap-1.5 rounded-[11px] border text-[12.5px] font-medium text-ink transition-colors ${
+                  selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className="h-[18px] w-[18px] shrink-0 rounded-full border border-black/15"
+                  style={{ background: background.value }}
+                />
+                {background.label}
+              </button>
+            );
+          })}
         </div>
+      </Field>
 
-        <p className="mt-2.5 flex items-center gap-1.5 truncate text-[11.5px] font-medium text-faint">
-          <FileText size={12} className="shrink-0 text-muted" aria-hidden />
-          <span className="truncate">{pdfFilename(settings.filename)}</span>
-        </p>
+      <div>
+        <ToggleRow
+          label="Page numbers"
+          description={`Prints “1 / ${pageCount || 1}” at the bottom of every page.`}
+          checked={settings.pageNumbers}
+          onChange={(checked) => onPatch({ pageNumbers: checked })}
+        />
+        {settings.pageNumbers && (
+          <Segmented
+            label="Page number position"
+            className="mt-3"
+            options={NUMBER_POSITIONS}
+            value={settings.pageNumberPosition}
+            onChange={(pageNumberPosition) => onPatch({ pageNumberPosition })}
+          />
+        )}
       </div>
 
-      <RailSection
-        icon={FileText}
-        title="Page setup"
-        hint="Paper, orientation, margins and image fit"
-        aside={`${size.label} · ${orientationText}`}
-      >
-        <div className="space-y-4">
-          <div>
-            <div className="mb-2 flex items-baseline justify-between gap-3">
-              <span className={FIELD_LABEL}>Paper size</span>
-              <span className={FIELD_META}>{size.detail}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {PAGE_SIZES.map((option) => {
-                const selected = settings.pageSize === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => onPatch({ pageSize: option.id as PageSizeId })}
-                    className={`flex min-h-[54px] items-center gap-3 rounded-[11px] border px-3 py-2.5 text-left transition-colors ${
-                      selected ? CARD_ACTIVE : CARD_IDLE
-                    } ${option.id === "fit" ? "col-span-2" : ""}`}
-                  >
-                    <PaperMiniature id={option.id} active={selected} />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-1.5 text-[13px] font-semibold text-ink">
-                        {option.label}
-                        {selected && <Check size={12} strokeWidth={2.5} aria-hidden />}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[11px] leading-tight text-faint">
-                        {option.detail}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {settings.pageSize !== "fit" && (
-            <div>
-              <div className="mb-2 flex items-baseline justify-between gap-3">
-                <span className={FIELD_LABEL}>Orientation</span>
-                <span className={FIELD_META}>Auto follows the image</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {ORIENTATIONS.map((option) => {
-                  const selected = settings.orientation === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => onPatch({ orientation: option.id as PageOrientation })}
-                      className={`flex min-h-[62px] flex-col items-center justify-center gap-1.5 rounded-[11px] border py-2 transition-colors ${
-                        selected ? CARD_ACTIVE : CARD_IDLE
-                      }`}
-                    >
-                      <OrientationMiniature id={option.id} />
-                      <span className="text-[11.5px] font-medium text-ink">{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <div className="mb-2 flex items-baseline justify-between gap-3">
-              <span className={FIELD_LABEL}>Page margin</span>
-              <span className={FIELD_META}>
-                {settings.pageSize === "fit" || settings.margin === "none"
-                  ? "0% · full bleed"
-                  : `${margin.percent}% inset`}
-              </span>
-            </div>
-
-            {settings.pageSize === "fit" ? (
-              <div className="rounded-[11px] border border-[#d9e3d5] bg-[#f4f8f2] px-3.5 py-3 text-[12px] font-medium text-[#305e2b]">
-                Page matches each image, so there is no margin to set.
-              </div>
-            ) : (
-              <div className="grid grid-cols-4 gap-2">
-                {MARGINS.map((option) => {
-                  const selected = settings.margin === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => onPatch({ margin: option.id as MarginId })}
-                      className={`flex min-h-[62px] flex-col items-center justify-center gap-1.5 rounded-[11px] border py-2 transition-colors ${
-                        selected ? CARD_ACTIVE : CARD_IDLE
-                      }`}
-                    >
-                      <span className="grid h-6 w-[18px] place-items-center rounded-[2px] border border-line bg-white">
-                        <span
-                          className="rounded-[1px] bg-ink/15"
-                          style={{
-                            width: `${Math.max(5, 15 - option.percent)}px`,
-                            height: `${Math.max(7, 19 - option.percent)}px`,
-                          }}
-                        />
-                      </span>
-                      <span className="text-[11px] font-medium text-ink">{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-baseline justify-between gap-3">
-              <span className={FIELD_LABEL}>Image fit</span>
-              <span className={FIELD_META}>
-                {PDF_FITS.find((fit) => fit.id === settings.fit)?.label}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {PDF_FITS.map((fit) => {
-                const selected = settings.fit === fit.id;
-                return (
-                  <button
-                    key={fit.id}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => onPatch({ fit: fit.id as PdfFit })}
-                    className={`flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[11px] border px-2 py-2.5 transition-colors ${
-                      selected ? CARD_ACTIVE : CARD_IDLE
-                    }`}
-                  >
-                    <FitDiagram id={fit.id} />
-                    <span className="text-[12px] font-medium text-ink">{fit.label}</span>
-                    <span className="text-[10px] leading-tight text-faint">{fit.hint}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </RailSection>
-
-      <RailSection
-        icon={Palette}
-        title="Style & numbers"
-        hint="Paper color and printed page numbers"
-        aside={settings.pageNumbers ? "Numbered" : "No numbers"}
-      >
-        <div className="space-y-4">
-          <div>
-            <span className={FIELD_LABEL}>Paper color</span>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {PDF_BACKGROUNDS.map((background) => {
-                const selected = settings.background === background.id;
-                return (
-                  <button
-                    key={background.id}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => onPatch({ background: background.id })}
-                    className={`flex min-h-[42px] items-center gap-2 rounded-[10px] border px-2.5 transition-colors ${
-                      selected ? CARD_ACTIVE : CARD_IDLE
-                    }`}
-                  >
-                    <span
-                      className="h-[18px] w-[18px] shrink-0 rounded-full border border-black/15"
-                      style={{ background: background.value }}
-                    />
-                    <span className="truncate text-[11.5px] font-medium text-ink">
-                      {background.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-[12px] border border-line bg-[#fbfaf8] p-3.5 transition-colors hover:border-[#cfc9bd]">
-            <div className="flex items-start justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => onPatch({ pageNumbers: !settings.pageNumbers })}
-                className="min-w-0 flex-1 text-left"
-              >
-                <span className="block text-[12.5px] font-semibold text-ink">
-                  Print page numbers
+      <div className="border-t border-line-soft pt-4">
+        <RailSection
+          icon={FileCog}
+          title="File name & quality"
+          defaultOpen={false}
+          aside={settings.grayscale ? "B&W" : `${settings.quality}%`}
+        >
+          <div className="space-y-5">
+            <label className="block">
+              <span className={SUB_LABEL}>File name</span>
+              <span className="relative mt-2 block">
+                <input
+                  type="text"
+                  value={settings.filename}
+                  maxLength={60}
+                  onChange={(event) => onPatch({ filename: event.target.value })}
+                  placeholder="images"
+                  className="h-11 w-full rounded-[10px] border border-line bg-white pl-3 pr-12 text-[14px] text-ink outline-none transition-colors hover:border-[#d8d3ca] focus:border-ink"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-faint">
+                  .pdf
                 </span>
-                <span className="mt-0.5 block text-[11px] leading-relaxed text-faint">
-                  Stamp 1 / {pageCount || 1} on each footer.
-                </span>
-              </button>
-              <Switch
-                checked={settings.pageNumbers}
-                onCheckedChange={(checked) => onPatch({ pageNumbers: checked })}
-                aria-label="Print page numbers"
-                className="mt-0.5 shrink-0"
-              />
-            </div>
-
-            {settings.pageNumbers && (
-              <div className="mt-3 border-t border-line/70 pt-3">
-                <span className="mb-2 block text-[11px] font-medium text-muted">Placement</span>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {(
-                    [
-                      { id: "bottom-left", label: "Left" },
-                      { id: "bottom-center", label: "Center" },
-                      { id: "bottom-right", label: "Right" },
-                    ] as { id: PageNumberPosition; label: string }[]
-                  ).map((position) => {
-                    const selected = settings.pageNumberPosition === position.id;
-                    return (
-                      <button
-                        key={position.id}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => onPatch({ pageNumberPosition: position.id })}
-                        className={`h-8 rounded-[8px] border text-[11.5px] font-medium transition-colors ${
-                          selected
-                            ? "border-ink bg-ink text-white"
-                            : "border-line bg-white text-muted hover:border-[#cfc9bd] hover:text-ink"
-                        }`}
-                      >
-                        {position.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </RailSection>
-
-      <RailSection
-        icon={FileCog}
-        title="File & quality"
-        hint="Document title, compression and scan mode"
-        defaultOpen={false}
-        aside={settings.grayscale ? "B&W scan" : `${settings.quality}%`}
-      >
-        <div className="space-y-4">
-          <div>
-            <span className={FIELD_LABEL}>PDF title</span>
-            <div className="relative mt-2">
-              <input
-                type="text"
-                value={settings.filename}
-                maxLength={60}
-                onChange={(event) => onPatch({ filename: event.target.value })}
-                placeholder="my-document"
-                aria-label="PDF document title"
-                className="h-10 w-full rounded-[10px] border border-line bg-white pl-3 pr-12 text-[12.5px] font-medium text-ink outline-none transition-colors hover:border-[#d8d3ca] focus:border-[#b8b2a7]"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-faint">
-                .pdf
               </span>
-            </div>
-          </div>
+            </label>
 
-          <div className="flex items-start justify-between gap-3 rounded-[12px] border border-line bg-[#fbfaf8] p-3.5 transition-colors hover:border-[#cfc9bd]">
-            <button
-              type="button"
-              onClick={() => onPatch({ grayscale: !settings.grayscale })}
-              className="min-w-0 flex-1 text-left"
-            >
-              <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-ink">
-                <ScanLine size={13} aria-hidden />
-                B&W document scan
-              </span>
-              <span className="mt-0.5 block text-[11px] leading-relaxed text-faint">
-                Turns color photos into crisp black & white pages for contracts,
-                receipts and notes.
-              </span>
-            </button>
-            <Switch
+            <ToggleRow
+              label="Black & white scan"
+              description="Turns photos of contracts, receipts and notes into clean grayscale pages."
               checked={settings.grayscale}
-              onCheckedChange={(checked) => onPatch({ grayscale: checked })}
-              aria-label="B&W document scan"
-              className="mt-0.5 shrink-0"
+              onChange={(checked) => onPatch({ grayscale: checked })}
             />
-          </div>
 
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span className={FIELD_LABEL}>Quality</span>
-              <span className="text-[12px] font-semibold tabular-nums text-ink">
-                {settings.quality}%
-              </span>
-            </div>
-            <RailSlider
-              label="PDF image quality"
-              value={settings.quality}
-              min={50}
-              max={100}
-              step={1}
-              onValueChange={(quality) => onPatch({ quality })}
-              className="mt-2"
-            />
-            <div className="mt-1.5 flex justify-between text-[10.5px] text-faint">
-              <span>Smaller file</span>
-              <span>Crisp print</span>
-            </div>
-
-            <div className="mt-2.5 grid grid-cols-3 gap-1.5">
-              {[
-                { label: "Compact", value: 65 },
-                { label: "Balanced", value: 82 },
-                { label: "Crisp", value: 92 },
-              ].map((preset) => {
-                const selected = settings.quality === preset.value;
-                return (
-                  <button
-                    key={preset.value}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => onPatch({ quality: preset.value })}
-                    className={`h-8 rounded-[8px] border text-[11.5px] font-medium transition-colors ${
-                      selected
-                        ? "border-ink bg-ink text-white"
-                        : "border-line bg-white text-muted hover:border-[#cfc9bd] hover:text-ink"
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
+            <div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className={SUB_LABEL}>Image quality</span>
+                <span className="text-[13px] font-semibold tabular-nums text-ink">{settings.quality}%</span>
+              </div>
+              <RailSlider
+                label="PDF image quality"
+                value={settings.quality}
+                min={50}
+                max={100}
+                step={1}
+                onValueChange={(quality) => onPatch({ quality })}
+                className="mt-2"
+              />
+              <div className="mt-1.5 flex justify-between text-[12px] text-faint">
+                <span>Smaller file</span>
+                <span>Sharper print</span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-1.5">
+                {QUALITY_PRESETS.map((preset) => {
+                  const selected = settings.quality === preset.value;
+                  return (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => onPatch({ quality: preset.value })}
+                      className={`h-9 rounded-[9px] border text-[12.5px] font-medium transition-colors ${
+                        selected ? CHIP_ON : CHIP_OFF
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      </RailSection>
+        </RailSection>
+      </div>
     </div>
   );
 }
 
 function PaperMiniature({ id, active }: { id: PageSizeId; active: boolean }) {
   if (id === "fit") {
-    return (
-      <span
-        aria-hidden
-        className={`grid h-8 w-8 shrink-0 place-items-center rounded-[7px] border ${
-          active ? "border-ink/25 bg-white" : "border-line bg-[#faf9f6]"
-        }`}
-      >
-        <Sparkles size={14} className="text-ink" />
-      </span>
-    );
+    return <Sparkles size={16} className={`shrink-0 ${active ? "text-ink" : "text-muted"}`} aria-hidden />;
   }
 
   const ratios: Record<string, number> = { a4: 210 / 297, letter: 8.5 / 11, a5: 148 / 210, legal: 8.5 / 14 };
   const ratio = ratios[id] ?? 0.707;
-  const height = 26;
-  const width = Math.max(14, Math.round(height * ratio));
+  const height = id === "a5" ? 18 : 22;
+  const width = Math.max(12, Math.round(height * ratio));
 
   return (
-    <span
-      aria-hidden
-      className={`grid h-8 w-8 shrink-0 place-items-center rounded-[7px] border ${
-        active ? "border-ink/25 bg-white" : "border-line bg-[#faf9f6]"
-      }`}
-    >
+    <span aria-hidden className="grid h-6 w-5 shrink-0 place-items-center">
       <span
-        className={`rounded-[2px] border ${
-          active ? "border-ink bg-ink/10" : "border-[#c6c0b4] bg-white"
-        }`}
+        className={`rounded-[2px] border ${active ? "border-ink bg-ink/10" : "border-[#c6c0b4] bg-white"}`}
         style={{ width: `${width}px`, height: `${height}px` }}
       />
-    </span>
-  );
-}
-
-function OrientationMiniature({ id }: { id: PageOrientation }) {
-  if (id === "auto") {
-    return (
-      <span aria-hidden className="relative block h-[22px] w-7">
-        <span className="absolute left-0 top-0 h-[18px] w-[13px] rounded-[1.5px] border border-ink/35 bg-white" />
-        <span className="absolute bottom-0 right-0 h-[13px] w-[18px] rounded-[1.5px] border border-ink/70 bg-white" />
-      </span>
-    );
-  }
-
-  const portrait = id === "portrait";
-  return (
-    <span
-      aria-hidden
-      className={`relative block rounded-[1.5px] border border-ink/70 bg-white ${
-        portrait ? "h-[22px] w-[17px]" : "h-[17px] w-[22px]"
-      }`}
-    >
-      <span className="absolute inset-x-[3px] top-[5px] space-y-[3px]">
-        <span className="block h-px bg-ink/25" />
-        <span className="block h-px bg-ink/25" />
-        <span className="block h-px w-2/3 bg-ink/25" />
-      </span>
-    </span>
-  );
-}
-
-function FitDiagram({ id }: { id: PdfFit }) {
-  return (
-    <span
-      aria-hidden
-      className="relative grid h-5 w-7 place-items-center overflow-hidden rounded-[2px] border border-dashed border-ink/35"
-    >
-      {id === "contain" && <span className="h-[11px] w-[17px] rounded-[1px] bg-ink/25" />}
-      {id === "cover" && <span className="h-[22px] w-[26px] rounded-[1px] bg-ink/25" />}
     </span>
   );
 }

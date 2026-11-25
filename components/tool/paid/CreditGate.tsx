@@ -64,11 +64,11 @@ export function CreditGate({
       ref={ref}
       aria-labelledby="credit-gate-title"
       aria-describedby="credit-gate-description"
-      className="fixed inset-0 m-auto h-fit max-h-[calc(100vh-32px)] w-[min(480px,calc(100vw-32px))] overflow-y-auto rounded-[16px] border border-line bg-white p-0 text-ink shadow-[0_30px_80px_rgba(15,15,16,0.28)]"
+      className="fixed inset-0 m-auto h-fit max-h-[calc(100dvh-32px)] w-[min(460px,calc(100vw-32px))] overflow-y-auto rounded-[18px] border border-line bg-white p-0 text-ink shadow-pop"
     >
-      <div className="p-6">
+      <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
-          <span className="grid h-10 w-10 place-items-center rounded-[11px] border border-line bg-rail text-ink">
+          <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-card text-ink">
             <Lock size={17} strokeWidth={1.7} aria-hidden />
           </span>
           <button
@@ -76,7 +76,7 @@ export function CreditGate({
             onClick={() => ref.current?.close()}
             aria-label="Close dialog"
             data-slot="dialog-close"
-            className="grid h-8 w-8 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/25"
+            className="grid h-9 w-9 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <X size={15} aria-hidden />
           </button>
@@ -84,19 +84,18 @@ export function CreditGate({
 
         <h2
           id="credit-gate-title"
-          className="mt-4 font-display text-[24px] font-semibold leading-[1.12] tracking-[-0.03em]"
+          className="mt-4 font-display text-[22px] font-semibold leading-[1.15] tracking-[-0.03em] sm:text-[24px]"
         >
           Sign in to {action}
         </h2>
-        <p id="credit-gate-description" className="mt-2 text-ui leading-relaxed text-muted">
-          Your file stays in this browser until you continue. New accounts get{" "}
-          <span className="font-medium text-ink">25 free credits</span>.
+        <p id="credit-gate-description" className="mt-2 text-[14px] leading-relaxed text-muted">
+          New accounts get <span className="font-medium text-ink">25 free credits</span>. No
+          credits are used until the run starts.
         </p>
 
-        <div className="mt-4 flex items-center justify-between rounded-[10px] border border-line bg-[#fbfaf7] px-3 py-2.5">
-          <span className="text-[11px] text-muted">This run</span>
-          <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+        <div className="mt-4 flex items-center justify-between rounded-[12px] bg-card px-3.5 py-3 text-[13px]">
+          <span className="text-muted">This run</span>
+          <span className="font-semibold tabular-nums text-ink">
             {cost} {cost === 1 ? "credit" : "credits"}
           </span>
         </div>
@@ -104,22 +103,21 @@ export function CreditGate({
         <div className="mt-4 space-y-2">
           <Link
             href={`/sign-up${redirectQuery}`}
-            className={buttonClasses("primary", "md", "w-full")}
+            className={buttonClasses("accent", "lg", "w-full")}
           >
-            <UserPlus size={14} aria-hidden />
-            Create free account (25 credits)
+            <UserPlus size={15} aria-hidden />
+            Create a free account
           </Link>
           <Link
             href={`/sign-in${redirectQuery}`}
-            className={buttonClasses("secondary", "md", "w-full")}
+            className={buttonClasses("secondary", "lg", "w-full")}
           >
             Sign in with Google or email
           </Link>
         </div>
 
-        <p className="mt-4 border-t border-line-soft pt-3 text-[10px] leading-relaxed text-faint">
-          Cancel any time and the draft stays here for up to 60 minutes. No credits are
-          used until the run starts.
+        <p className="mt-4 text-[12.5px] leading-relaxed text-faint">
+          Close this any time: your draft stays here for up to 60 minutes.
         </p>
       </div>
     </dialog>

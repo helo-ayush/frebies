@@ -218,7 +218,7 @@ export function Sidebar({
                       className="h-8 w-8 rounded-full object-cover"
                     />
                   ) : (
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink text-[11px] font-semibold text-white">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink text-[12px] font-semibold text-white">
                       {user.initials}
                     </span>
                   )}
@@ -227,7 +227,7 @@ export function Sidebar({
                       {user.fullName ?? user.firstName ?? "Signed in"}
                     </p>
                     {user.email && (
-                      <p className="truncate text-[11.5px] text-muted">{user.email}</p>
+                      <p className="truncate text-[12.5px] text-muted">{user.email}</p>
                     )}
                   </div>
                 </div>

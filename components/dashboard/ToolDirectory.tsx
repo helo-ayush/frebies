@@ -1,230 +1,150 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LayoutGrid, List, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { categories, tools, type CategorySlug } from "@/lib/registry/tools";
-import { ToolCard, ToolRow } from "@/components/tools/ToolCard";
-import { ChipGroup } from "@/components/arc/chip-group/chip-group";
-import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
-import { EmptyState } from "@/components/arc/empty-state/empty-state";
+import { ToolCard } from "@/components/tools/ToolCard";
 
-const tabs = [
-  { id: "all", label: "All tools" },
-  ...categories.map((category) => ({ id: category.slug, label: category.name })),
+type Tier = "all" | "free" | "credits";
+
+const TIERS: { value: Tier; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "free", label: "Free" },
+  { value: "credits", label: "AI" },
 ];
 
-const tiers = [
-  { value: "all", label: "All access" },
-  { value: "free", label: "Free" },
-  { value: "credits", label: "AI credits" },
-] as const;
+const pill = (active: boolean) =>
+  `inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[13.5px] font-medium transition-colors ${
+    active ? "border-ink bg-ink text-white" : "border-line bg-white text-muted hover:border-[#bdb6a8] hover:text-ink"
+  }`;
 
-type Tier = (typeof tiers)[number]["value"];
-
-const statuses = [
-  { value: "all", label: "Any status" },
-  { value: "live", label: "Ready now" },
-  { value: "soon", label: "Coming soon" },
-] as const;
-
-type StatusFilter = (typeof statuses)[number]["value"];
-
-const views = [
-  ["list", List, "List view"],
-  ["grid", LayoutGrid, "Grid view"],
-] as const;
-
+/**
+ * The tool grid: a search box, category pills and a Free / AI switch. With
+ * `category` set it is scoped to one category and the pills are hidden.
+ */
 export function ToolDirectory({ category }: { category?: CategorySlug }) {
   const [tab, setTab] = useState<CategorySlug | "all">(category ?? "all");
   const [query, setQuery] = useState("");
   const [tier, setTier] = useState<Tier>("all");
-  const [status, setStatus] = useState<StatusFilter>("all");
-  const [sort, setSort] = useState<"featured" | "name">("featured");
-  const [view, setView] = useState<"list" | "grid">("list");
 
   const visible = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    const filtered = tools.filter((tool) => {
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return tools.filter((tool) => {
       if (tab !== "all" && tool.category !== tab) return false;
       if (tier !== "all" && tool.tier !== tier) return false;
-      if (status !== "all" && tool.status !== status) return false;
-      if (
-        normalized &&
-        ![tool.name, tool.description, tool.tagline, ...tool.keywords]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalized)
-      ) {
-        return false;
-      }
-      return true;
+      if (tokens.length === 0) return true;
+      const text = [tool.name, tool.description, tool.tagline, tool.category, ...tool.keywords, ...tool.limits.formats]
+        .join(" ")
+        .toLowerCase();
+      return tokens.every((token) => text.includes(token));
     });
+  }, [query, tab, tier]);
 
-    return sort === "name"
-      ? [...filtered].sort((a, b) => a.name.localeCompare(b.name))
-      : filtered;
-  }, [query, sort, status, tab, tier]);
+  const filtered = Boolean(query) || tier !== "all" || (!category && tab !== "all");
 
-  function clearFilters() {
+  function reset() {
     setQuery("");
     setTier("all");
-    setStatus("all");
-    setSort("featured");
+    if (!category) setTab("all");
   }
-
-  const filtered = query || tier !== "all" || status !== "all" || sort !== "featured";
 
   return (
     <div>
-      {!category && (
-        <div
-          role="group"
-          aria-label="Filter tools by category"
-          className="flex items-center gap-1 overflow-x-auto border-b border-line"
-        >
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setTab(item.id as CategorySlug | "all")}
-              aria-pressed={tab === item.id}
-              className={`relative shrink-0 px-3 py-2.5 text-ui font-medium transition-colors ${
-                tab === item.id ? "text-ink" : "text-muted hover:text-ink"
-              }`}
-            >
-              {item.label}
-              {tab === item.id && (
-                <span aria-hidden className="absolute inset-x-2 -bottom-px h-[2px] rounded-full bg-ink" />
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className={`${category ? "" : "mt-4"} flex gap-2`}>
-        <label className="relative min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[220px] flex-1">
           <span className="sr-only">Search tools</span>
           <Search
-            size={15}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+            size={17}
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint"
             aria-hidden
           />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search by tool, format or task…"
-            className="h-10 w-full rounded-[10px] border border-line bg-white pl-9 pr-9 text-ui text-ink outline-none transition-colors placeholder:text-faint hover:border-[#d8d8d5] focus:border-[#bdbdb9]"
+            className="h-12 w-full rounded-[14px] border border-line bg-white pl-11 pr-10 text-[15px] text-ink outline-none transition-colors placeholder:text-faint hover:border-[#cfc9bd] focus:border-ink"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label="Clear tool search"
-              className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-faint hover:bg-hover hover:text-ink"
+              className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-faint hover:bg-hover hover:text-ink"
             >
-              <X size={13} />
+              <X size={15} />
             </button>
           )}
         </label>
 
-        <div
-          role="group"
-          aria-label="Choose view"
-          className="flex h-10 shrink-0 items-center gap-0.5 rounded-[10px] border border-line p-0.5"
-        >
-          {views.map(([id, Icon, label]) => (
+        <div role="group" aria-label="Filter by price" className="flex h-12 items-center gap-1 rounded-[14px] bg-card p-1">
+          {TIERS.map((option) => (
             <button
-              key={id}
+              key={option.value}
               type="button"
-              aria-label={label}
-              aria-pressed={view === id}
-              onClick={() => setView(id)}
-              className={`grid h-8 w-8 place-items-center rounded-lg transition-colors ${
-                view === id ? "bg-active text-ink" : "text-muted hover:text-ink"
+              aria-pressed={tier === option.value}
+              onClick={() => setTier(option.value)}
+              className={`h-10 rounded-[11px] px-3.5 text-[13.5px] font-medium transition-colors ${
+                tier === option.value
+                  ? "bg-white text-ink shadow-[0_1px_2px_rgba(15,15,16,0.12)]"
+                  : "text-muted hover:text-ink"
               }`}
             >
-              <Icon size={15} aria-hidden />
+              {option.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <ChipGroup
-          label="Filter by access"
-          multiple={false}
-          options={[...tiers]}
-          value={[tier]}
-          onValueChange={(next) => setTier((next[0] as Tier) ?? "all")}
-        />
-
-        <SegmentedControl
-          label="Filter by availability"
-          options={[...statuses]}
-          value={status}
-          onValueChange={(next) => setStatus(next as StatusFilter)}
-        />
-
-        <label className="ml-auto flex items-center gap-2 text-micro text-faint">
-          <span className="hidden sm:inline">Sort</span>
-          <select
-            value={sort}
-            onChange={(event) => setSort(event.target.value as "featured" | "name")}
-            className="h-8 rounded-lg border border-line bg-white px-2 text-ui font-medium text-ink outline-none hover:border-[#d8d8d5]"
-          >
-            <option value="featured">Recommended</option>
-            <option value="name">Name A–Z</option>
-          </select>
-        </label>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between text-micro text-faint">
-        <span>
-          {visible.length} {visible.length === 1 ? "tool" : "tools"}
-        </span>
-        {filtered && (
-          <button type="button" onClick={clearFilters} className="font-medium text-muted hover:text-ink">
-            Reset filters
+      {!category && (
+        <div role="group" aria-label="Filter tools by category" className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+          <button type="button" aria-pressed={tab === "all"} onClick={() => setTab("all")} className={pill(tab === "all")}>
+            All tools
+            <span className="tabular-nums opacity-60">{tools.length}</span>
           </button>
-        )}
-      </div>
+          {categories.map((item) => (
+            <button
+              key={item.slug}
+              type="button"
+              aria-pressed={tab === item.slug}
+              onClick={() => setTab(item.slug)}
+              className={pill(tab === item.slug)}
+            >
+              {item.name}
+              <span className="tabular-nums opacity-60">
+                {tools.filter((tool) => tool.category === item.slug).length}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {visible.length === 0 ? (
-        <EmptyState
-          className="mt-3"
-          icon={<Search size={24} strokeWidth={1.5} />}
-          title="No tools match those filters"
-          description="Try another search or show all access types."
-          action={
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="h-9 rounded-lg border border-line bg-white px-3 text-ui font-medium hover:bg-hover"
-            >
-              Clear filters
-            </button>
-          }
-        />
-      ) : view === "list" ? (
-        <div className="mt-3 overflow-hidden rounded-xl border border-line">
-          <div className="hidden grid-cols-[minmax(0,1fr)_110px_120px_16px] gap-4 border-b border-line-soft px-4 py-2.5 text-micro text-faint sm:grid">
-            <span>Tool</span>
-            <span>Type</span>
-            <span>Access</span>
-            <span />
-          </div>
-          <div className="divide-y divide-line-soft">
-            {visible.map((tool) => (
-              <ToolRow key={tool.path} tool={tool} />
-            ))}
-          </div>
+        <div className="mt-4 rounded-[18px] border border-dashed border-[#d6d1c6] bg-white px-5 py-14 text-center">
+          <p className="text-[16px] font-semibold text-ink">No tools match that</p>
+          <p className="mt-1 text-[14px] text-muted">Try a format like “PDF” or a task like “compress”.</p>
+          <button
+            type="button"
+            onClick={reset}
+            className="mt-4 h-10 rounded-[12px] border border-line bg-white px-4 text-[14px] font-medium text-ink hover:bg-hover"
+          >
+            Clear filters
+          </button>
         </div>
       ) : (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {visible.map((tool) => (
             <ToolCard key={tool.path} tool={tool} />
           ))}
         </div>
+      )}
+
+      {filtered && visible.length > 0 && (
+        <p className="mt-4 text-[13px] text-faint">
+          Showing {visible.length} of {tools.length} tools.{" "}
+          <button type="button" onClick={reset} className="font-medium text-ink underline underline-offset-2">
+            Show all
+          </button>
+        </p>
       )}
     </div>
   );

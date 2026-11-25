@@ -108,7 +108,7 @@ export function CategoryCards() {
                     {sample.map((tool) => (
                       <span
                         key={tool.path}
-                        className="rounded-full border border-white/65 bg-white/45 px-2.5 py-1 text-[10.5px] font-medium text-[#6d655a] backdrop-blur-sm"
+                        className="rounded-full border border-white/65 bg-white/45 px-2.5 py-1 text-[12px] font-medium text-[#6d655a] backdrop-blur-sm"
                       >
                         {tool.shortName ?? tool.name}
                       </span>

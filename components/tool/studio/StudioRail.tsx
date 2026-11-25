@@ -1,14 +1,15 @@
 import type { ReactNode } from "react";
+import { ActionDock } from "@/components/tool/kit";
 
 /**
  * Settings rail for tool studios. By default it fills a fixed-height studio
  * grid and scrolls on its own. With `sticky` it pins below the sticky topbar
  * instead and only scrolls internally when its content grows taller than the
- * viewport (e.g. after expanding an advanced-settings group). Scrollbars only
- * become visible on hover or focus so the surface stays calm.
+ * viewport.
  *
- * `action` pins the primary action above the settings so it is visible before
- * any scrolling. `footer` pins secondary output actions below the settings.
+ * `action` is the primary action: pinned above the settings on desktop and
+ * docked to the bottom of the screen on phones, so it is always in reach.
+ * `footer` pins secondary output actions below the settings.
  */
 export function StudioRail({
   children,
@@ -17,6 +18,7 @@ export function StudioRail({
   sticky = false,
   action,
   footer,
+  pinActionOnMobile = true,
 }: {
   children: ReactNode;
   label?: string;
@@ -24,17 +26,16 @@ export function StudioRail({
   sticky?: boolean;
   action?: ReactNode;
   footer?: ReactNode;
+  pinActionOnMobile?: boolean;
 }) {
   return (
     <aside
       aria-label={label}
-      className={`flex min-h-0 min-w-0 flex-col border-t border-line bg-[#fdfdfc] lg:border-l lg:border-t-0 ${
-        sticky ? "lg:sticky lg:top-[76px] lg:z-10 lg:max-h-[calc(100vh-92px)]" : "lg:h-full"
+      className={`flex min-h-0 min-w-0 flex-col border-t border-line bg-white lg:border-l lg:border-t-0 ${
+        sticky ? "lg:sticky lg:top-[68px] lg:z-10 lg:max-h-[calc(100dvh-84px)]" : "lg:h-full"
       } ${className}`}
     >
-      {action ? (
-        <div className="shrink-0 border-b border-line bg-white px-4 py-3.5 sm:px-5">{action}</div>
-      ) : null}
+      {action ? <ActionDock pinned={pinActionOnMobile}>{action}</ActionDock> : null}
       <div
         tabIndex={0}
         className="studio-rail min-h-0 flex-1 p-4 outline-none sm:p-5 lg:overflow-y-auto lg:focus-visible:ring-2 lg:focus-visible:ring-inset lg:focus-visible:ring-accent"

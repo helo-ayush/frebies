@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   Check,
   ChevronDown,
@@ -10,16 +10,14 @@ import {
   Plus,
   RotateCcw,
   Search,
-  SlidersHorizontal,
-  Smile,
-  Sparkles,
   Square,
   Trash2,
-  Volume2,
   X,
 } from "lucide-react";
-import { MiniWaveform } from "@/components/tool/audio/MiniWaveform";
+import { Field, Note, Segmented } from "@/components/tool/kit";
 import { PaidSlider, PaidToggle } from "@/components/tool/paid/PaidControls";
+import { RAIL_CARD_ACTIVE, RAIL_CARD_IDLE } from "@/components/tool/studio/RailSection";
+import { buttonClasses } from "@/components/ui/Button";
 import {
   DEFAULT_TTS_SETTINGS,
   DRAMA_EXPRESSION_TAGS,
@@ -44,31 +42,17 @@ export type SettingsTab = "voice" | "mood" | "output";
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
-function SectionLabel({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
-  return (
-    <div className="mb-2 flex items-baseline justify-between gap-2">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-        {children}
-      </span>
-      {aside ? <span className="text-[11px] text-faint">{aside}</span> : null}
-    </div>
-  );
-}
-
-function chipClass(selected: boolean) {
-  return selected
-    ? "border-ink bg-ink text-white shadow-sm"
-    : "border-line bg-white text-ink hover:border-ink/30 hover:bg-rail";
-}
+const TEXT_LINK =
+  "inline-flex items-center gap-1.5 text-[12.5px] font-medium text-muted transition-colors hover:text-ink";
 
 /* ------------------------------------------------------------------ */
 /* Tab bar                                                             */
 /* ------------------------------------------------------------------ */
 
-const TAB_META: { id: SettingsTab; label: string; icon: ReactNode }[] = [
-  { id: "voice", label: "Voice", icon: <Volume2 size={13} aria-hidden /> },
-  { id: "mood", label: "Mood", icon: <Smile size={13} aria-hidden /> },
-  { id: "output", label: "Output", icon: <SlidersHorizontal size={13} aria-hidden /> },
+const TAB_META: { id: SettingsTab; label: string }[] = [
+  { id: "voice", label: "Voice" },
+  { id: "mood", label: "Delivery" },
+  { id: "output", label: "Output" },
 ];
 
 export function SettingsTabs({
@@ -78,11 +62,22 @@ export function SettingsTabs({
   value: SettingsTab;
   onChange: (tab: SettingsTab) => void;
 }) {
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    const index = TAB_META.findIndex((tab) => tab.id === value);
+    const step = event.key === "ArrowRight" ? 1 : -1;
+    const next = TAB_META[(index + step + TAB_META.length) % TAB_META.length];
+    onChange(next.id);
+    document.getElementById(`tts-tab-${next.id}`)?.focus();
+  }
+
   return (
     <div
       role="tablist"
       aria-label="Voice settings"
-      className="grid grid-cols-3 gap-1 rounded-xl bg-[#f3f3f1] p-1"
+      onKeyDown={onKeyDown}
+      className="grid grid-cols-3 gap-1 rounded-[12px] bg-card p-1"
     >
       {TAB_META.map((tab) => {
         const selected = value === tab.id;
@@ -94,14 +89,14 @@ export function SettingsTabs({
             id={`tts-tab-${tab.id}`}
             aria-selected={selected}
             aria-controls={`tts-panel-${tab.id}`}
+            tabIndex={selected ? 0 : -1}
             onClick={() => onChange(tab.id)}
-            className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-[9px] text-[11.5px] font-medium transition-all ${
+            className={`h-9 rounded-[9px] px-2 text-[13px] font-medium transition-colors ${
               selected
-                ? "bg-white text-ink shadow-[0_1px_2px_rgba(15,15,16,0.08)]"
+                ? "bg-white text-ink shadow-[0_1px_2px_rgba(15,15,16,0.12)]"
                 : "text-muted hover:text-ink"
             }`}
           >
-            <span className={selected ? "text-accent" : ""}>{tab.icon}</span>
             {tab.label}
           </button>
         );
@@ -125,7 +120,7 @@ export function TabPanel({
       role="tabpanel"
       id={`tts-panel-${tab}`}
       aria-labelledby={`tts-tab-${tab}`}
-      className="space-y-5"
+      className="space-y-6"
     >
       {children}
     </div>
@@ -138,18 +133,15 @@ export function TabPanel({
 
 export function CueBar({ onInsertTag }: { onInsertTag: (tag: string) => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 inline-flex items-center gap-1 text-[11.5px] font-medium text-muted">
-        <Sparkles size={12} className="text-accent" aria-hidden />
-        Add emotion
-      </span>
+    <div role="group" aria-label="Insert an emotion cue" className="flex flex-wrap items-center gap-1.5">
+      <span className="mr-1 text-[12.5px] font-medium text-muted">Add a cue</span>
       {DRAMA_EXPRESSION_TAGS.map((item) => (
         <button
           key={item.tag}
           type="button"
           title={`Insert ${item.tag} at the cursor`}
           onClick={() => onInsertTag(item.tag)}
-          className="inline-flex items-center rounded-full border border-line bg-white px-2.5 py-1 text-[11.5px] font-medium text-ink transition hover:border-accent/50 hover:bg-accent/[0.06] hover:text-[#a8432c]"
+          className="inline-flex h-7 items-center rounded-full border border-line bg-white px-2.5 text-[12.5px] font-medium text-ink transition-colors hover:border-accent/50 hover:bg-accent-soft hover:text-accent-deep"
         >
           {item.label}
         </button>
@@ -169,6 +161,59 @@ const VOICE_CATEGORY_TABS: { id: VoiceCategory; label: string }[] = [
   { id: "storytelling", label: "Stories" },
   { id: "documentary", label: "Deep" },
 ];
+
+/** Round play / stop button for a voice sample. */
+function SampleButton({
+  name,
+  playing,
+  loading,
+  onToggle,
+}: {
+  name: string;
+  playing: boolean;
+  loading: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-sound="none"
+      aria-label={playing ? `Stop ${name} sample` : `Play ${name} sample`}
+      aria-pressed={playing}
+      title={playing ? "Stop sample" : `Hear ${name}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors ${
+        playing
+          ? "border-accent bg-accent text-white"
+          : "border-line bg-white text-ink hover:border-[#cfc9bd] hover:bg-hover"
+      }`}
+    >
+      {loading ? (
+        <Loader2 size={13} className="animate-spin" aria-hidden />
+      ) : playing ? (
+        <Square size={10} fill="currentColor" aria-hidden />
+      ) : (
+        <Play size={12} fill="currentColor" className="translate-x-[0.5px]" aria-hidden />
+      )}
+    </button>
+  );
+}
+
+function SelectedMark({ selected }: { selected: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full border ${
+        selected ? "border-ink bg-ink text-white" : "border-[#d7d2c8] bg-white text-transparent"
+      }`}
+    >
+      <Check size={11} strokeWidth={3} />
+    </span>
+  );
+}
 
 export function VoicePanel({
   settings,
@@ -282,169 +327,125 @@ export function VoicePanel({
 
   return (
     <>
-      <div>
-        <SectionLabel aside={`${VOICES.length} voices`}>Voices</SectionLabel>
+      <Field label="Voice" hint={`${VOICES.length} voices`}>
+        {VOICES.length > 6 && (
+          <div className="mb-2.5 space-y-2">
+            <div className="relative">
+              <Search
+                size={14}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+                aria-hidden
+              />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name, accent or tone"
+                aria-label="Search voices"
+                className="h-9 w-full rounded-[10px] border border-line bg-white pl-9 pr-8 text-[13px] text-ink placeholder:text-faint focus:border-ink focus:outline-none"
+              />
+              {query && (
+                <button
+                  type="button"
+                  aria-label="Clear voice search"
+                  onClick={() => setQuery("")}
+                  className="absolute right-1.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-faint transition-colors hover:bg-hover hover:text-ink"
+                >
+                  <X size={13} aria-hidden />
+                </button>
+              )}
+            </div>
 
-        <div className="overflow-hidden rounded-2xl border border-line bg-[#f7f7f5]">
-          {VOICES.length > 6 && (
-            <div className="space-y-2 border-b border-line/80 bg-white/85 p-2.5">
-              <div className="relative">
-                <Search
-                  size={13}
-                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint"
-                  aria-hidden
-                />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search voices, accents, or tone..."
-                  aria-label="Search voices"
-                  className="h-8 w-full rounded-lg border border-line bg-[#fafaf8] pl-8 pr-7 text-[12px] text-ink placeholder:text-faint/80 focus:border-ink/40 focus:bg-white focus:outline-none"
-                />
-                {query && (
-                  <button
-                    type="button"
-                    aria-label="Clear voice search"
-                    onClick={() => setQuery("")}
-                    className="absolute right-1.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded text-faint hover:bg-rail hover:text-ink"
-                  >
-                    <X size={12} aria-hidden />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-1">
-                {VOICE_CATEGORY_TABS.map((tab) => (
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Filter voices by type">
+              {VOICE_CATEGORY_TABS.map((tab) => {
+                const selected = category === tab.id;
+                return (
                   <button
                     key={tab.id}
                     type="button"
+                    aria-pressed={selected}
                     onClick={() => setCategory(tab.id)}
-                    className={`rounded-lg border px-2 py-0.5 text-[11px] font-medium transition-colors ${chipClass(
-                      category === tab.id,
-                    )}`}
+                    className={`h-7 rounded-full px-2.5 text-[12.5px] font-medium transition-colors ${
+                      selected ? "bg-ink text-white" : "text-muted hover:bg-hover hover:text-ink"
+                    }`}
                   >
                     {tab.label}
                   </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div
-            className="max-h-[240px] space-y-1.5 overflow-y-auto p-2"
-            role="group"
-            aria-label="Built-in voices"
-          >
-            {visibleVoices.length === 0 ? (
-              <p className="py-6 text-center text-[12px] text-faint">
-                No voices matching &ldquo;{query.trim()}&rdquo;.
-              </p>
-            ) : (
-              visibleVoices.map((entry) => {
-                const selected = !activeCloneId && settings.voice === entry.id;
-                const sampleKey = `preset:${entry.id}`;
-                const isPlaying = playingKey === sampleKey;
-                const isLoading = loadingKey === sampleKey;
-
-                return (
-                  <div
-                    key={entry.id}
-                    className={`group flex items-center gap-2.5 rounded-xl border px-2.5 py-2 transition-all ${
-                      selected
-                        ? "border-ink bg-white ring-1 ring-inset ring-ink/15"
-                        : isPlaying
-                          ? "border-accent/60 bg-white ring-1 ring-inset ring-accent/15"
-                          : "border-line/80 bg-white hover:border-ink/30"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      data-sound="none"
-                      aria-label={isPlaying ? `Stop ${entry.name} sample` : `Play ${entry.name} sample`}
-                      aria-pressed={isPlaying}
-                      title={isPlaying ? "Stop sample" : `Preview ${entry.name}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSample(sampleKey, `/api/audio/tts/voices/${encodeURIComponent(entry.id)}/sample`);
-                      }}
-                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border transition-colors ${
-                        isPlaying
-                          ? "border-accent bg-accent text-white shadow-sm"
-                          : "border-line bg-[#f7f7f5] text-ink hover:border-ink/40 hover:bg-rail"
-                      }`}
-                    >
-                      {isLoading ? (
-                        <Loader2 size={12} className="animate-spin" aria-hidden />
-                      ) : isPlaying ? (
-                        <Square size={10} fill="currentColor" aria-hidden />
-                      ) : (
-                        <Play size={11} fill="currentColor" className="translate-x-[0.5px]" aria-hidden />
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => onPickPreset(entry.id)}
-                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left focus:outline-none"
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5">
-                          <span className="truncate text-[13px] font-semibold text-ink">
-                            {entry.name}
-                          </span>
-                          <span className="shrink-0 rounded-md bg-[#f3f3f0] px-1.5 py-0.5 text-[10px] font-medium text-muted">
-                            {entry.descriptor}
-                          </span>
-                        </span>
-                        <span className="mt-0.5 block truncate text-[11px] leading-snug text-faint">
-                          {entry.hint}
-                        </span>
-                      </span>
-
-                      <span className="hidden shrink-0 sm:block" aria-hidden>
-                        <MiniWaveform
-                          bars={8}
-                          height={16}
-                          progress={isPlaying ? Math.max(0.15, sampleProgress) : selected ? 0.72 : 0.35}
-                          seed={entry.seed}
-                          tone={isPlaying ? "coral" : entry.tone}
-                        />
-                      </span>
-
-                      <span
-                        className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border transition-colors ${
-                          selected
-                            ? "border-ink bg-ink text-white"
-                            : "border-line/90 text-transparent group-hover:border-ink/25"
-                        }`}
-                        aria-hidden
-                      >
-                        <Check size={10} strokeWidth={3} />
-                      </span>
-                    </button>
-                  </div>
                 );
-              })
-            )}
+              })}
+            </div>
           </div>
+        )}
+
+        <div
+          className="studio-main max-h-[236px] divide-y divide-line-soft overflow-y-auto rounded-[12px] border border-line bg-white"
+          role="group"
+          aria-label="Built-in voices"
+        >
+          {visibleVoices.length === 0 ? (
+            <p className="px-3 py-6 text-center text-[13px] text-faint">
+              No voices match &ldquo;{query.trim()}&rdquo;.
+            </p>
+          ) : (
+            visibleVoices.map((entry) => {
+              const selected = !activeCloneId && settings.voice === entry.id;
+              const sampleKey = `preset:${entry.id}`;
+              const isPlaying = playingKey === sampleKey;
+              const isLoading = loadingKey === sampleKey;
+
+              return (
+                <div
+                  key={entry.id}
+                  className={`relative flex items-center gap-1 pl-2 transition-colors ${
+                    selected ? "bg-card" : "hover:bg-[#fbfaf8]"
+                  }`}
+                >
+                  <SampleButton
+                    name={entry.name}
+                    playing={isPlaying}
+                    loading={isLoading}
+                    onToggle={() =>
+                      toggleSample(sampleKey, `/api/audio/tts/voices/${encodeURIComponent(entry.id)}/sample`)
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    title={entry.hint}
+                    onClick={() => onPickPreset(entry.id)}
+                    className="flex min-w-0 flex-1 items-center gap-2.5 py-2.5 pl-1.5 pr-3 text-left"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13.5px] font-medium text-ink">{entry.name}</span>
+                      <span className="block truncate text-[12px] text-faint">{entry.descriptor}</span>
+                    </span>
+                    <SelectedMark selected={selected} />
+                  </button>
+
+                  {isPlaying && (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute bottom-0 left-0 h-[2px] bg-accent transition-[width] duration-200"
+                      style={{ width: `${Math.max(4, sampleProgress * 100)}%` }}
+                    />
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
 
         {sampleError && (
-          <p className="mt-1.5 text-[11px] text-rose-600" role="status">
+          <Note tone="error" className="mt-2">
             {sampleError}
-          </p>
+          </Note>
         )}
-      </div>
+      </Field>
 
-      <div>
-        <SectionLabel aside={savedClones.length ? `${savedClones.length}/4 saved` : "Your own voice"}>
-          Cloned voices
-        </SectionLabel>
-
+      <Field label="Your own voice" hint={savedClones.length ? `${savedClones.length} of 4 saved` : undefined}>
         {savedClones.length > 0 && (
-          <ul className="mb-2 space-y-1.5">
+          <ul className="mb-2.5 divide-y divide-line-soft overflow-hidden rounded-[12px] border border-line bg-white">
             {savedClones.map((entry) => {
               const selected = activeCloneId === entry.id;
               const cloneSampleKey = `clone:${entry.id}`;
@@ -453,67 +454,43 @@ export function VoicePanel({
               return (
                 <li
                   key={entry.id}
-                  className={`flex items-center gap-1 rounded-xl border pr-1.5 transition-colors ${
-                    selected
-                      ? "border-ink bg-white ring-1 ring-inset ring-ink/15"
-                      : "border-line bg-white hover:border-ink/30"
+                  className={`flex items-center gap-1 pl-2 pr-1.5 transition-colors ${
+                    selected ? "bg-card" : "hover:bg-[#fbfaf8]"
                   }`}
                 >
+                  {entry.audioBase64 ? (
+                    <SampleButton
+                      name={entry.name}
+                      playing={isClonePlaying}
+                      loading={loadingKey === cloneSampleKey}
+                      onToggle={() => toggleSample(cloneSampleKey, entry.audioBase64)}
+                    />
+                  ) : (
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-card text-muted">
+                      <Mic2 size={14} aria-hidden />
+                    </span>
+                  )}
                   <button
                     type="button"
                     aria-pressed={selected}
                     onClick={() => onPickClone(entry.id)}
-                    className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-2.5 py-2.5 pl-1.5 pr-1.5 text-left"
                   >
-                    <span
-                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${
-                        selected ? "bg-ink text-white" : "bg-accent/[0.1] text-accent"
-                      }`}
-                    >
-                      <Mic2 size={13} aria-hidden />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-[12.5px] font-semibold text-ink">
-                        {entry.name}
-                      </span>
-                      <span className="block text-[10.5px] text-faint">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13.5px] font-medium text-ink">{entry.name}</span>
+                      <span className="block truncate text-[12px] text-faint">
                         Cloned{entry.durationLabel ? ` · ${entry.durationLabel} sample` : ""}
                       </span>
                     </span>
-                    {selected && (
-                      <Check size={14} className="ml-auto shrink-0 text-ink" aria-hidden />
-                    )}
+                    <SelectedMark selected={selected} />
                   </button>
-                  {entry.audioBase64 && (
-                    <button
-                      type="button"
-                      data-sound="none"
-                      aria-label={isClonePlaying ? `Stop ${entry.name} sample` : `Play ${entry.name} sample`}
-                      aria-pressed={isClonePlaying}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSample(cloneSampleKey, entry.audioBase64);
-                      }}
-                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg transition ${
-                        isClonePlaying
-                          ? "bg-accent text-white"
-                          : "text-faint hover:bg-rail hover:text-ink"
-                      }`}
-                    >
-                      {isClonePlaying ? (
-                        <Square size={11} fill="currentColor" aria-hidden />
-                      ) : (
-                        <Play size={12} fill="currentColor" aria-hidden />
-                      )}
-                    </button>
-                  )}
                   <button
                     type="button"
                     aria-label={`Delete cloned voice ${entry.name}`}
                     onClick={() => onDeleteClone(entry.id)}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-faint transition hover:bg-rose-50 hover:text-rose-600"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint transition-colors hover:bg-danger-soft hover:text-danger"
                   >
-                    <Trash2 size={13} aria-hidden />
+                    <Trash2 size={14} aria-hidden />
                   </button>
                 </li>
               );
@@ -525,26 +502,22 @@ export function VoicePanel({
           type="button"
           aria-expanded={clonerOpen}
           onClick={onToggleCloner}
-          className={`flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed py-2.5 text-[12px] font-medium transition-colors ${
-            clonerOpen
-              ? "border-accent bg-accent/[0.06] text-[#a8432c]"
-              : "border-[#d6d4cc] bg-white text-ink hover:border-ink/40 hover:bg-rail"
-          }`}
+          className={buttonClasses("secondary", "md", "h-10 w-full rounded-[12px]")}
         >
-          <Plus size={13} aria-hidden />
-          {clonerOpen ? "Close voice cloner" : "Clone a new voice"}
+          {clonerOpen ? <X size={14} aria-hidden /> : <Plus size={14} aria-hidden />}
+          {clonerOpen ? "Close voice cloner" : "Clone a voice"}
         </button>
 
         {cloner}
-      </div>
+      </Field>
 
-      <div>
-        <SectionLabel>Language</SectionLabel>
+      <Field label="Language">
         <span className="relative block">
           <select
             value={settings.language}
+            aria-label="Language"
             onChange={(e) => onPatch({ language: e.target.value as TtsLanguage })}
-            className="h-10 w-full appearance-none rounded-xl border border-line bg-white px-3 pr-9 text-[12.5px] text-ink outline-none transition hover:border-ink/30 focus:border-ink"
+            className="h-10 w-full appearance-none rounded-[12px] border border-line bg-white px-3 pr-9 text-[13px] text-ink outline-none transition-colors hover:border-[#cfc9bd] focus:border-ink"
           >
             {TTS_LANGUAGES.map((language) => (
               <option key={language.value} value={language.value}>
@@ -553,18 +526,18 @@ export function VoicePanel({
             ))}
           </select>
           <ChevronDown
-            size={14}
+            size={15}
             className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
             aria-hidden
           />
         </span>
-      </div>
+      </Field>
     </>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Mood tab                                                            */
+/* Delivery tab                                                        */
 /* ------------------------------------------------------------------ */
 
 const STYLE_HINTS: Record<TtsStyle, string> = {
@@ -583,9 +556,8 @@ export function MoodPanel({
 }) {
   return (
     <>
-      <div>
-        <SectionLabel>Speaking mood</SectionLabel>
-        <div className="grid grid-cols-2 gap-2" role="group" aria-label="Speaking mood">
+      <Field label="Speaking style">
+        <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Speaking style">
           {TTS_STYLES.map((style) => {
             const selected = settings.style === style.value;
             return (
@@ -594,48 +566,43 @@ export function MoodPanel({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => onPatch({ style: style.value as TtsStyle })}
-                className={`rounded-xl border p-3 text-left transition-all ${
-                  selected
-                    ? "border-ink bg-white ring-1 ring-inset ring-ink/15"
-                    : "border-line bg-white hover:border-ink/30 hover:shadow-sm"
+                className={`rounded-[12px] border px-3 py-2.5 text-left transition-colors ${
+                  selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
                 }`}
               >
-                <span className="block text-[12.5px] font-semibold text-ink">{style.label}</span>
-                <span className="mt-0.5 block text-[10.5px] leading-snug text-faint">
+                <span className="block text-[13px] font-medium text-ink">{style.label}</span>
+                <span className="mt-0.5 block text-[12px] leading-snug text-faint">
                   {STYLE_HINTS[style.value]}
                 </span>
               </button>
             );
           })}
         </div>
-      </div>
+      </Field>
 
-      <div className="space-y-4 rounded-xl border border-line bg-white p-3.5">
-        <PaidSlider
-          label="Speaking speed"
-          value={settings.speed}
-          min={0.75}
-          max={1.5}
-          step={0.05}
-          suffix="×"
-          onChange={(speed) => onPatch({ speed: round2(speed) })}
-          left="Slower"
-          right="Faster"
-        />
-        <div className="border-t border-line-soft pt-4">
-          <PaidSlider
-            label="Voice pitch"
-            value={settings.pitch}
-            min={0.75}
-            max={1.5}
-            step={0.05}
-            suffix="×"
-            onChange={(pitch) => onPatch({ pitch: round2(pitch) })}
-            left="Deeper"
-            right="Brighter"
-          />
-        </div>
-      </div>
+      <PaidSlider
+        label="Speed"
+        value={settings.speed}
+        min={0.75}
+        max={1.5}
+        step={0.05}
+        suffix="×"
+        onChange={(speed) => onPatch({ speed: round2(speed) })}
+        left="Slower"
+        right="Faster"
+      />
+
+      <PaidSlider
+        label="Pitch"
+        value={settings.pitch}
+        min={0.75}
+        max={1.5}
+        step={0.05}
+        suffix="×"
+        onChange={(pitch) => onPatch({ pitch: round2(pitch) })}
+        left="Deeper"
+        right="Brighter"
+      />
 
       <button
         type="button"
@@ -646,10 +613,10 @@ export function MoodPanel({
             style: DEFAULT_TTS_SETTINGS.style,
           })
         }
-        className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-muted transition hover:text-ink"
+        className={TEXT_LINK}
       >
-        <RotateCcw size={11} aria-hidden />
-        Reset mood &amp; pace
+        <RotateCcw size={12} aria-hidden />
+        Reset style, speed and pitch
       </button>
     </>
   );
@@ -658,6 +625,11 @@ export function MoodPanel({
 /* ------------------------------------------------------------------ */
 /* Output tab                                                          */
 /* ------------------------------------------------------------------ */
+
+const FORMAT_OPTIONS: { value: TtsFormat; label: string }[] = [
+  { value: "mp3", label: "MP3" },
+  { value: "wav", label: "WAV" },
+];
 
 export function OutputPanel({
   settings,
@@ -668,78 +640,48 @@ export function OutputPanel({
 }) {
   return (
     <>
-      <div>
-        <SectionLabel>File format</SectionLabel>
-        <div className="grid grid-cols-2 gap-2" role="group" aria-label="File format">
-          {(["mp3", "wav"] as const).map((format) => {
-            const selected = settings.format === format;
-            return (
-              <button
-                key={format}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => onPatch({ format: format as TtsFormat })}
-                className={`rounded-xl border p-3 text-left transition-all ${
-                  selected
-                    ? "border-ink bg-white ring-1 ring-inset ring-ink/15"
-                    : "border-line bg-white hover:border-ink/30 hover:shadow-sm"
-                }`}
-              >
-                <span className="block text-[12.5px] font-semibold uppercase text-ink">
-                  {format}
-                </span>
-                <span className="mt-0.5 block text-[10.5px] text-faint">
-                  {format === "mp3" ? "Smaller files" : "Lossless quality"}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      <Field label="File format" hint={settings.format === "mp3" ? "Smaller files" : "Lossless, larger files"}>
+        <Segmented
+          label="File format"
+          options={FORMAT_OPTIONS}
+          value={settings.format}
+          onChange={(format) => onPatch({ format })}
+        />
+      </Field>
 
-        {settings.format === "mp3" && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-[11px] text-faint">Quality</span>
-            {TTS_BITRATES.map((bitrate) => {
-              const selected = settings.bitrate === bitrate;
-              return (
-                <button
-                  key={bitrate}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => onPatch({ bitrate })}
-                  className={`h-7 rounded-full border px-3 text-[11px] font-medium tabular-nums transition-colors ${chipClass(selected)}`}
-                >
-                  {bitrate} kbps
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {settings.format === "mp3" && (
+        <Field label="MP3 quality">
+          <Segmented
+            label="MP3 quality"
+            options={TTS_BITRATES.map((bitrate) => ({
+              value: String(bitrate),
+              label: `${bitrate} kbps`,
+            }))}
+            value={String(settings.bitrate)}
+            onChange={(bitrate) => onPatch({ bitrate: Number(bitrate) })}
+          />
+        </Field>
+      )}
 
-      <div className="space-y-3.5 rounded-xl border border-line bg-white p-3.5">
+      <div className="space-y-4">
         <PaidToggle
           title="Pause between paragraphs"
           description="Adds a natural breath when a paragraph ends."
           checked={settings.paragraphPauses}
           onChange={(paragraphPauses) => onPatch({ paragraphPauses })}
         />
-        <div className="border-t border-line-soft pt-3.5">
-          <PaidToggle
-            title="Read numbers & dates clearly"
-            description="Expands percentages, currency and dates."
-            checked={settings.emphasizeNumbers}
-            onChange={(emphasizeNumbers) => onPatch({ emphasizeNumbers })}
-          />
-        </div>
-        <div className="border-t border-line-soft pt-3.5">
-          <PaidToggle
-            title="Embed file info"
-            description="Stores the voice name and script title in the file."
-            checked={settings.metadata}
-            onChange={(metadata) => onPatch({ metadata })}
-          />
-        </div>
+        <PaidToggle
+          title="Read numbers and dates clearly"
+          description="Expands percentages, currency and dates."
+          checked={settings.emphasizeNumbers}
+          onChange={(emphasizeNumbers) => onPatch({ emphasizeNumbers })}
+        />
+        <PaidToggle
+          title="Embed file info"
+          description="Stores the voice name and script title in the file."
+          checked={settings.metadata}
+          onChange={(metadata) => onPatch({ metadata })}
+        />
       </div>
     </>
   );

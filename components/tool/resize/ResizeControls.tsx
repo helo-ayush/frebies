@@ -100,7 +100,7 @@ export function ResizeControls({
           <h3 id="resize-size" className="text-ui font-semibold text-ink">
             Size
           </h3>
-          <span className="text-[10px] text-faint">One image</span>
+          <span className="text-[11.5px] text-faint">One image</span>
         </div>
 
         <div
@@ -118,7 +118,7 @@ export function ResizeControls({
                 onChange={() => onPatch({ mode: mode.value })}
                 className="peer sr-only"
               />
-              <span className="block rounded-[7px] py-1.5 text-center text-[11.5px] font-medium text-muted transition-colors peer-checked:bg-white peer-checked:text-ink peer-checked:shadow-[0_1px_2px_rgba(15,15,16,0.08)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
+              <span className="block rounded-[7px] py-1.5 text-center text-[12.5px] font-medium text-muted transition-colors peer-checked:bg-white peer-checked:text-ink peer-checked:shadow-[0_1px_2px_rgba(15,15,16,0.08)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
                 {mode.label}
               </span>
             </label>
@@ -130,7 +130,7 @@ export function ResizeControls({
             <div>
               <div className="flex items-end gap-2">
                 <label className="min-w-0 flex-1">
-                  <span className="block text-[10.5px] font-medium text-muted">Width</span>
+                  <span className="block text-[12px] font-medium text-muted">Width</span>
                   <span className="relative mt-1 block">
                     <input
                       type="text"
@@ -140,7 +140,7 @@ export function ResizeControls({
                       placeholder="1200"
                       className="h-10 w-full rounded-[9px] border border-line bg-white pl-2.5 pr-8 text-[13px] font-medium tabular-nums text-ink outline-none transition-colors focus:border-[#c3beb4]"
                     />
-                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-faint">
+                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11.5px] text-faint">
                       px
                     </span>
                   </span>
@@ -162,7 +162,7 @@ export function ResizeControls({
                 </button>
 
                 <label className="min-w-0 flex-1">
-                  <span className="block text-[10.5px] font-medium text-muted">Height</span>
+                  <span className="block text-[12px] font-medium text-muted">Height</span>
                   <span className="relative mt-1 block">
                     <input
                       type="text"
@@ -172,7 +172,7 @@ export function ResizeControls({
                       placeholder="800"
                       className="h-10 w-full rounded-[9px] border border-line bg-white pl-2.5 pr-8 text-[13px] font-medium tabular-nums text-ink outline-none transition-colors focus:border-[#c3beb4]"
                     />
-                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-faint">
+                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11.5px] text-faint">
                       px
                     </span>
                   </span>
@@ -198,7 +198,7 @@ export function ResizeControls({
                       }
                       aria-pressed={selected}
                       title={preset.detail}
-                      className={`h-7 rounded-full border px-2.5 text-[10.5px] font-medium transition-colors ${
+                      className={`h-7 rounded-full border px-2.5 text-[12px] font-medium transition-colors ${
                         selected
                           ? "border-ink bg-ink text-white"
                           : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
@@ -210,7 +210,7 @@ export function ResizeControls({
                 })}
               </div>
 
-              <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-faint">
+              <div className="mt-2 flex items-center justify-between gap-3 text-[11.5px] text-faint">
                 <span className="tabular-nums">
                   Original {originalWidth || "—"} × {originalHeight || "—"}
                 </span>
@@ -232,14 +232,14 @@ export function ResizeControls({
 
               <label className="mt-3 block">
                 <span className="flex items-center justify-between gap-3">
-                  <span className="text-[10.5px] font-medium text-muted">If the ratio differs</span>
-                  <span className="text-[10px] text-faint">{ratioLabel(outputWidth, outputHeight)}</span>
+                  <span className="text-[12px] font-medium text-muted">If the ratio differs</span>
+                  <span className="text-[11.5px] text-faint">{ratioLabel(outputWidth, outputHeight)}</span>
                 </span>
                 <span className="relative mt-1.5 block">
                   <select
                     value={settings.fit}
                     onChange={(event) => onPatch({ fit: event.target.value as FitMode })}
-                    className="h-9 w-full appearance-none rounded-[9px] border border-line bg-white pl-2.5 pr-8 text-[11.5px] text-ink outline-none hover:border-[#d5d1c8]"
+                    className="h-9 w-full appearance-none rounded-[9px] border border-line bg-white pl-2.5 pr-8 text-[12.5px] text-ink outline-none hover:border-[#d5d1c8]"
                   >
                     <option value="fill">Crop to fill</option>
                     <option value="fit">Fit with padding</option>
@@ -254,7 +254,7 @@ export function ResizeControls({
               </label>
 
               {capped && (
-                <p className="mt-2 flex items-start gap-1.5 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2 text-[10px] leading-relaxed text-muted">
+                <p className="mt-2 flex items-start gap-1.5 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2 text-[11.5px] leading-relaxed text-muted">
                   <Check size={11} className="mt-px shrink-0 text-ink" aria-hidden />
                   Capped at the original size. Turn off “Never upscale” to enlarge.
                 </p>
@@ -284,7 +284,7 @@ export function ResizeControls({
                 style={rangeFill(settings.percent, 10, 200)}
                 className="range mt-3"
               />
-              <div className="mt-1 flex justify-between text-[10px] text-faint">
+              <div className="mt-1 flex justify-between text-[11.5px] text-faint">
                 <span>10%</span>
                 <span>100%</span>
                 <span>200%</span>
@@ -299,7 +299,7 @@ export function ResizeControls({
                       type="button"
                       onClick={() => onPatch({ percent: value })}
                       aria-pressed={selected}
-                      className={`h-7 rounded-[7px] border text-[10.5px] font-medium tabular-nums transition-colors ${
+                      className={`h-7 rounded-[7px] border text-[12px] font-medium tabular-nums transition-colors ${
                         selected
                           ? "border-ink bg-ink text-white"
                           : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
@@ -311,7 +311,7 @@ export function ResizeControls({
                 })}
               </div>
 
-              <div className="mt-2.5 flex items-center justify-between gap-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2 text-[10.5px]">
+              <div className="mt-2.5 flex items-center justify-between gap-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2 text-[12px]">
                 <span className="text-muted">New size</span>
                 <span className="font-medium tabular-nums text-ink">
                   {outputWidth || "—"} × {outputHeight || "—"}
@@ -319,7 +319,7 @@ export function ResizeControls({
               </div>
 
               {settings.neverUpscale && settings.percent > 100 && (
-                <p className="mt-2 flex items-start gap-1.5 text-[10px] leading-relaxed text-faint">
+                <p className="mt-2 flex items-start gap-1.5 text-[11.5px] leading-relaxed text-faint">
                   <TriangleAlert size={11} className="mt-px shrink-0 text-[#c48c4a]" aria-hidden />
                   Upscaling is off, so 100% is used. Turn it off in Advanced to enlarge.
                 </p>
@@ -330,8 +330,8 @@ export function ResizeControls({
           {settings.mode === "crop" && (
             <div>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[10.5px] font-medium text-muted">Aspect ratio</span>
-                <span className="text-[10px] text-faint">
+                <span className="text-[12px] font-medium text-muted">Aspect ratio</span>
+                <span className="text-[11.5px] text-faint">
                   {settings.cropRatio === "free" ? "Drag freely" : "Ratio locked"}
                 </span>
               </div>
@@ -350,10 +350,10 @@ export function ResizeControls({
                           : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
                       }`}
                     >
-                      <span className="block text-[11.5px] font-medium tabular-nums">
+                      <span className="block text-[12.5px] font-medium tabular-nums">
                         {ratio.label}
                       </span>
-                      <span className="mt-0.5 block text-[9px] text-faint">{ratio.hint}</span>
+                      <span className="mt-0.5 block text-[11px] text-faint">{ratio.hint}</span>
                     </button>
                   );
                 })}
@@ -361,12 +361,12 @@ export function ResizeControls({
 
               <div className="mt-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-[10.5px] text-muted">Crop size</span>
-                  <span className="text-[11px] font-medium tabular-nums text-ink">
+                  <span className="text-[12px] text-muted">Crop size</span>
+                  <span className="text-[12px] font-medium tabular-nums text-ink">
                     {cropWidth || "—"} × {cropHeight || "—"} px
                   </span>
                 </div>
-                <p className="mt-1 text-[10px] leading-relaxed text-faint">
+                <p className="mt-1 text-[11.5px] leading-relaxed text-faint">
                   {settings.cropRatio === "free"
                     ? "Free form. Drag any edge or corner, or drag inside the box to move it."
                     : "Drag a corner to resize with the ratio locked; drag inside the box to move it."}
@@ -374,7 +374,7 @@ export function ResizeControls({
               </div>
 
               <div className="mt-2 flex items-center justify-between gap-3">
-                <p className="text-[10px] leading-relaxed text-faint">
+                <p className="text-[11.5px] leading-relaxed text-faint">
                   {settings.rotation
                     ? "Rotation is applied after the crop."
                     : "Exported at the full source resolution."}
@@ -382,7 +382,7 @@ export function ResizeControls({
                 <button
                   type="button"
                   onClick={onResetCrop}
-                  className="shrink-0 rounded-[7px] border border-line bg-white px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:text-ink"
+                  className="shrink-0 rounded-[7px] border border-line bg-white px-2 py-1 text-[11.5px] font-medium text-muted transition-colors hover:text-ink"
                 >
                   Reset crop
                 </button>
@@ -397,7 +397,7 @@ export function ResizeControls({
           <h3 id="resize-transform" className="text-ui font-semibold text-ink">
             Rotate &amp; flip
           </h3>
-          <span className="text-[10px] tabular-nums text-faint">{settings.rotation}°</span>
+          <span className="text-[11.5px] tabular-nums text-faint">{settings.rotation}°</span>
         </div>
         <div className="mt-2 grid grid-cols-4 gap-1.5">
           <TransformButton
@@ -431,7 +431,7 @@ export function ResizeControls({
           <button
             type="button"
             onClick={() => onPatch({ rotation: 0, flipX: false, flipY: false })}
-            className="mt-2 text-[10px] font-medium text-faint transition-colors hover:text-ink"
+            className="mt-2 text-[11.5px] font-medium text-faint transition-colors hover:text-ink"
           >
             Reset transforms
           </button>
@@ -443,7 +443,7 @@ export function ResizeControls({
           <h3 id="resize-output" className="text-ui font-semibold text-ink">
             Output
           </h3>
-          <span className="text-[10px] text-faint">{formatLabel(settings.format)}</span>
+          <span className="text-[11.5px] text-faint">{formatLabel(settings.format)}</span>
         </div>
 
         <div
@@ -461,14 +461,14 @@ export function ResizeControls({
                 onChange={() => onPatch({ format: format.value })}
                 className="peer sr-only"
               />
-              <span className="block rounded-[8px] border border-line bg-white py-2 text-center text-[10.5px] font-medium text-muted transition-colors hover:border-[#d8d4cb] peer-checked:border-ink peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
+              <span className="block rounded-[8px] border border-line bg-white py-2 text-center text-[12px] font-medium text-muted transition-colors hover:border-[#d8d4cb] peer-checked:border-ink peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
                 {format.label}
               </span>
             </label>
           ))}
         </div>
 
-        <p className="mt-2 min-h-[26px] text-[10px] leading-relaxed text-faint">
+        <p className="mt-2 min-h-[26px] text-[11.5px] leading-relaxed text-faint">
           {RESIZE_FORMATS.find((format) => format.value === settings.format)?.hint}
         </p>
 
@@ -495,8 +495,8 @@ export function ResizeControls({
 
         <div className="mt-3">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[10.5px] font-medium text-muted">Padding background</span>
-            <span className="text-[10px] text-faint">For fit mode</span>
+            <span className="text-[12px] font-medium text-muted">Padding background</span>
+            <span className="text-[11.5px] text-faint">For fit mode</span>
           </div>
           <div className="mt-1.5 grid grid-cols-3 gap-1.5">
             {BACKGROUNDS.map((background) => {
@@ -507,7 +507,7 @@ export function ResizeControls({
                   type="button"
                   onClick={() => onPatch({ background: background.id })}
                   aria-pressed={selected}
-                  className={`flex items-center gap-1.5 rounded-[8px] border px-2 py-1.5 text-[10px] font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 rounded-[8px] border px-2 py-1.5 text-[11.5px] font-medium transition-colors ${
                     selected
                       ? "border-ink bg-rail text-ink"
                       : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
@@ -520,7 +520,7 @@ export function ResizeControls({
             })}
           </div>
           {settings.background === "transparent" && settings.format === "jpg" && (
-            <p className="mt-2 flex items-start gap-1.5 text-[10px] leading-relaxed text-[#786344]">
+            <p className="mt-2 flex items-start gap-1.5 text-[11.5px] leading-relaxed text-[#786344]">
               <TriangleAlert size={11} className="mt-px shrink-0" aria-hidden />
               JPG cannot keep transparency. A white background will be used instead.
             </p>
@@ -530,11 +530,11 @@ export function ResizeControls({
 
       <details className="group overflow-hidden rounded-[11px] border border-line bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
-          <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink">
+          <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
             <Scaling size={12} className="text-muted" aria-hidden />
             Advanced
           </span>
-          <span className="flex items-center gap-1 text-[10px] text-faint">
+          <span className="flex items-center gap-1 text-[11.5px] text-faint">
             4 controls
             <ChevronDown size={12} className="transition-transform group-open:rotate-180" aria-hidden />
           </span>
@@ -567,7 +567,7 @@ export function ResizeControls({
         </div>
       </details>
 
-      <p className="border-t border-line-soft pt-3 text-[10px] leading-relaxed text-faint">
+      <p className="border-t border-line-soft pt-3 text-[11.5px] leading-relaxed text-faint">
         {upscaling
           ? "Upscaling interpolates pixels; detail is estimated, not recovered."
           : "Sizes are estimated before export, and the saved file reports its exact size."}
@@ -619,8 +619,8 @@ function ToggleRow({
   return (
     <label className="flex cursor-pointer items-start justify-between gap-3">
       <span className="min-w-0">
-        <span className="block text-[11.5px] font-medium text-ink">{label}</span>
-        <span className="mt-0.5 block text-[10px] leading-relaxed text-faint">{description}</span>
+        <span className="block text-[12.5px] font-medium text-ink">{label}</span>
+        <span className="mt-0.5 block text-[11.5px] leading-relaxed text-faint">{description}</span>
       </span>
       <input
         type="checkbox"

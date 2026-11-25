@@ -136,75 +136,70 @@ export function MergedPdfDialog({
           go(1);
         }
       }}
-      className="fixed inset-0 m-auto h-fit max-h-[calc(100vh-28px)] w-[min(760px,calc(100vw-24px))] overflow-y-auto overscroll-contain rounded-[16px] border border-line bg-white p-0 text-ink shadow-[0_30px_80px_rgba(15,15,16,0.3)]"
+      className="fixed inset-0 m-auto h-fit max-h-[calc(100dvh-28px)] w-[min(760px,calc(100vw-24px))] overflow-y-auto overscroll-contain rounded-[18px] border border-line bg-white p-0 text-ink shadow-pop"
     >
       <span aria-hidden className="hidden" data-error={error} />
 
       <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line bg-white/95 px-4 py-3 backdrop-blur sm:px-5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-line bg-[#f6f4f0] text-[8.5px] font-semibold uppercase tracking-[0.06em] text-muted">
-            PDF
-          </span>
-          <div className="min-w-0">
-            <h2 id="merged-preview-title" className="truncate text-[13px] font-medium text-ink">
-              Merged preview
-            </h2>
-            <p className="truncate text-[10.5px] text-faint">
-              {name} · {pageCount} page{pageCount === 1 ? "" : "s"}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <h2 id="merged-preview-title" className="truncate text-[15px] font-semibold text-ink">
+            {name}
+          </h2>
+          <p className="truncate text-[12.5px] text-faint">
+            Preview · {pageCount} page{pageCount === 1 ? "" : "s"}
+          </p>
         </div>
         <button
           type="button"
           onClick={() => dialogRef.current?.close()}
           aria-label="Close preview"
           data-slot="dialog-close"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/25"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
-          <X size={15} aria-hidden />
+          <X size={16} aria-hidden />
         </button>
       </div>
 
-      <div className="bg-[#f6f4f0] px-4 py-5 sm:px-6">
-        <div className="relative mx-auto flex min-h-[300px] w-full max-w-[620px] items-center justify-center rounded-[10px] border border-line bg-white/60 p-2">
+      <div className="bg-[#f3f1ec] px-4 py-5 sm:px-6">
+        <div className="relative mx-auto flex min-h-[300px] w-full max-w-[620px] items-center justify-center">
           {preview ? (
             <img
               src={preview.dataUrl}
               alt={`Page ${page} of ${pageCount}`}
-              className="max-h-[min(62vh,760px)] w-auto max-w-full rounded-[3px] bg-white shadow-[0_10px_30px_rgba(30,25,20,0.14)]"
+              className="max-h-[min(62dvh,760px)] w-auto max-w-full rounded-[4px] border border-[#dedad2] bg-white shadow-[0_10px_30px_-12px_rgba(15,15,16,0.3)]"
             />
           ) : error ? (
-            <p className="flex items-start gap-1.5 px-4 py-8 text-center text-[11px] leading-relaxed text-[#a13d30]">
-              <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
+            <p role="alert" className="flex items-start gap-2 px-4 py-8 text-[13px] leading-relaxed text-danger">
+              <TriangleAlert size={14} className="mt-[3px] shrink-0" aria-hidden />
               {error}
             </p>
           ) : (
-            <p className="flex items-center gap-2 text-[11px] text-faint">
-              <Loader2 size={13} className="animate-spin text-accent" aria-hidden />
+            <p className="flex items-center gap-2 text-[13px] text-muted">
+              <Loader2 size={15} className="animate-spin" aria-hidden />
               Drawing page {page}…
             </p>
           )}
 
           {rendering && preview && (
-            <span className="absolute inset-0 grid place-items-center rounded-[10px] bg-white/45">
-              <Loader2 size={16} className="animate-spin text-accent" aria-hidden />
+            <span className="absolute inset-0 grid place-items-center bg-[#f3f1ec]/50">
+              <Loader2 size={18} className="animate-spin text-ink" aria-hidden />
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-3 sm:px-5">
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 border-t border-line bg-white px-4 py-3 sm:px-5">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => go(-1)}
             disabled={page <= 1}
             aria-label="Previous page"
-            className="grid h-8 w-8 place-items-center rounded-[8px] border border-line bg-white text-muted transition-colors hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+            className="grid h-9 w-9 place-items-center rounded-[9px] border border-line bg-white text-muted transition-colors hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-40"
           >
-            <ChevronLeft size={14} aria-hidden />
+            <ChevronLeft size={16} aria-hidden />
           </button>
-          <label className="flex items-center gap-1 text-[11px] text-muted">
+          <label className="flex items-center gap-1.5 text-[13px] text-muted">
             <span className="sr-only">Page</span>
             <input
               type="number"
@@ -217,7 +212,7 @@ export function MergedPdfDialog({
                   setPage(Math.min(Math.max(1, Math.round(next)), Math.max(1, pageCount)));
                 }
               }}
-              className="h-8 w-12 rounded-[7px] border border-line bg-white text-center text-[11.5px] tabular-nums text-ink outline-none hover:border-[#d5d1c8] focus:border-[#bbb6ab]"
+              className="h-9 w-14 rounded-[9px] border border-line bg-white text-center text-[13px] tabular-nums text-ink outline-none transition-colors hover:border-[#cfc9bd] focus:border-ink"
             />
             <span className="tabular-nums">/ {pageCount}</span>
           </label>
@@ -226,9 +221,9 @@ export function MergedPdfDialog({
             onClick={() => go(1)}
             disabled={page >= pageCount}
             aria-label="Next page"
-            className="grid h-8 w-8 place-items-center rounded-[8px] border border-line bg-white text-muted transition-colors hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+            className="grid h-9 w-9 place-items-center rounded-[9px] border border-line bg-white text-muted transition-colors hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-40"
           >
-            <ChevronRight size={14} aria-hidden />
+            <ChevronRight size={16} aria-hidden />
           </button>
         </div>
 
@@ -237,13 +232,17 @@ export function MergedPdfDialog({
             type="button"
             onClick={() => dialogRef.current?.close()}
             data-slot="dialog-close"
-            className={buttonClasses("secondary", "sm")}
+            className={buttonClasses("secondary", "md", "h-10 rounded-[12px]")}
           >
             Close
           </button>
           {url && (
-            <a href={url} download={name} className={buttonClasses("primary", "sm")}>
-              <Download size={12} aria-hidden />
+            <a
+              href={url}
+              download={name}
+              className={buttonClasses("success", "md", "h-10 rounded-[12px]")}
+            >
+              <Download size={14} aria-hidden />
               Download
             </a>
           )}

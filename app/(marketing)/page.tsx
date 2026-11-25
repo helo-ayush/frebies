@@ -1,34 +1,33 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import Navbar from "@/components/Navbar";
-import Hero from "@/components/Hero";
-import { HeroFigure } from "@/components/hero/HeroFigure";
-import { SiteProgressiveBlur } from "@/components/effects/SiteProgressiveBlur";
 import { ScrollProgress } from "@/components/magicui/scroll-progress";
-import { WorkbenchPreview } from "@/components/landing/WorkbenchPreview";
-import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Motion } from "@/components/ui";
-import { Marquee, Showcase, Tools, Pricing, Privacy, CTA, Footer } from "@/components/Sections";
-
-const heroFigure = readFileSync(join(process.cwd(), "public", "hero-figure.svg"), "utf8");
+import { LandingNav } from "@/components/landing/LandingNav";
+import { LandingHero } from "@/components/landing/LandingHero";
+import { ScrollStory } from "@/components/landing/ScrollStory";
+import { FormatMarquee, ToolBento } from "@/components/landing/ToolBento";
+import {
+  FaqSection,
+  FinalCta,
+  LandingFooter,
+  PricingSection,
+  PrivacySection,
+} from "@/components/landing/LandingClosing";
 
 export default function Page() {
   return (
     <Motion>
-      <main className="overflow-clip text-ink">
-        <ScrollProgress />
-        <Hero figure={<HeroFigure svg={heroFigure} />} />
-        <WorkbenchPreview />
-        <Marquee />
-        <HowItWorks />
-        <Showcase />
-        <Tools />
-        <Pricing />
-        <Privacy />
-        <CTA />
-        <Footer />
-        <SiteProgressiveBlur />
+      <ScrollProgress />
+      <LandingNav />
+      <main className="overflow-x-clip text-ink">
+        <LandingHero />
+        <FormatMarquee />
+        <ScrollStory />
+        <ToolBento />
+        <PrivacySection />
+        <PricingSection />
+        <FaqSection />
+        <FinalCta />
       </main>
+      <LandingFooter />
     </Motion>
   );
 }

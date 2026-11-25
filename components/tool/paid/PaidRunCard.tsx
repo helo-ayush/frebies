@@ -1,63 +1,58 @@
 "use client";
 
-import { ArrowRightGlyph, LockGlyph } from "@/components/icons/NavGlyph";
+import type { ReactNode } from "react";
+import { LockGlyph } from "@/components/icons/NavGlyph";
+import { Note, PrimaryAction } from "@/components/tool/kit";
 
+/**
+ * Primary action of a credit-based studio. Sits in the rail's action slot, so
+ * it docks to the top of the rail on desktop and the bottom of the screen on
+ * phones. The cost is part of the label: no separate price pills.
+ */
 export function PaidRunCard({
   cost,
   verb,
   ready,
   guest = true,
   onRun,
-  note,
-  emptyLabel = "Add an image to run",
+  hint,
+  emptyLabel = "Add a file to run",
 }: {
   cost: number;
+  /** Lower-case action, e.g. "extract text". */
   verb: string;
   ready: boolean;
   guest?: boolean;
   onRun: () => void;
-  note?: string;
+  /** One short line under the button. Defaults to the price per run. */
+  hint?: ReactNode;
   emptyLabel?: string;
 }) {
   const credits = `${cost} ${cost === 1 ? "credit" : "credits"}`;
+  const action = guest ? `Sign in to ${verb}` : verb.charAt(0).toUpperCase() + verb.slice(1);
 
   return (
-    <div className="rounded-[14px] border border-[#2a2a2e] bg-[#131315] p-4 text-white shadow-[0_18px_38px_rgba(15,15,16,0.18)]">
-      <div className="flex items-center justify-between gap-3">
-        <span className="inline-flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-white/45">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-          AI run
-        </span>
-        <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/75">
-          {credits}
-        </span>
-      </div>
+    <PrimaryAction
+      tone="accent"
+      label={ready ? `${action} · ${credits}` : emptyLabel}
+      icon={ready && guest ? <LockGlyph size={14} /> : undefined}
+      disabled={!ready}
+      onClick={onRun}
+      hint={hint ?? `${credits} per run · new accounts get 25 free`}
+      className="[&_button]:px-4"
+    />
+  );
+}
 
-      <button
-        type="button"
-        onClick={onRun}
-        disabled={!ready}
-        className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-[9px] bg-white text-[12.5px] font-medium text-ink transition-colors hover:bg-white/90 disabled:pointer-events-none disabled:opacity-40"
-      >
-        {!ready ? (
-          emptyLabel
-        ) : (
-          <>
-            {guest && <LockGlyph size={12} />}
-            Sign in to {verb} · {credits}
-            <ArrowRightGlyph size={13} />
-          </>
-        )}
-      </button>
-
-      <p className="mt-2.5 text-[10px] leading-relaxed text-white/45">
-        {note ?? "No credits are used until the run starts. Failed runs are refunded."}
-      </p>
-
-      <div className="mt-2.5 flex items-center justify-between border-t border-white/10 pt-2.5 text-[9px] text-white/35">
-        <span>New accounts get 25 free credits</span>
-        <span>Files deleted in 1h</span>
-      </div>
-    </div>
+/**
+ * The one status line of a studio whose engine is not wired up yet. Render it
+ * once, as the first thing in the rail, directly under the action.
+ */
+export function NotConnectedNote({ children }: { children?: ReactNode }) {
+  return (
+    <Note tone="warn">
+      {children ??
+        "This tool is not connected yet. You can try the controls, but nothing is processed and no credits are used."}
+    </Note>
   );
 }

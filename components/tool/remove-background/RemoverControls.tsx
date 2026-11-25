@@ -1,11 +1,8 @@
 "use client";
 
-import { Cloud, Droplets, Sparkles } from "lucide-react";
-import {
-  PaidSection,
-  PaidSlider,
-  PaidToggle,
-} from "@/components/tool/paid/PaidControls";
+import { Field } from "@/components/tool/kit";
+import { PaidSlider, PaidToggle } from "@/components/tool/paid/PaidControls";
+import { RAIL_CARD_ACTIVE, RAIL_CARD_IDLE } from "@/components/tool/studio/RailSection";
 import {
   REMOVER_BACKGROUNDS,
   REMOVER_FORMATS,
@@ -16,21 +13,27 @@ import {
   type SubjectType,
 } from "./model";
 
+const SUBJECT_DETAIL: Record<SubjectType, string> = {
+  auto: "Detect automatically",
+  person: "Hair and skin",
+  product: "Hard edges",
+  graphic: "Logos and icons",
+};
+
+const SWATCH = "h-[18px] w-[18px] shrink-0 rounded-[5px] border";
+
 export function RemoverControls({
   settings,
   onPatch,
-  hasImage,
 }: {
   settings: RemoverSettings;
   onPatch: (patch: Partial<RemoverSettings>) => void;
-  hasImage: boolean;
 }) {
-  const subject = SUBJECT_TYPES.find((entry) => entry.value === settings.subject);
   const format = REMOVER_FORMATS.find((entry) => entry.value === settings.format);
 
   return (
-    <div className="space-y-5">
-      <PaidSection title="Subject" hint={hasImage ? "AI detection" : "Add an image"}>
+    <div className="space-y-6">
+      <Field label="Subject">
         <div className="grid grid-cols-2 gap-1.5">
           {SUBJECT_TYPES.map((entry) => {
             const selected = settings.subject === entry.value;
@@ -39,26 +42,24 @@ export function RemoverControls({
                 key={entry.value}
                 type="button"
                 aria-pressed={selected}
+                title={entry.hint}
                 onClick={() => onPatch({ subject: entry.value as SubjectType })}
-                className={`rounded-[9px] border px-2.5 py-2 text-left transition-colors ${
-                  selected
-                    ? "border-ink bg-rail text-ink"
-                    : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
+                className={`rounded-[10px] border px-3 py-2.5 text-left transition-colors ${
+                  selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
                 }`}
               >
-                <span className="block text-[11px] font-medium">{entry.label}</span>
-                <span className="mt-0.5 block text-[9px] text-faint">
-                  {entry.value === "auto" ? "Detect automatically" : entry.value === "person" ? "Hair & skin" : entry.value === "product" ? "Hard edges" : "Logos & icons"}
+                <span className="block text-[13px] font-medium text-ink">{entry.label}</span>
+                <span className="mt-0.5 block text-[12px] leading-snug text-faint">
+                  {SUBJECT_DETAIL[entry.value]}
                 </span>
               </button>
             );
           })}
         </div>
-        <p className="mt-1.5 min-h-[26px] text-[10px] leading-relaxed text-faint">
-          {subject?.hint}
-        </p>
+      </Field>
 
-        <div className="mt-2 space-y-3">
+      <Field label="Edges">
+        <div className="space-y-3.5">
           <PaidSlider
             label="Edge feather"
             value={settings.feather}
@@ -70,7 +71,7 @@ export function RemoverControls({
             right="Soft"
           />
           <PaidToggle
-            title="Hair & fine detail"
+            title="Hair and fine detail"
             description="Preserve strands, fuzz and thin edges."
             checked={settings.fineDetail}
             onChange={(fineDetail) => onPatch({ fineDetail })}
@@ -82,21 +83,20 @@ export function RemoverControls({
             onChange={(cropToSubject) => onPatch({ cropToSubject })}
           />
         </div>
-      </PaidSection>
+      </Field>
 
-      <PaidSection title="Background" hint="Output fill">
+      <Field label="Background">
         <div className="grid grid-cols-2 gap-1.5">
           {REMOVER_BACKGROUNDS.map((entry) => {
             const selected = settings.background === entry.value;
+            const card = `flex h-10 items-center gap-2 rounded-[10px] border px-3 text-left text-[13px] font-medium text-ink transition-colors ${
+              selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
+            }`;
             if (entry.value === "color") {
               return (
                 <label
                   key={entry.value}
-                  className={`relative flex cursor-pointer items-center gap-2 rounded-[9px] border px-2.5 py-2 text-[10.5px] font-medium transition-colors ${
-                    selected
-                      ? "border-ink bg-rail text-ink"
-                      : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
-                  }`}
+                  className={`relative cursor-pointer focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent ${card}`}
                 >
                   <input
                     type="color"
@@ -109,7 +109,7 @@ export function RemoverControls({
                     className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                   />
                   <span
-                    className="h-4 w-4 shrink-0 rounded-[4px] border border-[#d8d5cf]"
+                    className={`${SWATCH} border-[#d8d5cf]`}
                     style={{ background: settings.color }}
                   />
                   Custom
@@ -122,19 +122,15 @@ export function RemoverControls({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => onPatch({ background: entry.value as RemoverBackground })}
-                className={`flex items-center gap-2 rounded-[9px] border px-2.5 py-2 text-left text-[10.5px] font-medium transition-colors ${
-                  selected
-                    ? "border-ink bg-rail text-ink"
-                    : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
-                }`}
+                className={card}
               >
                 <span
-                  className={`h-4 w-4 shrink-0 rounded-[4px] border ${
+                  className={`${SWATCH} ${
                     entry.value === "transparent"
                       ? "checkerboard border-line"
                       : entry.value === "black"
                         ? "border-ink bg-ink"
-                        : "border-[#e5e1d8] bg-white"
+                        : "border-[#d8d5cf] bg-white"
                   }`}
                 />
                 {entry.label}
@@ -142,11 +138,8 @@ export function RemoverControls({
             );
           })}
         </div>
-        <p className="mt-1.5 min-h-[26px] text-[10px] leading-relaxed text-faint">
-          Transparent PNG keeps the alpha channel. Solid fills are baked into the export.
-        </p>
 
-        <div className="mt-2 space-y-3">
+        <div className="mt-3.5 space-y-3.5">
           <PaidToggle
             title="Drop shadow"
             description="Add a soft shadow around the cut-out."
@@ -165,13 +158,13 @@ export function RemoverControls({
             />
           )}
         </div>
-      </PaidSection>
+      </Field>
 
-      <PaidSection title="Output" hint="Cut-out file">
+      <Field label="Output format">
         <div
           role="radiogroup"
           aria-label="Output format"
-          className="grid grid-cols-3 gap-1"
+          className="grid grid-cols-3 gap-1 rounded-[12px] bg-card p-1"
         >
           {REMOVER_FORMATS.map((entry) => (
             <label key={entry.value} className="relative cursor-pointer">
@@ -190,17 +183,15 @@ export function RemoverControls({
                 }
                 className="peer sr-only"
               />
-              <span className="block rounded-[8px] border border-line bg-white py-2 text-center text-[10.5px] font-medium text-muted transition-colors hover:border-[#d8d4cb] peer-checked:border-ink peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
+              <span className="grid h-9 place-items-center rounded-[9px] text-[13px] font-medium text-muted transition-colors hover:text-ink peer-checked:bg-white peer-checked:text-ink peer-checked:shadow-[0_1px_2px_rgba(15,15,16,0.12)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
                 {entry.label}
               </span>
             </label>
           ))}
         </div>
-        <p className="mt-1.5 min-h-[26px] text-[10px] leading-relaxed text-faint">
-          {format?.hint}
-        </p>
+        <p className="mt-2 text-[12px] leading-relaxed text-faint">{format?.hint}</p>
 
-        <div className="mt-2 space-y-3">
+        <div className="mt-3.5">
           <PaidToggle
             title="Keep metadata"
             description="Carry camera details into the cut-out file."
@@ -208,32 +199,7 @@ export function RemoverControls({
             onChange={(metadata) => onPatch({ metadata })}
           />
         </div>
-
-        <div className="mt-3 flex items-center gap-3 rounded-[9px] border border-line bg-[#fbfaf7] px-2.5 py-2">
-          <Droplets size={13} className="shrink-0 text-faint" aria-hidden />
-          <span className="text-[10px] leading-relaxed text-muted">
-            {settings.background === "transparent" && settings.format !== "jpg"
-              ? "Transparent alpha is preserved."
-              : settings.background === "transparent" && settings.format === "jpg"
-                ? "JPG fills transparency with white."
-                : `Background filled with ${settings.background === "color" ? settings.color.toUpperCase() : settings.background}.`}
-          </span>
-        </div>
-      </PaidSection>
-
-      <div className="flex items-start gap-2 rounded-[10px] border border-line bg-[#fbfaf7] px-3 py-2.5">
-        <Cloud size={12} className="mt-px shrink-0 text-faint" aria-hidden />
-        <p className="text-[10px] leading-relaxed text-muted">
-          The file uploads only when the run starts and is deleted within 1 hour.
-        </p>
-      </div>
-
-      <div className="flex items-start gap-2 rounded-[10px] border border-line px-3 py-2.5">
-        <Sparkles size={12} className="mt-px shrink-0 text-accent" aria-hidden />
-        <p className="text-[10px] leading-relaxed text-muted">
-          One credit covers a single image and is refunded if the AI run fails.
-        </p>
-      </div>
+      </Field>
     </div>
   );
 }

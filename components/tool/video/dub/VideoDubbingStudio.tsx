@@ -1,49 +1,48 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type DragEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   AlertCircle,
-  AudioLines,
   Captions,
+  Check,
   CheckCircle2,
-  Clock,
-  Cloud,
   Download,
   FileAudio,
   Film,
   Languages,
   Loader2,
   Lock,
-  Mic2,
   Plus,
   RefreshCw,
-  ShieldCheck,
-  Sparkles,
+  RotateCcw,
   Trash2,
-  UploadCloud,
-  Volume2,
   Wand2,
 } from "lucide-react";
 import { Progress } from "@/components/arc/progress/progress";
 import { useAuthSession } from "@/components/auth/AuthContext";
-import { ToolGlyph } from "@/components/icons/NavGlyph";
 import { AudioPlayer } from "@/components/tool/audio/AudioPlayer";
 import { formatBytes, formatTime } from "@/components/tool/audio/format";
 import type { SavedCustomVoice } from "@/components/tool/audio/tts/model";
 import { loadSavedClonedVoices } from "@/components/tool/audio/tts/voice-clone-utils";
+import { GenerationExpiryBadge } from "@/components/tool/GenerationRetentionBadge";
 import {
-  GenerationExpiryBadge,
-  GenerationStorageNotice,
-} from "@/components/tool/GenerationRetentionBadge";
+  ActionRow,
+  Chip,
+  DownloadAction,
+  FileRow,
+  Note,
+  PrimaryAction,
+  ResultCard,
+  STAGE_LABEL,
+  STUDIO_GRID,
+  SecondaryAction,
+  Segmented,
+  StudioFrame,
+  StudioStage,
+} from "@/components/tool/kit";
+import { DropChip, Dropzone } from "@/components/tool/kit/Dropzone";
 import { CreditGate } from "@/components/tool/paid/CreditGate";
+import { buttonClasses } from "@/components/ui/Button";
 import type { PoolStatusSnapshot } from "@/lib/audio/tts-manager";
 import type { GenerationStorageStats } from "@/lib/storage/generation-store";
 import {
@@ -96,32 +95,43 @@ type LoadedMedia = {
 
 type OverlayCaptionMode = "translated" | "original" | "dual" | "off";
 
-function dubStatusBadge(job: DubJobSnapshot): { label: string; className: string } {
+/** Plain-language job state. The server's own stage text stays in the tooltip. */
+function dubStatusLabel(job: DubJobSnapshot): string {
   switch (job.status) {
     case "queued":
-      return { label: "Queued", className: "bg-slate-50 text-slate-700 ring-slate-200" };
+      return "Queued";
     case "waiting_for_server":
-      return { label: "Warming GPU", className: "bg-amber-50 text-amber-800 ring-amber-200" };
+      return "Starting the voice server";
     case "transcribing":
-      return { label: "Deepgram ASR", className: "bg-sky-50 text-sky-800 ring-sky-200" };
+      return "Transcribing";
     case "translating":
-      return { label: "OpenRouter + Tags", className: "bg-violet-50 text-violet-800 ring-violet-200" };
+      return "Translating";
     case "synthesizing":
-      return {
-        label:
-          job.segmentsTotal > 0
-            ? `Dubbing ${job.segmentsDone}/${job.segmentsTotal}`
-            : "Synthesizing",
-        className: "bg-accent/[0.08] text-[#a8432c] ring-accent/25",
-      };
+      return job.segmentsTotal > 0 ? `Dubbing ${job.segmentsDone}/${job.segmentsTotal}` : "Dubbing";
     case "mixing":
-      return { label: "Mastering & Saving", className: "bg-sky-50 text-sky-800 ring-sky-200" };
+      return "Mixing and saving";
     case "completed":
-      return { label: "Ready in Vault", className: "bg-emerald-50 text-emerald-800 ring-emerald-200" };
+      return "Ready";
     case "failed":
-      return { label: "Failed", className: "bg-rose-50 text-rose-700 ring-rose-200" };
+      return "Failed";
   }
 }
+
+/** Long files are processed in parts; surface only that from the in-browser stage text. */
+function plainStageDetail(label: string): string {
+  const part = /Trip (\d+)\/(\d+)/i.exec(label);
+  return part && Number(part[2]) > 1 ? `part ${part[1]} of ${part[2]}` : "";
+}
+
+/** Both left-hand blocks (tool, history) share the column beside the sticky rail. */
+const LEFT_COLUMN = "lg:col-start-1 lg:-mr-px lg:self-stretch lg:border-r lg:border-line";
+/** Lets a result strip keep a readable title and wrap its buttons on a phone. */
+const RESULT_CARD_FIT = "[&>div:nth-child(2)]:basis-[150px] [&>div:last-child]:max-w-full";
+
+const QUIET_BUTTON =
+  "inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-45";
+const GREEN_LINK =
+  "inline-flex h-10 items-center gap-1.5 rounded-[12px] bg-success px-4 text-[13.5px] font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:ring-offset-2";
 
 export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number }) {
   const { isLoaded, isSignedIn, user } = useAuthSession();
@@ -393,7 +403,7 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
   async function runServerDeepgramTranscription(targetMedia = media): Promise<DubSegment[] | null> {
     if (!targetMedia) return null;
     if (!isSignedIn) {
-      setGateAction("transcribe and chunk audio with Deepgram + OpenRouter");
+      setGateAction("transcribe this file");
       setGateOpen(true);
       return null;
     }
@@ -473,7 +483,7 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
         };
 
         if (!res.ok || !data.segments) {
-          throw new Error(data.error || `Deepgram transcription failed on ${trip.label}.`);
+          throw new Error(data.error || `Transcription failed on ${trip.label}.`);
         }
 
         if (data.detectedLanguage && !detectedLang) {
@@ -531,7 +541,7 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
 
   async function handleTranslateOnly(segsInput?: DubSegment[]): Promise<DubSegment[] | null> {
     if (!isSignedIn) {
-      setGateAction("translate dialogue with OpenRouter & Drama 3 expression tags");
+      setGateAction("translate the script");
       setGateOpen(true);
       return null;
     }
@@ -577,7 +587,7 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
   async function handleStartDubbing() {
     if (!media) return;
     if (!isSignedIn) {
-      setGateAction("run AI voice dubbing and save to your cloud vault");
+      setGateAction("dub this file");
       setGateOpen(true);
       return;
     }
@@ -784,466 +794,469 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
   );
   const estimatedCredits = media ? dubCredits(media.duration || 60) : 5;
 
+  const targetLabel = getDubLanguageLabel(settings.targetLanguage);
+  const needsSignIn = isLoaded && !isSignedIn;
+
+  /** The dub started (or opened) from the file on the stage. */
+  const stageJob = activeDubJobId ? (jobs.find((j) => j.id === activeDubJobId) ?? null) : null;
+  const runningJob = stageJob && ACTIVE_DUB_STATUSES.has(stageJob.status) ? stageJob : null;
+  const resultJob =
+    stageJob && stageJob.status === "completed" && stageJob.audioUrl ? stageJob : null;
+  const failedJob = stageJob && stageJob.status === "failed" ? stageJob : null;
+
+  // One pipeline: extract (0) → transcribe (1) → translate (2) → dub (3).
+  const uploadingAudio = submitting && Boolean(browserStage) && (browserStage?.percent ?? 0) >= 88;
+  let activeStep: number | null = null;
+  let stepLabel = "";
+  if (customUploadLoading) {
+    stepLabel = "Preparing voice sample";
+  } else if (transcribing) {
+    activeStep = 1;
+    stepLabel = "Transcribing and translating";
+  } else if (translating) {
+    activeStep = 2;
+    stepLabel = "Translating";
+  } else if (browserStage) {
+    activeStep = uploadingAudio ? 3 : 0;
+    stepLabel = uploadingAudio ? "Uploading audio" : "Extracting audio on your device";
+  } else if (submitting) {
+    activeStep = 3;
+    stepLabel = "Starting the dub";
+  } else if (runningJob) {
+    activeStep =
+      runningJob.status === "transcribing"
+        ? 1
+        : runningJob.status === "translating"
+          ? 2
+          : runningJob.status === "synthesizing" || runningJob.status === "mixing"
+            ? 3
+            : runningJob.segments.length > 0
+              ? 3
+              : 1;
+    stepLabel = dubStatusLabel(runningJob);
+  }
+  const stepPercent = browserStage
+    ? browserStage.percent
+    : !submitting && !transcribing && !translating && runningJob
+      ? runningJob.progress
+      : null;
+  const stepDetail = browserStage ? plainStageDetail(browserStage.label) : "";
+  const stepTitle = browserStage?.label ?? runningJob?.stageLabel;
+  const stepsDone = resultJob
+    ? 4
+    : segments.length > 0
+      ? translatedCount === segments.length
+        ? 3
+        : 2
+      : 0;
+
+  const pipelineBusy = submitting || transcribing || translating || Boolean(browserStage);
+  /** A dub into the language now selected is still running, so the button tracks it. */
+  const actionJob =
+    runningJob && runningJob.targetLanguage === settings.targetLanguage ? runningJob : null;
+  const downloadJob =
+    !pipelineBusy && resultJob?.downloadUrl && resultJob.targetLanguage === settings.targetLanguage
+      ? resultJob
+      : null;
+
+  const railAction =
+    downloadJob && downloadJob.downloadUrl ? (
+      <>
+        <DownloadAction
+          href={downloadJob.downloadUrl}
+          filename={downloadJob.fileName}
+          label="Download dubbed audio"
+          hint={`${getDubLanguageLabel(downloadJob.targetLanguage)} · MP3${
+            downloadJob.byteLength ? ` · ${formatBytes(downloadJob.byteLength)}` : ""
+          }`}
+        />
+        <ActionRow>
+          <SecondaryAction onClick={() => setBindModalJob(downloadJob)} icon={<Film size={13} aria-hidden />}>
+            Add to video
+          </SecondaryAction>
+          <SecondaryAction
+            onClick={() => setActiveDubJobId(null)}
+            icon={<RotateCcw size={13} aria-hidden />}
+          >
+            Dub again
+          </SecondaryAction>
+        </ActionRow>
+      </>
+    ) : (
+      <PrimaryAction
+        label={media && needsSignIn ? "Sign in to dub" : `Dub into ${targetLabel}`}
+        busyLabel={`${stepLabel || "Working"}…`}
+        icon={
+          media && needsSignIn ? <Lock size={15} aria-hidden /> : <Languages size={16} aria-hidden />
+        }
+        busy={pipelineBusy || Boolean(actionJob)}
+        progress={stepPercent === null ? undefined : stepPercent / 100}
+        disabled={!media || customUploadLoading}
+        onClick={() => void handleStartDubbing()}
+        hint={
+          !media
+            ? "Add a video or audio file to get started"
+            : needsSignIn
+              ? `${estimatedCredits} credits to dub into ${targetLabel}`
+              : media.duration
+                ? `${estimatedCredits} credits · ${formatTime(media.duration, false)} at 5 per minute`
+                : "5 credits per minute"
+        }
+      />
+    );
+
   return (
-    <div className="space-y-6">
-      <section
+    <>
+      <StudioFrame
         id="video-dubbing"
-        aria-label="AI Video & Audio Dubbing Studio"
-        className="scroll-mt-20 overflow-hidden rounded-[26px] border border-line bg-white shadow-[0_2px_12px_rgba(15,15,16,0.03)]"
+        label="Video dubbing studio"
+        fill={false}
+        gridClassName={`${STUDIO_GRID} lg:grid-rows-[auto_1fr]`}
       >
-        {/* Studio header bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-[#fdfdfc] px-4 py-3.5 sm:px-5">
-          <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-white text-ink">
-              <ToolGlyph path="/video/dubbing" size={18} />
-            </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-[14px] font-semibold text-ink">AI Dubbing Studio</h2>
-                <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-[#a8432c]">
-                  SaaS Engine
-                </span>
-              </div>
-              <p className="mt-0.5 text-micro text-faint">
-                Extract audio locally, transcribe with Deepgram, dub with Drama 3 expression tags, then download MP3 or bind back to video.
-              </p>
-            </div>
-          </div>
+        {/* 1 · File in, preview, pipeline, script */}
+        <StudioStage className={`lg:row-start-1 ${LEFT_COLUMN}`}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/*,audio/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.mp3,.wav,.m4a,.aac,.flac,.ogg"
+            tabIndex={-1}
+            aria-label="Choose a video or audio file"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void ingestMediaFile(file);
+            }}
+            className="sr-only"
+          />
+          <input
+            ref={captionInputRef}
+            type="file"
+            accept=".srt,.vtt,text/vtt"
+            tabIndex={-1}
+            aria-label="Choose a subtitle file"
+            onChange={(e) => void handleImportCaptions(e)}
+            className="sr-only"
+          />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#cfe3d4] bg-[#f4faf5] px-2.5 py-1 text-[10.5px] font-medium text-[#2c6b3f]">
-              <ShieldCheck size={11} aria-hidden />
-              Zero-video upload
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/[0.06] px-2.5 py-1 text-[10.5px] font-medium text-[#a8432c]">
-              <Clock size={10} aria-hidden />
-              Up to 2 hours · 5 cr/min
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-[10.5px] font-medium text-muted">
-              <Cloud size={10} aria-hidden />
-              Deepgram + OpenRouter + Drama 3
-            </span>
-            {!isSignedIn && (
-              <button
-                type="button"
-                onClick={() => {
-                  setGateAction("run AI dubbing and manage your 24h dubbing vault");
-                  setGateOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-[10.5px] font-medium text-ink hover:bg-rail"
-              >
-                <Lock size={10} className="text-accent" aria-hidden />
-                Sign in to dub
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Main 2-column studio grid */}
-        <div className="grid lg:min-h-[700px] lg:grid-cols-[minmax(0,1fr)_396px]">
-          <div className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/*,audio/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.mp3,.wav,.m4a,.aac,.flac,.ogg"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                if (file) void ingestMediaFile(file);
-              }}
-              className="hidden"
-            />
-            <input
-              ref={captionInputRef}
-              type="file"
-              accept=".srt,.vtt,text/vtt"
-              onChange={(e) => void handleImportCaptions(e)}
-              className="hidden"
-            />
-
-            {loadError && (
-              <div className="mb-4 flex items-center gap-2 rounded-[12px] border border-[#f2c6c2] bg-[#fdf4f3] px-3.5 py-2.5 text-[12px] text-[#9b3127]">
-                <AlertCircle size={15} className="shrink-0" aria-hidden />
-                <span>{loadError}</span>
-              </div>
-            )}
-
-            {statusError && (
-              <div className="mb-4 flex items-center justify-between gap-2 rounded-[12px] border border-[#f2c6c2] bg-[#fdf4f3] px-3.5 py-2.5 text-[12px] text-[#9b3127]">
-                <span className="flex items-center gap-2">
-                  <AlertCircle size={15} className="shrink-0" aria-hidden />
-                  {statusError}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setStatusError(null)}
-                  className="shrink-0 text-[11px] font-medium underline"
+          {loadError || statusError || failedJob || resultJob ? (
+            <div className="mb-3 space-y-2">
+              {resultJob ? (
+                <ResultCard
+                  className={RESULT_CARD_FIT}
+                  title={`${getDubLanguageLabel(resultJob.targetLanguage)} dub is ready`}
+                  meta={`${resultJob.sourceVideoName} · MP3${
+                    resultJob.byteLength ? ` · ${formatBytes(resultJob.byteLength)}` : ""
+                  }`}
                 >
-                  Dismiss
-                </button>
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={() => setBindModalJob(resultJob)}
+                    className={buttonClasses("secondary", "md", "h-10 rounded-[12px]")}
+                  >
+                    <Film size={14} aria-hidden />
+                    Add to video
+                  </button>
+                  {resultJob.downloadUrl ? (
+                    <a
+                      href={resultJob.downloadUrl}
+                      download={resultJob.fileName}
+                      className={GREEN_LINK}
+                    >
+                      <Download size={15} aria-hidden />
+                      Download audio
+                    </a>
+                  ) : null}
+                </ResultCard>
+              ) : null}
 
-            {!media ? (
-              <div
-                onDragOver={(e: DragEvent) => {
+              {failedJob ? (
+                <Note tone="error">
+                  {failedJob.error || "The dub failed."} You can try again.
+                </Note>
+              ) : null}
+
+              {loadError ? <Note tone="error">{loadError}</Note> : null}
+
+              {statusError ? (
+                <Note tone="error">
+                  {statusError}{" "}
+                  <button
+                    type="button"
+                    onClick={() => setStatusError(null)}
+                    className="font-medium underline underline-offset-2"
+                  >
+                    Dismiss
+                  </button>
+                </Note>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!media ? (
+            <div className="flex flex-col lg:h-[calc(100dvh-236px)] lg:max-h-[820px] lg:min-h-[480px]">
+              <Dropzone
+                title="Drop a video or audio file to dub"
+                description="Translate the speech into another language, in the speaker's own voice."
+                buttonLabel="Choose a file"
+                limits="MP4, MOV, WebM, MKV, MP3, WAV, M4A and more · up to 2 hours"
+                note="Your video stays on this device. Only its audio is uploaded."
+                icon={<Film size={27} strokeWidth={1.5} aria-hidden />}
+                onChoose={() => fileInputRef.current?.click()}
+                dragging={dragging}
+                onDragOver={(e) => {
                   e.preventDefault();
                   setDragging(true);
                 }}
                 onDragLeave={() => setDragging(false)}
-                onDrop={(e: DragEvent) => {
+                onDrop={(e) => {
                   e.preventDefault();
                   setDragging(false);
                   const file = e.dataTransfer.files?.[0];
                   if (file) void ingestMediaFile(file);
                 }}
-                className={`flex flex-1 flex-col items-center justify-center rounded-[20px] border border-dashed px-6 py-12 text-center transition-colors ${
-                  dragging
-                    ? "border-accent bg-accent/[0.04]"
-                    : "border-[#d7d7d3] bg-gradient-to-b from-[#fafaf9] to-[#f4f4f1]/60"
-                }`}
-              >
-                <span className="grid h-14 w-14 place-items-center rounded-[16px] border border-line bg-white text-ink shadow-[0_4px_16px_rgba(15,15,16,0.06)]">
-                  <UploadCloud size={26} strokeWidth={1.5} aria-hidden />
-                </span>
-                <h3 className="mt-4 font-display text-[22px] font-semibold tracking-[-0.025em] text-ink">
-                  Drop a video or audio file to dub
-                </h3>
-                <p className="mt-1.5 max-w-lg text-[13px] leading-relaxed text-muted">
-                  Videos stay strictly inside your browser — we extract &amp; fix the audio codec locally before sending compact audio to Deepgram, OpenRouter, and Drama 3.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-ink px-6 text-[13px] font-medium text-white shadow-sm transition hover:bg-[#252528]"
-                >
-                  <Film size={14} aria-hidden />
-                  Choose video or audio file
-                </button>
-
-                <p className="mt-3 text-[11px] text-faint">
-                  Video (MP4, MOV, WebM, MKV, AVI) or Audio (MP3, WAV, M4A, FLAC, OGG) · up to 2 hours (120 min)
-                </p>
-
-                <div className="mt-6 grid w-full max-w-2xl gap-2 text-left sm:grid-cols-3">
-                  {[
-                    {
-                      icon: Mic2,
-                      title: "20s VAD voice cloning",
-                      desc: "Finds the cleanest 20s continuous speech span — or upload a custom voice file.",
-                    },
-                    {
-                      icon: Languages,
-                      title: "Semantic + tag chunking",
-                      desc: "Deepgram word timestamps grouped by OpenRouter with Drama 3 emotion cues.",
-                    },
-                    {
-                      icon: Sparkles,
-                      title: "Download or Bind later",
-                      desc: "Get MP3 & SRTs from your vault, or bind dual audio + subtitles onto MP4 in-browser.",
-                    },
-                  ].map((item) => {
-                    const CardIcon = item.icon;
-                    return (
-                      <div
-                        key={item.title}
-                        className="rounded-[14px] border border-line bg-white/85 p-3 shadow-[0_1px_3px_rgba(15,15,16,0.03)]"
-                      >
-                        <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-ink">
-                          <CardIcon size={12} className="text-accent" aria-hidden />
-                          {item.title}
-                        </div>
-                        <p className="mt-1 text-[10.5px] leading-snug text-faint">{item.desc}</p>
-                      </div>
-                    );
-                  })}
+                minHeightClass="min-h-[380px] lg:min-h-0"
+                chips={
+                  <>
+                    <DropChip>12 languages</DropChip>
+                    <DropChip>Editable script</DropChip>
+                    <DropChip>Subtitles included</DropChip>
+                  </>
+                }
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={STAGE_LABEL}>Preview</span>
+                  {media.duration ? <Chip>{formatTime(media.duration, false)}</Chip> : null}
+                  {detectedLangLabel ? <Chip>Detected: {detectedLangLabel}</Chip> : null}
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Media preview player */}
-                <div className="relative overflow-hidden rounded-[18px] border border-line bg-[#111113]">
-                  {media.kind === "video" ? (
-                    <div className="relative aspect-video w-full max-h-[340px] bg-black">
-                      <video
-                        ref={videoElRef}
-                        key={media.url}
-                        src={media.url}
-                        controls
-                        playsInline
-                        onTimeUpdate={(e) => setMediaCurrentSec(e.currentTarget.currentTime)}
-                        className="h-full w-full object-contain"
-                      />
-                      {activeDubAudioUrl && (
-                        <audio ref={syncedAudioRef} src={activeDubAudioUrl} preload="auto" />
-                      )}
 
-                      {activeCaptionSegment && captionMode !== "off" && (
-                        <div className="pointer-events-none absolute inset-x-4 bottom-12 flex justify-center">
-                          <div className="max-w-[92%] space-y-0.5 rounded-lg bg-black/80 px-3 py-1.5 text-center text-white backdrop-blur-sm">
-                            {(captionMode === "translated" || captionMode === "dual") && (
-                              <p className="text-[12.5px] font-medium leading-snug">
-                                {stripDramaTagsForSubtitles(
-                                  activeCaptionSegment.translatedText || activeCaptionSegment.sourceText,
-                                )}
-                              </p>
-                            )}
-                            {(captionMode === "original" || captionMode === "dual") &&
-                              activeCaptionSegment.sourceText && (
-                                <p
-                                  className={
-                                    captionMode === "dual"
-                                      ? "text-[10.5px] leading-snug text-amber-200/90"
-                                      : "text-[12.5px] font-medium leading-snug"
-                                  }
-                                >
-                                  {stripDramaTagsForSubtitles(activeCaptionSegment.sourceText)}
-                                </p>
-                              )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-3 bg-gradient-to-br from-[#17171a] to-[#232327] p-5 text-white">
-                      <div className="flex items-center gap-3">
-                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 text-accent">
-                          <FileAudio size={20} aria-hidden />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-[13.5px] font-semibold">{media.name}</p>
-                          <p className="text-[11px] text-white/65">
-                            Source audio file · {media.duration ? formatTime(media.duration, false) : "Preparing duration"} · {formatBytes(media.size)}
-                          </p>
-                        </div>
-                      </div>
-                      <audio
-                        ref={audioElRef}
-                        src={previewTrack === "dubbed" && activeDubAudioUrl ? activeDubAudioUrl : media.url}
-                        controls
-                        onTimeUpdate={(e) => setMediaCurrentSec(e.currentTarget.currentTime)}
-                        className="w-full"
-                      />
-                    </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {activeDubAudioUrl && (
+                    <Segmented
+                      label="Preview audio"
+                      className="w-[196px] border border-line"
+                      options={[
+                        { value: "original", label: "Original" },
+                        {
+                          value: "dubbed",
+                          label: "Dubbed",
+                          title: getDubLanguageLabel(
+                            latestCompletedForMedia?.targetLanguage || settings.targetLanguage,
+                          ),
+                        },
+                      ]}
+                      value={previewTrack}
+                      onChange={setPreviewTrack}
+                    />
                   )}
 
-                  {/* Toolbar & A/B track switcher */}
-                  <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-white/10 bg-[#18181b] px-4 py-2.5 text-white">
-                    <div className="min-w-0">
-                      <p className="truncate text-[12px] font-medium text-white">{media.name}</p>
-                      <p className="text-[10.5px] text-white/60">
-                        {media.kind === "video" && media.width > 0 ? `${media.width}×${media.height} · ` : ""}
-                        {media.duration ? `${formatTime(media.duration, false)} · ` : ""}
-                        {formatBytes(media.size)}
-                        {detectedLangLabel ? ` · Detected: ${detectedLangLabel}` : ""}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {activeDubAudioUrl && (
-                        <div className="inline-flex rounded-full bg-white/10 p-0.5 text-[11px]">
-                          <button
-                            type="button"
-                            onClick={() => setPreviewTrack("original")}
-                            className={`rounded-full px-3 py-1 font-medium transition-colors ${
-                              previewTrack === "original" ? "bg-white text-ink" : "text-white/75 hover:text-white"
-                            }`}
-                          >
-                            Original
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setPreviewTrack("dubbed")}
-                            className={`rounded-full px-3 py-1 font-medium transition-colors ${
-                              previewTrack === "dubbed" ? "bg-accent text-white" : "text-white/75 hover:text-white"
-                            }`}
-                          >
-                            Dubbed ({getDubLanguageLabel(latestCompletedForMedia?.targetLanguage || settings.targetLanguage)})
-                          </button>
-                        </div>
-                      )}
-
-                      {media.kind === "video" && (segments.length > 0 || latestCompletedForMedia) && (
-                        <select
-                          aria-label="Preview caption language"
-                          value={captionMode}
-                          onChange={(e) => setCaptionMode(e.target.value as OverlayCaptionMode)}
-                          className="h-7 rounded-full border border-white/20 bg-white/10 px-2.5 text-[10.5px] font-medium text-white outline-none"
-                        >
-                          <option value="translated" className="text-ink">
-                            Sub: Translated
-                          </option>
-                          <option value="original" className="text-ink">
-                            Sub: Original
-                          </option>
-                          <option value="dual" className="text-ink">
-                            Sub: Dual
-                          </option>
-                          <option value="off" className="text-ink">
-                            Sub: Off
-                          </option>
-                        </select>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-medium text-white/85 hover:bg-white/10"
-                      >
-                        Replace file
-                      </button>
-                    </div>
-                  </div>
+                  {media.kind === "video" && (segments.length > 0 || latestCompletedForMedia) && (
+                    <select
+                      aria-label="Preview caption language"
+                      value={captionMode}
+                      onChange={(e) => setCaptionMode(e.target.value as OverlayCaptionMode)}
+                      className="h-9 rounded-[10px] border border-line bg-white px-2.5 text-[13px] font-medium text-ink outline-none transition-colors focus:border-ink focus-visible:ring-2 focus-visible:ring-accent/30"
+                    >
+                      <option value="translated">Captions: translated</option>
+                      <option value="original">Captions: original</option>
+                      <option value="dual">Captions: both</option>
+                      <option value="off">Captions: off</option>
+                    </select>
+                  )}
                 </div>
+              </div>
 
-                {/* Pipeline quick actions bar */}
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-[14px] border border-line bg-[#fafaf9] p-3">
-                  <div className="flex flex-wrap items-center gap-2">
+              {media.kind === "video" ? (
+                <div className="relative aspect-video max-h-[340px] w-full overflow-hidden rounded-[16px] border border-line bg-black">
+                  <video
+                    ref={videoElRef}
+                    key={media.url}
+                    src={media.url}
+                    controls
+                    playsInline
+                    onTimeUpdate={(e) => setMediaCurrentSec(e.currentTarget.currentTime)}
+                    className="h-full w-full object-contain"
+                  />
+                  {activeDubAudioUrl && (
+                    <audio ref={syncedAudioRef} src={activeDubAudioUrl} preload="auto" />
+                  )}
+
+                  {activeCaptionSegment && captionMode !== "off" && (
+                    <div className="pointer-events-none absolute inset-x-4 bottom-12 flex justify-center">
+                      <div className="max-w-[92%] space-y-0.5 rounded-lg bg-black/80 px-3 py-1.5 text-center text-white backdrop-blur-sm">
+                        {(captionMode === "translated" || captionMode === "dual") && (
+                          <p className="text-[13px] font-medium leading-snug">
+                            {stripDramaTagsForSubtitles(
+                              activeCaptionSegment.translatedText || activeCaptionSegment.sourceText,
+                            )}
+                          </p>
+                        )}
+                        {(captionMode === "original" || captionMode === "dual") &&
+                          activeCaptionSegment.sourceText && (
+                            <p
+                              className={
+                                captionMode === "dual"
+                                  ? "text-[12px] leading-snug text-amber-200/90"
+                                  : "text-[13px] font-medium leading-snug"
+                              }
+                            >
+                              {stripDramaTagsForSubtitles(activeCaptionSegment.sourceText)}
+                            </p>
+                          )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-[16px] border border-line bg-white p-3">
+                  <audio
+                    ref={audioElRef}
+                    src={previewTrack === "dubbed" && activeDubAudioUrl ? activeDubAudioUrl : media.url}
+                    controls
+                    onTimeUpdate={(e) => setMediaCurrentSec(e.currentTarget.currentTime)}
+                    className="w-full"
+                  />
+                </div>
+              )}
+
+              <FileRow
+                icon={
+                  media.kind === "video" ? (
+                    <Film size={16} aria-hidden />
+                  ) : (
+                    <FileAudio size={16} aria-hidden />
+                  )
+                }
+                name={media.name}
+                meta={`${
+                  media.kind === "video" && media.width > 0 ? `${media.width} × ${media.height} · ` : ""
+                }${formatBytes(media.size)}`}
+                onReplace={() => fileInputRef.current?.click()}
+              />
+
+              <DubStepper
+                activeStep={activeStep}
+                stepsDone={stepsDone}
+                label={stepLabel}
+                detail={stepDetail}
+                percent={stepPercent}
+                title={stepTitle}
+              />
+
+              <section aria-label="Script" className="rounded-[16px] border border-line bg-white">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[13.5px] font-semibold text-ink">Script</h3>
+                    {segments.length > 0 ? (
+                      <Chip>
+                        {segments.length} {segments.length === 1 ? "line" : "lines"}
+                      </Chip>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1">
                     <button
                       type="button"
                       onClick={() => void runServerDeepgramTranscription(media)}
                       disabled={Boolean(browserStage) || transcribing || submitting}
-                      className="inline-flex h-8.5 items-center gap-1.5 rounded-full bg-ink px-3.5 py-1.5 text-[11.5px] font-medium text-white transition-colors hover:bg-[#272729] disabled:opacity-50"
+                      className={QUIET_BUTTON}
                     >
-                      {transcribing || browserStage ? (
-                        <Loader2 size={12} className="animate-spin" aria-hidden />
+                      {transcribing ? (
+                        <Loader2 size={13} className="animate-spin" aria-hidden />
                       ) : (
-                        <Wand2 size={12} aria-hidden />
+                        <Wand2 size={13} aria-hidden />
                       )}
-                      {segments.length > 0
-                        ? "Re-analyze (Deepgram + OpenRouter)"
-                        : "1. Extract Audio & Auto-Chunk"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => captionInputRef.current?.click()}
-                      className="inline-flex h-8.5 items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-[11.5px] font-medium text-ink hover:bg-rail"
-                    >
-                      <Captions size={12} aria-hidden />
-                      Import .SRT/.VTT
+                      {segments.length > 0 ? "Transcribe again" : "Transcribe first"}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => void handleTranslateOnly()}
                       disabled={segments.length === 0 || translating}
-                      className="inline-flex h-8.5 items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-[11.5px] font-medium text-ink hover:bg-rail disabled:opacity-45"
+                      className={QUIET_BUTTON}
                     >
                       {translating ? (
-                        <Loader2 size={12} className="animate-spin" aria-hidden />
+                        <Loader2 size={13} className="animate-spin" aria-hidden />
                       ) : (
-                        <Languages size={12} className="text-accent" aria-hidden />
+                        <Languages size={13} aria-hidden />
                       )}
-                      2. Re-translate &amp; tag
+                      Translate again
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => captionInputRef.current?.click()}
+                      className={QUIET_BUTTON}
+                    >
+                      <Captions size={13} aria-hidden />
+                      Import subtitles
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const lastEnd = segments[segments.length - 1]?.endSec ?? 0;
+                        const maxDur = media.duration || Math.max(lastEnd + 10, 60);
+                        const startSec = Number(Math.min(Math.max(0, maxDur - 2), lastEnd + 0.2).toFixed(2));
+                        const endSec = Number(Math.min(maxDur, startSec + 3).toFixed(2));
+                        const newId = `seg_${Date.now().toString(36)}`;
+                        focusedSegmentIdRef.current = newId;
+                        setSegments((cur) => [
+                          ...cur,
+                          {
+                            id: newId,
+                            startSec,
+                            endSec,
+                            sourceText: "",
+                            translatedText: "",
+                          },
+                        ]);
+                      }}
+                      className={QUIET_BUTTON}
+                    >
+                      <Plus size={13} aria-hidden />
+                      Add line
                     </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const lastEnd = segments[segments.length - 1]?.endSec ?? 0;
-                      const maxDur = media.duration || Math.max(lastEnd + 10, 60);
-                      const startSec = Number(Math.min(Math.max(0, maxDur - 2), lastEnd + 0.2).toFixed(2));
-                      const endSec = Number(Math.min(maxDur, startSec + 3).toFixed(2));
-                      const newId = `seg_${Date.now().toString(36)}`;
-                      focusedSegmentIdRef.current = newId;
-                      setSegments((cur) => [
-                        ...cur,
-                        {
-                          id: newId,
-                          startSec,
-                          endSec,
-                          sourceText: "",
-                          translatedText: "",
-                        },
-                      ]);
-                    }}
-                    className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[11px] font-medium text-muted hover:text-ink"
-                  >
-                    <Plus size={11} aria-hidden />
-                    Add line
-                  </button>
                 </div>
 
-                {browserStage && (
-                  <div className="rounded-[12px] border border-line bg-white p-3">
-                    <div className="flex items-center justify-between text-[11.5px]">
-                      <span className="flex items-center gap-2 font-medium text-ink">
-                        <Loader2 size={13} className="animate-spin text-accent" aria-hidden />
-                        {browserStage.label}
-                      </span>
-                      <span className="font-mono text-[11px] text-faint">{browserStage.percent}%</span>
-                    </div>
-                    <Progress value={browserStage.percent} className="mt-2 h-1.5" />
-                  </div>
-                )}
-
-                {/* Semantic script & Drama 3 expression tags editor */}
-                {segments.length > 0 && (
-                  <div className="rounded-[16px] border border-line bg-white">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft px-3.5 py-2.5">
-                      <div>
-                        <p className="text-[12px] font-semibold text-ink">
-                          Semantic dialogue chunks &amp; expression cues ({segments.length})
-                        </p>
-                        <p className="text-[10.5px] text-faint">
-                          Grouped by Deepgram timestamps + OpenRouter meaning. Tags like [excited] guide Drama 3 delivery and stay hidden in subtitles.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            downloadTextBlob(
-                              buildSrtFromSegments(segments, false),
-                              `${media.name.replace(/\.[^/.]+$/, "")}-original.srt`,
-                            )
-                          }
-                          className="text-[11px] font-medium text-muted hover:text-ink"
-                        >
-                          Original .SRT
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            downloadTextBlob(
-                              buildSrtFromSegments(segments, translatedCount > 0),
-                              `${media.name.replace(/\.[^/.]+$/, "")}-${settings.targetLanguage}.srt`,
-                            )
-                          }
-                          className="text-[11px] font-medium text-ink underline-offset-2 hover:underline"
-                        >
-                          Translated .SRT
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Drama 3 Expression Tag insertion bar */}
-                    <div className="flex flex-wrap items-center gap-1 border-b border-line-soft bg-[#fafaf9] px-3.5 py-2">
-                      <span className="mr-1 text-[10.5px] font-medium text-muted">
-                        Insert cue:
+                {segments.length === 0 ? (
+                  <p className="border-t border-line-soft px-3.5 py-3 text-[13px] leading-relaxed text-muted">
+                    Optional. Transcribe first to check and edit the translation line by line, or import
+                    subtitles you already have. Otherwise the dub does it all in one go.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-1 border-t border-line-soft px-3.5 py-2">
+                      <span
+                        className="mr-1 text-[12.5px] text-muted"
+                        title="Cues shape how a line is spoken. They never appear in subtitles."
+                      >
+                        Add a delivery cue:
                       </span>
                       {DUB_EXPRESSION_TAGS.map((t) => (
                         <button
                           key={t.tag}
                           type="button"
                           onClick={() => insertExpressionTagIntoFocused(t.tag)}
-                          className="rounded-full border border-line bg-white px-2 py-0.5 text-[10px] font-medium text-ink transition hover:border-ink hover:bg-rail"
+                          title={`Insert ${t.tag} into the selected line`}
+                          className="h-7 rounded-full border border-line bg-white px-2.5 text-[12px] font-medium text-ink transition-colors hover:border-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                         >
-                          {t.tag}
+                          {t.label}
                         </button>
                       ))}
                     </div>
 
-                    <div className="max-h-[280px] divide-y divide-line-soft overflow-y-auto">
+                    <div className="studio-main max-h-[420px] divide-y divide-line-soft overflow-y-auto border-t border-line-soft">
                       {segments.map((seg, idx) => {
                         const isRefSource =
                           speakerRef && Math.abs(speakerRef.startSec - seg.startSec) < 0.25;
                         return (
-                          <div key={seg.id} className="grid gap-2 p-3 sm:grid-cols-[126px_minmax(0,1fr)]">
-                            <div className="flex flex-col justify-between gap-1.5">
+                          <div key={seg.id} className="grid gap-2 p-3 sm:grid-cols-[148px_minmax(0,1fr)]">
+                            <div className="flex flex-row flex-wrap items-center justify-between gap-1.5 sm:flex-col sm:items-start sm:justify-start">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1253,16 +1266,16 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
                                     void el.play().catch(() => {});
                                   }
                                 }}
-                                title="Jump media to this chunk"
-                                className="inline-flex w-fit items-center gap-1 rounded-md border border-line bg-rail px-2 py-1 font-mono text-[10.5px] font-medium text-ink hover:border-ink"
+                                title="Play from this line"
+                                className="inline-flex h-7 w-fit items-center rounded-lg bg-card px-2 font-mono text-[12px] font-medium text-ink transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                               >
                                 {formatTime(seg.startSec, true)}–{formatTime(seg.endSec, true)}
                               </button>
 
-                              <div className="flex flex-wrap items-center gap-1.5">
+                              <div className="flex flex-wrap items-center gap-1">
                                 {typeof seg.speaker === "number" && (
-                                  <span className="rounded bg-rail px-1.5 py-0.5 text-[9.5px] font-medium text-muted">
-                                    S{seg.speaker + 1}
+                                  <span className="rounded bg-card px-1.5 py-0.5 text-[11px] font-medium text-muted">
+                                    Speaker {seg.speaker + 1}
                                   </span>
                                 )}
                                 {settings.voiceMode === "clone" &&
@@ -1281,13 +1294,14 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
                                           });
                                         }
                                       }}
-                                      className={`rounded px-1.5 py-0.5 text-[9.5px] font-medium ${
+                                      title="Take the voice sample starting at this line"
+                                      className={`rounded-md px-1.5 py-0.5 text-[12px] font-medium transition-colors ${
                                         isRefSource
-                                          ? "bg-accent/15 text-[#a8432c]"
-                                          : "border border-line text-faint hover:text-ink"
+                                          ? "bg-accent-soft text-accent-deep"
+                                          : "text-faint hover:bg-hover hover:text-ink"
                                       }`}
                                     >
-                                      {isRefSource ? "VAD sample ✓" : "Clone from here"}
+                                      {isRefSource ? "Voice sample ✓" : "Use as sample"}
                                     </button>
                                   )}
 
@@ -1295,9 +1309,9 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
                                   type="button"
                                   aria-label={`Remove segment ${idx + 1}`}
                                   onClick={() => setSegments((cur) => cur.filter((x) => x.id !== seg.id))}
-                                  className="text-faint hover:text-[#b43b30]"
+                                  className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                                 >
-                                  <Trash2 size={11} aria-hidden />
+                                  <Trash2 size={13} aria-hidden />
                                 </button>
                               </div>
                             </div>
@@ -1306,313 +1320,307 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
                               <textarea
                                 rows={2}
                                 value={seg.sourceText}
-                                placeholder="Original spoken phrase..."
+                                aria-label={`Original text, line ${idx + 1}`}
+                                placeholder="Original line"
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   setSegments((cur) =>
                                     cur.map((x) => (x.id === seg.id ? { ...x, sourceText: val } : x)),
                                   );
                                 }}
-                                className="w-full resize-none rounded-[9px] border border-line bg-[#fafaf9] px-2.5 py-1.5 text-[11.5px] leading-snug text-ink outline-none focus:border-ink focus:bg-white"
+                                className="w-full resize-none rounded-[10px] border border-line bg-card px-2.5 py-2 text-[13px] leading-snug text-ink outline-none transition-colors focus:border-ink focus:bg-white"
                               />
                               <textarea
                                 rows={2}
                                 value={seg.translatedText}
+                                aria-label={`${targetLabel} translation, line ${idx + 1}`}
                                 onFocus={() => {
                                   focusedSegmentIdRef.current = seg.id;
                                 }}
-                                placeholder={`Translated (${getDubLanguageLabel(settings.targetLanguage)}) with [expression] tags`}
+                                placeholder={`${targetLabel} translation`}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   setSegments((cur) =>
                                     cur.map((x) => (x.id === seg.id ? { ...x, translatedText: val } : x)),
                                   );
                                 }}
-                                className="w-full resize-none rounded-[9px] border border-line bg-white px-2.5 py-1.5 text-[11.5px] leading-snug text-ink outline-none focus:border-ink"
+                                className="w-full resize-none rounded-[10px] border border-line bg-white px-2.5 py-2 text-[13px] leading-snug text-ink outline-none transition-colors focus:border-ink"
                               />
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
-          <DubControls
-            settings={settings}
-            onChange={patchSettings}
-            hasMedia={Boolean(media)}
-            mediaKind={media?.kind ?? "video"}
-            durationSec={media?.duration ?? 0}
-            segmentCount={segments.length}
-            translatedCount={translatedCount}
-            estimatedCredits={estimatedCredits}
-            speakerRef={speakerRef}
-            customUploadRef={customUploadRef}
-            customUploadFileName={customUploadFileName}
-            customUploadLoading={customUploadLoading}
-            onUploadCustomVoiceFile={(file) => void handleCustomVoiceUpload(file)}
-            onClearCustomVoiceUpload={() => {
-              setCustomUploadRef((prev) => {
-                if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
-                return null;
-              });
-              setCustomUploadFileName(null);
-              patchSettings({ cloneSource: "auto_vad" });
-            }}
-            savedCustomVoices={savedClones}
-            activeCustomVoiceId={activeCloneId}
-            onSelectCustomVoice={setActiveCloneId}
-            onStartDub={() => void handleStartDubbing()}
-            submitting={submitting}
-            extracting={Boolean(browserStage) && !transcribing}
-            transcribing={transcribing}
-            translating={translating}
-            isSignedIn={isSignedIn}
-            pool={pool}
-          />
-        </div>
-      </section>
-
-      {/* Dedicated 24h User Profile Dub Vault & Bind-to-Video Workspace */}
-      <section aria-label="Your dubbed audio vault" className="min-w-0">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
-          <div className="flex items-center gap-2">
-            <h3 className="flex items-center gap-2 text-[14px] font-semibold text-ink">
-              <AudioLines size={15} className="text-accent" aria-hidden />
-              Your dubbed library
-              {jobs.length > 0 && (
-                <span className="rounded-full bg-[#f3f3f1] px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted">
-                  {jobs.length}
-                </span>
-              )}
-            </h3>
-          </div>
-          {storage && jobs.length > 0 && <GenerationStorageNotice ttlHours={storage.ttlHours} />}
-        </div>
-
-        {jobs.length === 0 ? (
-          isLoaded && !isSignedIn ? (
-            <div className="flex flex-col items-center rounded-[22px] border border-dashed border-[#d6d4cc] bg-white/70 px-6 py-10 text-center">
-              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-rail text-ink ring-1 ring-line">
-                <Lock size={18} aria-hidden />
-              </span>
-              <p className="mt-3 text-[14px] font-semibold text-ink">
-                Sign in to access your private dubbed vault
-              </p>
-              <p className="mt-1 max-w-md text-[12px] leading-relaxed text-muted">
-                Every user&apos;s dubbed audio tracks and subtitles stay separated in Tigris cloud storage for 24 hours, ready to download or bind back to your original video anytime.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setGateAction("dub videos and access your private 24h vault");
-                  setGateOpen(true);
-                }}
-                className="mt-4 inline-flex h-9 items-center gap-2 rounded-full bg-ink px-4 text-[12px] font-medium text-white hover:bg-[#222225]"
-              >
-                <Lock size={12} aria-hidden />
-                Sign in or create free account
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center rounded-[22px] border border-dashed border-[#d6d4cc] bg-white/60 px-6 py-10 text-center">
-              <p className="text-[13.5px] font-semibold text-ink">No dubbed audio saved yet</p>
-              <p className="mt-1 max-w-md text-[12px] text-muted">
-                Upload a video or audio above and click <strong className="text-ink">Generate Dubbed Audio</strong>. Completed tracks appear here with <strong className="text-ink">Download Audio</strong> and <strong className="text-ink">Bind to Video</strong>.
-              </p>
-            </div>
-          )
-        ) : (
-          <div className="space-y-3">
-            {jobs.map((job) => {
-              const badge = dubStatusBadge(job);
-              const isRunning = ACTIVE_DUB_STATUSES.has(job.status);
-              const stem = job.sourceVideoName.replace(/\.[^/.]+$/, "") || "media";
-              const sourceSrt =
-                job.sourceSrtText || (job.segments.length > 0 ? buildSrtFromSegments(job.segments, false) : "");
-              const dualSrt =
-                job.dualSrtText || (job.segments.length > 0 ? buildDualSrtFromSegments(job.segments) : "");
-
-              return (
-                <article
-                  key={job.id}
-                  className={`overflow-hidden rounded-[20px] border bg-white shadow-[0_1px_3px_rgba(15,15,16,0.03)] transition-colors ${
-                    isRunning ? "border-accent/40" : job.status === "failed" ? "border-rose-200" : "border-line"
-                  }`}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2 p-4 sm:px-5">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {job.status === "completed" ? (
-                          <CheckCircle2 size={15} className="text-[#2f8048]" aria-hidden />
-                        ) : job.status === "failed" ? (
-                          <AlertCircle size={15} className="text-[#b83d32]" aria-hidden />
-                        ) : (
-                          <Loader2 size={15} className="animate-spin text-accent" aria-hidden />
-                        )}
-
-                        <p className="truncate text-[13px] font-semibold text-ink">
-                          {job.sourceVideoName} → {getDubLanguageLabel(job.targetLanguage)}
-                        </p>
-
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${badge.className}`}
-                        >
-                          {badge.label}
-                        </span>
-
-                        <span className="rounded-full border border-line bg-[#fafaf9] px-2 py-0.5 text-[10px] text-muted">
-                          {job.voiceLabel}
-                        </span>
-
-                        {job.status === "completed" && (
-                          <GenerationExpiryBadge expiresAt={job.expiresAt} nowMs={nowMs} />
-                        )}
-                      </div>
-                      <p className="mt-1 text-[11px] text-muted">
-                        {job.stageLabel}
-                        {job.vadReferenceInfo
-                          ? ` · Cloned ${job.vadReferenceInfo.durationSec}s VAD (${formatTime(job.vadReferenceInfo.startSec, false)}–${formatTime(job.vadReferenceInfo.endSec, false)})`
-                          : ""}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-[11px] text-faint">
-                      <span className="inline-flex items-center gap-1 font-mono">
-                        <Clock size={10} aria-hidden />
-                        {formatTime(job.elapsedMs / 1000, false)}
-                      </span>
+                    <div className="flex flex-wrap items-center gap-1 border-t border-line-soft px-3.5 py-2 text-[12.5px] text-faint">
+                      <span className="mr-1">Download subtitles:</span>
                       <button
                         type="button"
-                        onClick={() => void handleDeleteJob(job.id)}
-                        aria-label="Delete dubbing job"
-                        className="rounded-lg p-1.5 text-faint hover:bg-rail hover:text-[#b43b30]"
+                        onClick={() =>
+                          downloadTextBlob(
+                            buildSrtFromSegments(segments, false),
+                            `${media.name.replace(/\.[^/.]+$/, "")}-original.srt`,
+                          )
+                        }
+                        className={QUIET_BUTTON}
                       >
-                        <Trash2 size={13} aria-hidden />
+                        Original
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadTextBlob(
+                            buildSrtFromSegments(segments, translatedCount > 0),
+                            `${media.name.replace(/\.[^/.]+$/, "")}-${settings.targetLanguage}.srt`,
+                          )
+                        }
+                        className={QUIET_BUTTON}
+                      >
+                        Translated
                       </button>
                     </div>
-                  </div>
+                  </>
+                )}
+              </section>
+            </div>
+          )}
 
-                  {isRunning && (
-                    <div className="border-t border-line-soft bg-accent/[0.025] px-4 py-3 sm:px-5">
-                      <Progress value={job.progress} showValue label={job.stageLabel} />
-                    </div>
-                  )}
+        </StudioStage>
 
-                  {job.status === "failed" && job.error && (
-                    <div className="border-t border-rose-100 bg-rose-50/70 px-4 py-3 text-[11.5px] text-rose-800 sm:px-5">
-                      {job.error}
-                    </div>
-                  )}
+        {/* 2 · Action + settings (sticky on desktop, docked on phones) */}
+        <DubControls
+          action={railAction}
+          settings={settings}
+          onChange={patchSettings}
+          speakerRef={speakerRef}
+          customUploadRef={customUploadRef}
+          customUploadFileName={customUploadFileName}
+          customUploadLoading={customUploadLoading}
+          onUploadCustomVoiceFile={(file) => void handleCustomVoiceUpload(file)}
+          onClearCustomVoiceUpload={() => {
+            setCustomUploadRef((prev) => {
+              if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+              return null;
+            });
+            setCustomUploadFileName(null);
+            patchSettings({ cloneSource: "auto_vad" });
+          }}
+          savedCustomVoices={savedClones}
+          activeCustomVoiceId={activeCloneId}
+          onSelectCustomVoice={setActiveCloneId}
+          pool={pool}
+        />
 
-                  {job.status === "completed" && job.audioUrl && (
-                    <div className="space-y-3 border-t border-line-soft bg-[#fbfbfa] p-4 sm:px-5">
-                      <AudioPlayer
-                        src={job.audioUrl}
-                        duration={Math.max(1, job.durationSeconds)}
-                        peaks={job.peaks}
-                        fileName={job.fileName}
-                        formatLabel={`MP3 · ${job.byteLength ? formatBytes(job.byteLength) : "Dubbed"}`}
-                      />
+        {/* 3 · Everything dubbed in the last 24 hours */}
+        <StudioStage className={`border-t border-line lg:row-start-2 ${LEFT_COLUMN}`}>
+          <section aria-label="Your dubbed audio" className="min-w-0">
+            <h2 className="flex items-center gap-2 text-[15px] font-semibold text-ink">
+              Your dubs
+              {jobs.length > 0 ? <Chip>{jobs.length}</Chip> : null}
+            </h2>
+            {storage ? (
+              <p className="mt-1 text-[12.5px] leading-relaxed text-faint">
+                Kept for {storage.ttlHours} hours. Older items may be cleared sooner when space is needed.
+              </p>
+            ) : null}
 
-                      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-0.5">
-                        {/* Subtitles & A/B sync helpers */}
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {media && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveDubJobId(job.id);
-                                setPreviewTrack("dubbed");
-                              }}
-                              className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10.5px] font-medium text-ink hover:bg-rail"
-                            >
-                              <RefreshCw size={10} aria-hidden />
-                              Preview synced in player
-                            </button>
-                          )}
+            {jobs.length === 0 ? (
+              isLoaded && !isSignedIn ? (
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <p className="text-[13px] text-muted">
+                    Sign in to dub and keep your tracks and subtitles here for 24 hours.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGateAction("dub videos and keep them for 24 hours");
+                      setGateOpen(true);
+                    }}
+                    className={buttonClasses("secondary", "md")}
+                  >
+                    <Lock size={13} aria-hidden />
+                    Sign in
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-3 text-[13px] text-muted">
+                  Nothing here yet. Finished dubs show up in this list with their subtitles.
+                </p>
+              )
+            ) : (
+              <ul className="mt-1 divide-y divide-line">
+                {jobs.map((job) => {
+                  const isRunning = ACTIVE_DUB_STATUSES.has(job.status);
+                  const stem = job.sourceVideoName.replace(/\.[^/.]+$/, "") || "media";
+                  const sourceSrt =
+                    job.sourceSrtText || (job.segments.length > 0 ? buildSrtFromSegments(job.segments, false) : "");
+                  const dualSrt =
+                    job.dualSrtText || (job.segments.length > 0 ? buildDualSrtFromSegments(job.segments) : "");
+                  const voiceName = job.voiceLabel.replace(/\s*\(20s VAD\)\s*$/i, "");
 
-                          {job.srtText && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                downloadTextBlob(job.srtText, `${stem}-${job.targetLanguage}.srt`)
-                              }
-                              className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10.5px] font-medium text-ink hover:bg-rail"
-                            >
-                              <Captions size={10} aria-hidden />
-                              Translated .SRT
-                            </button>
-                          )}
+                  return (
+                    <li key={job.id} className="py-4 last:pb-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {job.status === "completed" ? (
+                              <CheckCircle2 size={16} className="shrink-0 text-success" aria-hidden />
+                            ) : job.status === "failed" ? (
+                              <AlertCircle size={16} className="shrink-0 text-danger" aria-hidden />
+                            ) : (
+                              <Loader2 size={16} className="shrink-0 animate-spin text-accent" aria-hidden />
+                            )}
 
-                          {sourceSrt && (
-                            <button
-                              type="button"
-                              onClick={() => downloadTextBlob(sourceSrt, `${stem}-original.srt`)}
-                              className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10.5px] font-medium text-ink hover:bg-rail"
-                            >
-                              <Captions size={10} aria-hidden />
-                              Original .SRT
-                            </button>
-                          )}
+                            <p className="min-w-0 truncate text-[13.5px] font-semibold text-ink">
+                              {job.sourceVideoName} → {getDubLanguageLabel(job.targetLanguage)}
+                            </p>
 
-                          {dualSrt && (
-                            <button
-                              type="button"
-                              onClick={() => downloadTextBlob(dualSrt, `${stem}-dual.srt`)}
-                              className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10.5px] font-medium text-ink hover:bg-rail"
-                            >
-                              <Captions size={10} aria-hidden />
-                              Dual .SRT
-                            </button>
-                          )}
+                            {job.status === "completed" && (
+                              <GenerationExpiryBadge expiresAt={job.expiresAt} nowMs={nowMs} />
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-[12.5px] leading-snug text-faint" title={job.stageLabel}>
+                            {dubStatusLabel(job)}
+                            {voiceName ? ` · ${voiceName}` : ""}
+                            {job.vadReferenceInfo
+                              ? ` · voice sample ${formatTime(job.vadReferenceInfo.startSec, false)}–${formatTime(job.vadReferenceInfo.endSec, false)}`
+                              : ""}
+                            {" · "}
+                            <span className="tabular-nums">{formatTime(job.elapsedMs / 1000, false)}</span>
+                          </p>
                         </div>
 
-                        {/* Two primary actions requested: Download Audio & Bind to Video */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          {job.downloadUrl && (
-                            <a
-                              href={job.downloadUrl}
-                              download={job.fileName}
-                              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-white px-4 text-[11.5px] font-semibold text-ink transition hover:border-ink hover:bg-rail"
-                            >
-                              <Download size={12} aria-hidden />
-                              Download Audio (.mp3)
-                            </a>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => setBindModalJob(job)}
-                            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-[11.5px] font-semibold text-white transition hover:bg-[#242426]"
-                          >
-                            <Film size={12} aria-hidden />
-                            Bind Audio to Video
-                          </button>
-
-                          {job.videoDownloadUrl && (
-                            <a
-                              href={job.videoDownloadUrl}
-                              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#9bc5a7] bg-[#f4faf5] px-3.5 text-[11.5px] font-semibold text-[#1f5731] hover:bg-[#e5f5e9]"
-                            >
-                              <Download size={12} aria-hidden />
-                              Saved MP4
-                            </a>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteJob(job.id)}
+                          aria-label="Delete dubbing job"
+                          title="Delete"
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                        >
+                          <Trash2 size={14} aria-hidden />
+                        </button>
                       </div>
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
+
+                      {isRunning && (
+                        <div className="mt-2.5" title={job.stageLabel}>
+                          <Progress value={job.progress} showValue label={dubStatusLabel(job)} />
+                        </div>
+                      )}
+
+                      {job.status === "failed" && job.error && (
+                        <Note tone="error" className="mt-2.5">
+                          {job.error}
+                        </Note>
+                      )}
+
+                      {job.status === "completed" && job.audioUrl && (
+                        <div className="mt-3 space-y-2.5">
+                          <AudioPlayer
+                            src={job.audioUrl}
+                            duration={Math.max(1, job.durationSeconds)}
+                            peaks={job.peaks}
+                            fileName={job.fileName}
+                            formatLabel={`MP3 · ${job.byteLength ? formatBytes(job.byteLength) : "Dubbed"}`}
+                          />
+
+                          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                            <div className="flex flex-wrap items-center gap-0.5 text-[12.5px] text-faint">
+                              {media && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveDubJobId(job.id);
+                                    setPreviewTrack("dubbed");
+                                  }}
+                                  className={QUIET_BUTTON}
+                                >
+                                  <RefreshCw size={13} aria-hidden />
+                                  Play with the video
+                                </button>
+                              )}
+
+                              {(job.srtText || sourceSrt || dualSrt) && (
+                                <span className="ml-1 mr-0.5">Subtitles:</span>
+                              )}
+
+                              {job.srtText && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    downloadTextBlob(job.srtText, `${stem}-${job.targetLanguage}.srt`)
+                                  }
+                                  className={QUIET_BUTTON}
+                                  aria-label="Download translated subtitles"
+                                >
+                                  Translated
+                                </button>
+                              )}
+
+                              {sourceSrt && (
+                                <button
+                                  type="button"
+                                  onClick={() => downloadTextBlob(sourceSrt, `${stem}-original.srt`)}
+                                  className={QUIET_BUTTON}
+                                  aria-label="Download original subtitles"
+                                >
+                                  Original
+                                </button>
+                              )}
+
+                              {dualSrt && (
+                                <button
+                                  type="button"
+                                  onClick={() => downloadTextBlob(dualSrt, `${stem}-dual.srt`)}
+                                  className={QUIET_BUTTON}
+                                  aria-label="Download subtitles in both languages"
+                                >
+                                  Both
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              {job.videoDownloadUrl && (
+                                <a
+                                  href={job.videoDownloadUrl}
+                                  className={buttonClasses("secondary", "md", "h-9 rounded-[10px]")}
+                                >
+                                  <Download size={14} aria-hidden />
+                                  Saved video
+                                </a>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => setBindModalJob(job)}
+                                className={buttonClasses("secondary", "md", "h-9 rounded-[10px]")}
+                              >
+                                <Film size={14} aria-hidden />
+                                Add to video
+                              </button>
+
+                              {job.downloadUrl && (
+                                <a
+                                  href={job.downloadUrl}
+                                  download={job.fileName}
+                                  className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-success px-3.5 text-[13px] font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:ring-offset-2"
+                                >
+                                  <Download size={14} aria-hidden />
+                                  Download audio
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </StudioStage>
+      </StudioFrame>
 
       <BindVideoModal
         job={bindModalJob}
@@ -1631,6 +1639,94 @@ export function VideoDubbingStudio({ maxSizeMB = 2048 }: { maxSizeMB?: number })
         action={gateAction}
         cost={estimatedCredits}
       />
+    </>
+  );
+}
+
+const DUB_STEPS = ["Extract", "Transcribe", "Translate", "Dub"] as const;
+
+/** The whole pipeline in one place: four steps, and a single progress line for the active one. */
+function DubStepper({
+  activeStep,
+  stepsDone,
+  label,
+  detail,
+  percent,
+  title,
+}: {
+  activeStep: number | null;
+  stepsDone: number;
+  label: string;
+  detail: string;
+  percent: number | null;
+  title?: string;
+}) {
+  return (
+    <div className="rounded-[14px] border border-line bg-white px-3.5 py-3">
+      <ol className="flex items-start gap-1 sm:items-center sm:gap-2" aria-label="Dubbing steps">
+        {DUB_STEPS.map((name, index) => {
+          const active = activeStep === index;
+          const done = !active && ((activeStep !== null && index < activeStep) || index < stepsDone);
+          return (
+            <li
+              key={name}
+              aria-current={active ? "step" : undefined}
+              className="flex min-w-0 flex-1 flex-col items-center gap-1 sm:flex-row sm:gap-2"
+            >
+              <span
+                className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-semibold tabular-nums ${
+                  done
+                    ? "bg-success text-white"
+                    : active
+                      ? "bg-accent text-white"
+                      : "bg-card text-faint"
+                }`}
+              >
+                {done ? (
+                  <Check size={13} strokeWidth={3} aria-hidden />
+                ) : active ? (
+                  <Loader2 size={13} className="animate-spin" aria-hidden />
+                ) : (
+                  index + 1
+                )}
+              </span>
+              <span
+                className={`truncate text-[12px] sm:text-[13px] ${
+                  active || done ? "font-medium text-ink" : "text-faint"
+                }`}
+              >
+                {name}
+                {done ? <span className="sr-only"> (done)</span> : null}
+              </span>
+              {index < DUB_STEPS.length - 1 ? (
+                <span aria-hidden className="hidden h-px min-w-3 flex-1 bg-line sm:block" />
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+
+      {label ? (
+        <div className="mt-3" role="status" title={title}>
+          <div className="flex items-center justify-between gap-3 text-[12.5px]">
+            <span className="min-w-0 truncate font-medium text-ink">
+              {label}
+              {detail ? <span className="font-normal text-faint"> · {detail}</span> : null}
+            </span>
+            {percent !== null ? (
+              <span className="shrink-0 tabular-nums text-faint">{Math.round(percent)}%</span>
+            ) : null}
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-line">
+            <div
+              className={`h-full rounded-full bg-accent transition-[width] duration-300 ${
+                percent === null ? "animate-pulse" : ""
+              }`}
+              style={{ width: percent === null ? "100%" : `${Math.max(4, Math.min(100, percent))}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

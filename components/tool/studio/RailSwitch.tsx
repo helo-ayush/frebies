@@ -28,7 +28,7 @@ export function RailSwitch({
           {icon}
           {label}
         </span>
-        <span className="mt-0.5 block text-[11px] leading-relaxed text-faint">{description}</span>
+        <span className="mt-0.5 block text-[12px] leading-relaxed text-faint">{description}</span>
       </button>
       <Switch
         checked={checked}

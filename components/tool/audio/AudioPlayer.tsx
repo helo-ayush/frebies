@@ -16,11 +16,17 @@ type DragMode = "seek" | "start" | "end";
 
 const PLAYBACK_RATES = [1, 1.25, 1.5, 2, 0.75, 0.5];
 
+/**
+ * Waveform player. Three looks from the same props:
+ *  - default: a preview that grows to fill a flex column;
+ *  - `compact`: a short strip for results;
+ *  - with `selection` + `onSelectionChange`: a trim editor, with a tall
+ *    waveform and two draggable handles.
+ */
 export function AudioPlayer({
   src,
   duration,
   peaks,
-  fileName,
   formatLabel,
   selection,
   onSelectionChange,
@@ -52,6 +58,7 @@ export function AudioPlayer({
   const selectionStart = selection && total ? selection.start / total : 0;
   const selectionEnd = selection && total ? selection.end / total : 0;
   const bars = peaks.length > 0 ? peaks : Array.from({ length: 80 }, () => 0.2);
+  const editing = Boolean(selection && onSelectionChange);
 
   useEffect(() => {
     setCurrentTime(0);
@@ -112,15 +119,9 @@ export function AudioPlayer({
     dragRef.current = mode;
   }
 
-  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    const mode = dragRef.current;
-    if (!mode) return;
-    if (mode === "seek") {
-      seekTo(timeAt(event.clientX));
-      return;
-    }
+  /** Moves one edge of the selection, keeping the minimum gap between the two. */
+  function moveSelectionEdge(mode: "start" | "end", time: number) {
     if (!selection || !onSelectionChange) return;
-    const time = timeAt(event.clientX);
     const gap = Math.min(0.2, total / 20);
     if (mode === "start") {
       onSelectionChange({
@@ -133,6 +134,16 @@ export function AudioPlayer({
         end: clamp(time, Math.min(total, selection.start + gap), total),
       });
     }
+  }
+
+  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const mode = dragRef.current;
+    if (!mode) return;
+    if (mode === "seek") {
+      seekTo(timeAt(event.clientX));
+      return;
+    }
+    moveSelectionEdge(mode, timeAt(event.clientX));
   }
 
   function endDrag(event: ReactPointerEvent<HTMLDivElement>) {
@@ -158,6 +169,16 @@ export function AudioPlayer({
       event.preventDefault();
       seekTo(total);
     }
+  }
+
+  /** Arrow keys nudge a focused handle: 0.1 s, or 1 s with Shift. */
+  function onHandleKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, mode: "start" | "end") {
+    if (!selection || total <= 0) return;
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    event.stopPropagation();
+    const step = (event.shiftKey ? 1 : 0.1) * (event.key === "ArrowLeft" ? -1 : 1);
+    moveSelectionEdge(mode, (mode === "start" ? selection.start : selection.end) + step);
   }
 
   async function togglePlayback() {
@@ -212,8 +233,21 @@ export function AudioPlayer({
     changeRate(PLAYBACK_RATES[(index + 1) % PLAYBACK_RATES.length]);
   }
 
+  const trackSize = editing
+    ? "mx-2.5 min-h-[176px] flex-1 lg:min-h-[240px]"
+    : compact
+      ? "h-14"
+      : "min-h-[112px] flex-1";
+  const skipButton = `grid shrink-0 place-items-center rounded-full border border-line bg-white text-muted transition-colors hover:bg-hover hover:text-ink ${
+    compact ? "h-8 w-8" : "h-9 w-9"
+  }`;
+
   return (
-    <div className={`rounded-[14px] border border-line bg-white ${compact ? "p-3.5" : "p-4"}`}>
+    <div
+      className={`min-w-0 rounded-[14px] border border-line bg-white ${
+        compact ? "p-3" : "flex flex-1 flex-col p-3.5 sm:p-4"
+      }`}
+    >
       <audio
         ref={audioRef}
         src={src}
@@ -249,20 +283,6 @@ export function AudioPlayer({
         className="hidden"
       />
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
-          <span className="truncate text-[10px] font-medium uppercase tracking-[0.1em] text-faint">
-            {fileName ? "Preview" : "Waveform"}
-          </span>
-        </div>
-        {formatLabel && (
-          <span className="shrink-0 rounded-full border border-line bg-[#fbfaf7] px-2 py-0.5 text-[9px] font-medium text-muted">
-            {formatLabel}
-          </span>
-        )}
-      </div>
-
       <div
         ref={trackRef}
         role="slider"
@@ -278,120 +298,123 @@ export function AudioPlayer({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onKeyDown={onTrackKeyDown}
-        className={`relative mt-3 touch-none select-none outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${
-          compact ? "h-16" : "h-24"
-        } cursor-pointer rounded-[8px] bg-[#fbfaf7]`}
+        className={`relative cursor-pointer touch-none select-none rounded-[10px] bg-card outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${trackSize}`}
       >
-        <div className="absolute inset-0 flex items-center gap-[2px]">
+        {selection && total > 0 && (
+          <div
+            aria-hidden
+            className={`pointer-events-none absolute inset-y-0 ${
+              editing ? "border-y-[3px] border-accent bg-white" : "bg-accent-soft"
+            }`}
+            style={{
+              left: `${selectionStart * 100}%`,
+              right: `${(1 - selectionEnd) * 100}%`,
+            }}
+          />
+        )}
+
+        <div className={`absolute inset-x-0 flex items-center gap-[2px] ${editing ? "inset-y-3" : "inset-y-1.5"}`}>
           {bars.map((peak, index) => {
             const position = (index + 0.5) / bars.length;
             const played = position <= progress;
             const inSelection =
               Boolean(selection) && position >= selectionStart && position <= selectionEnd;
+            const tone = selection
+              ? inSelection
+                ? played
+                  ? "bg-ink"
+                  : "bg-accent/70"
+                : "bg-[#ddd8cd]"
+              : played
+                ? "bg-ink"
+                : "bg-[#d8d2c5]";
             return (
               <span
                 key={index}
-                className={`w-full flex-1 rounded-full transition-colors ${
-                  played
-                    ? "bg-ink"
-                    : inSelection
-                      ? "bg-accent/55"
-                      : "bg-[#d8d2c5]"
-                }`}
+                className={`w-full flex-1 rounded-full transition-colors ${tone}`}
                 style={{ height: `${Math.max(8, peak * 100)}%` }}
               />
             );
           })}
         </div>
 
-        {selection && total > 0 && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 rounded-[4px] border-x border-accent/50 bg-accent/[0.06]"
-            style={{
-              left: `calc(${selectionStart * 100}% + 0px)`,
-              right: `calc(${(1 - selectionEnd) * 100}% + 0px)`,
-            }}
-          />
-        )}
-
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-y-1 w-px bg-accent"
-          style={{ left: `calc(${progress * 100}%)` }}
-        >
-          <span className="absolute -left-[3px] -top-1 h-[7px] w-[7px] rounded-full border border-white bg-accent" />
-        </span>
+          className={`pointer-events-none absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 rounded-full ${
+            editing ? "bg-ink" : "bg-accent"
+          }`}
+          style={{ left: `${progress * 100}%` }}
+        />
 
         {selection && onSelectionChange && total > 0 && (
           <>
             <SelectionHandle
+              side="start"
               label="Drag selection start"
               left={selectionStart}
               onPointerDown={(event) => beginSelection(event, "start")}
+              onKeyDown={(event) => onHandleKeyDown(event, "start")}
             />
             <SelectionHandle
+              side="end"
               label="Drag selection end"
               left={selectionEnd}
               onPointerDown={(event) => beginSelection(event, "end")}
+              onKeyDown={(event) => onHandleKeyDown(event, "end")}
             />
           </>
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+      <div
+        className={`flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 ${
+          compact ? "mt-2.5" : "mt-3"
+        }`}
+      >
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => skip(-5)}
-            aria-label="Back 5 seconds"
-            className="grid h-8 w-8 place-items-center rounded-full border border-line bg-white text-muted transition-colors hover:bg-hover hover:text-ink"
-          >
-            <SkipBack size={13} aria-hidden />
+          <button type="button" onClick={() => skip(-5)} aria-label="Back 5 seconds" className={skipButton}>
+            <SkipBack size={14} aria-hidden />
           </button>
           <button
             type="button"
             onClick={() => void togglePlayback()}
             aria-label={loading ? "Loading audio" : playing ? "Pause" : "Play"}
             aria-busy={loading}
-            className="grid h-10 w-10 place-items-center rounded-full bg-ink text-white transition-colors hover:bg-[#2a2a2b]"
+            className={`grid shrink-0 place-items-center rounded-full bg-ink text-white transition-colors hover:bg-[#2a2a2b] ${
+              compact ? "h-10 w-10" : "h-11 w-11"
+            }`}
           >
             {loading ? (
-              <Loader2 size={15} className="animate-spin" aria-hidden />
+              <Loader2 size={16} className="animate-spin" aria-hidden />
             ) : playing ? (
-              <Pause size={15} fill="currentColor" aria-hidden />
+              <Pause size={16} fill="currentColor" aria-hidden />
             ) : (
-              <Play size={15} fill="currentColor" className="ml-0.5" aria-hidden />
+              <Play size={16} fill="currentColor" className="ml-0.5" aria-hidden />
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => skip(5)}
-            aria-label="Forward 5 seconds"
-            className="grid h-8 w-8 place-items-center rounded-full border border-line bg-white text-muted transition-colors hover:bg-hover hover:text-ink"
-          >
-            <SkipForward size={13} aria-hidden />
+          <button type="button" onClick={() => skip(5)} aria-label="Forward 5 seconds" className={skipButton}>
+            <SkipForward size={14} aria-hidden />
           </button>
         </div>
 
-        <div className="flex items-center gap-2 rounded-full border border-line bg-white px-2 py-1">
+        <div className="flex items-center gap-1 rounded-full border border-line bg-white px-1.5 py-1">
           <button
             type="button"
             onClick={cycleRate}
             aria-label={`Playback speed ${rate}×`}
             title={`Playback speed ${rate}×`}
-            className="min-w-9 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted transition-colors hover:bg-hover hover:text-ink"
+            className="h-7 min-w-[42px] rounded-full px-1.5 text-[12px] font-medium tabular-nums text-muted transition-colors hover:bg-hover hover:text-ink"
           >
             {rate}×
           </button>
-          <span className="h-3.5 w-px bg-line" aria-hidden />
+          <span className="h-4 w-px bg-line" aria-hidden />
           <button
             type="button"
             onClick={() => changeVolume(volume > 0 ? 0 : 1)}
             aria-label={volume > 0 ? "Mute" : "Unmute"}
-            className="grid h-6 w-6 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-ink"
+            className="grid h-7 w-7 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-ink"
           >
-            {volume > 0 ? <Volume2 size={12} aria-hidden /> : <VolumeX size={12} aria-hidden />}
+            {volume > 0 ? <Volume2 size={14} aria-hidden /> : <VolumeX size={14} aria-hidden />}
           </button>
           <input
             type="range"
@@ -401,18 +424,18 @@ export function AudioPlayer({
             value={volume}
             aria-label="Volume"
             onChange={(event) => changeVolume(Number(event.target.value))}
-            className="h-1 w-16 cursor-pointer accent-[#171717]"
+            className="mr-1 hidden h-1 w-16 cursor-pointer accent-ink sm:block"
           />
         </div>
 
         <div className="flex items-center gap-2">
-          {selection && (
-            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[9.5px] font-medium text-[#a8432c]">
-              {formatTime(selection.end - selection.start, true)} selected
+          {formatLabel && (
+            <span className="inline-flex h-6 items-center rounded-full border border-line bg-white px-2.5 text-[12px] font-medium text-muted">
+              {formatLabel}
             </span>
           )}
-          <span className="text-[10.5px] tabular-nums text-faint">
-            <span className="font-medium text-ink">{formatTime(currentTime, true)}</span> /{" "}
+          <span className="text-[13px] tabular-nums text-faint">
+            <span className="font-semibold text-ink">{formatTime(currentTime, true)}</span> /{" "}
             {formatTime(total, true)}
           </span>
         </div>
@@ -421,14 +444,22 @@ export function AudioPlayer({
   );
 }
 
+/**
+ * One edge of the trim selection. The hit area is 44px wide for touch; the
+ * visible bar sits just outside the selection so it never covers kept audio.
+ */
 function SelectionHandle({
+  side,
   label,
   left,
   onPointerDown,
+  onKeyDown,
 }: {
+  side: "start" | "end";
   label: string;
   left: number;
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
@@ -436,12 +467,18 @@ function SelectionHandle({
       aria-label={label}
       title={label}
       onPointerDown={onPointerDown}
-      className="absolute top-1/2 z-20 h-9 w-5 -translate-x-1/2 -translate-y-1/2 touch-none cursor-ew-resize"
+      onKeyDown={onKeyDown}
+      className="group absolute inset-y-0 z-20 w-11 -translate-x-1/2 cursor-ew-resize touch-none"
       style={{ left: `${left * 100}%` }}
     >
-      <span className="absolute left-1/2 top-1/2 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent" />
-      <span className="absolute left-1/2 top-[3px] h-2.5 w-2.5 -translate-x-1/2 rounded-full border border-accent bg-white shadow-sm" />
-      <span className="absolute bottom-[3px] left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full border border-accent bg-white shadow-sm" />
+      <span
+        aria-hidden
+        className={`absolute inset-y-0 grid w-3.5 place-items-center bg-accent shadow-[0_2px_8px_-2px_rgba(207,74,44,0.6)] transition-colors group-hover:bg-accent-deep group-active:bg-accent-deep ${
+          side === "start" ? "right-1/2 rounded-l-[7px]" : "left-1/2 rounded-r-[7px]"
+        }`}
+      >
+        <span className="h-6 w-[3px] rounded-full bg-white/90" />
+      </span>
     </button>
   );
 }

@@ -44,7 +44,7 @@ function useCrumbs(): Crumb[] {
 const iconBtn =
   "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-ink";
 const kbd =
-  "rounded-md border border-line bg-white px-1.5 py-0.5 text-[10px] leading-none text-muted";
+  "rounded-md border border-line bg-white px-1.5 py-0.5 text-[11.5px] leading-none text-muted";
 
 export function Topbar({
   onOpenNav,
@@ -170,7 +170,7 @@ export function Topbar({
                     className="h-6 w-6 rounded-full object-cover"
                   />
                 ) : (
-                  <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[10.5px] font-semibold text-white">
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[12px] font-semibold text-white">
                     {user.initials}
                   </span>
                 )}

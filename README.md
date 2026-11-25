@@ -12,27 +12,29 @@ A free-first online toolbox for images, documents and audio.
 
 Implemented:
 
-- Workbench shell: 264px sidebar with a 72px collapsed rail, 56px topbar, mobile drawer, ⌘K tool search
+- Workbench shell: 264px sidebar with a 72px collapsed rail (⌘B, remembered between visits), 56px topbar, mobile drawer, ⌘K tool search
 - Custom rounded-outline icon set for shell navigation and all 16 tools
 - Scrollbars hidden across the product while every scroll region remains usable
 - Typed tool registry driving navigation, dashboard, hubs, metadata and sitemap
 - `/dashboard`, `/image`, `/document`, `/audio`
-- Tool-specific static UI previews for all 16 registry tools
-- Editorial dashboard with a live launcher, layered workspace illustration, category cards, list/grid directory and credits/activity panels
-- Restored warm editorial landing with animated tool carousel and a full workbench preview section
+- Every tool page opens straight into its studio: a one-row header, then a studio that fills the viewport
+- Shared studio kit in `components/tool/kit/` (frame, stage, dropzone, primary action, result card); the primary action sits at the top of the settings rail and docks to the bottom of the screen on phones
+- Dashboard: quick-launch row, searchable tool grid with category and Free / AI filters
+- Landing page: three.js hero (`components/landing/HeroScene.tsx`), tool search, a pinned scroll story, category bento, isometric privacy section, pricing and FAQ
 - Richer category hubs, sign-in preview and custom 404
 - Guest-only credit locks, credit cost badges, disabled processing actions
 - `robots.txt`, `sitemap.xml` with every canonical tool URL, JSON-LD, custom 404
 - Next.js upgraded from 14.2.15 to 16.4.3
 - Magic UI layer (blur reveals, number tickers, marquee, border beams, dot/grid patterns, gradient text, scroll progress)
 - Working on-device image tools: convert, compress, resize/crop (with a draggable crop box) and image-to-PDF
-- Dedicated document studios (merge, split, PDF to JPG, OCR, AI editor) with their own heroes and rails
+- Working on-device PDF tools: merge, split (pdf-lib) and PDF to JPG / PNG / WebP (pdf.js), with real page thumbnails
+- Interface previews, not connected yet: OCR, AI PDF editor, background remover, speech to text
 
 Not connected yet:
 
 - Supabase project and environment keys (Phase 2)
 - Razorpay (Phase 3)
-- PDF, audio and AI engines (their studios are interface previews)
+- OCR, AI PDF editor, background remover and speech-to-text engines (their studios are interface previews)
 - React 19 upgrade; Next 16 currently warns that React 18 is deprecated
 
 ## UI system
@@ -91,5 +93,5 @@ services are created.
 - `/` — marketing landing page
 - `/dashboard` — workbench tool directory (`noindex`)
 - `/image`, `/document`, `/audio` — category hubs
-- `/{category}/{tool}` — all 16 tool workspaces (UI previews; engines not connected)
+- `/{category}/{tool}` — all 17 tool workspaces
 - `/sign-in` — sign-in preview (`noindex`)

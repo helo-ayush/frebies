@@ -30,7 +30,7 @@ export function GenerationExpiryBadge({
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium tabular-nums ${TONE_STYLES[tone]}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] font-medium tabular-nums ${TONE_STYLES[tone]}`}
     >
       <Clock size={10} className="shrink-0 opacity-80" aria-hidden />
       <span>{label}</span>
@@ -47,13 +47,13 @@ export function GenerationStorageNotice({
 }) {
   const stayVerb = noun.trim().toLowerCase().endsWith("s") ? "stay" : "stays";
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white/80 px-3 py-2 text-[11px] text-muted">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white/80 px-3 py-2 text-[12px] text-muted">
       <span className="inline-flex items-center gap-1.5">
         <Clock size={12} className="shrink-0 text-faint" aria-hidden />
         {noun} {stayVerb} saved for{" "}
         <strong className="font-medium text-ink">{ttlHours} hours</strong>
       </span>
-      <span className="text-[10.5px] text-faint">
+      <span className="text-[12px] text-faint">
         Older items may be cleared earlier when space is needed
       </span>
     </div>

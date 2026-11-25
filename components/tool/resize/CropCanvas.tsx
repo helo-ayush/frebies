@@ -218,7 +218,7 @@ export function CropCanvas({
                 type="button"
                 aria-pressed={active}
                 onClick={() => onRatioChange(opt.id)}
-                className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
                   active ? "bg-ink font-semibold text-white shadow-2xs" : "text-muted hover:text-ink"
                 }`}
               >
@@ -230,7 +230,7 @@ export function CropCanvas({
             <button
               type="button"
               onClick={onReset}
-              className="ml-1 rounded-full border border-line px-2 py-0.5 text-[10.5px] font-medium text-muted hover:border-[#c8c2b7] hover:text-ink"
+              className="ml-1 rounded-full border border-line px-2 py-0.5 text-[12px] font-medium text-muted hover:border-[#c8c2b7] hover:text-ink"
             >
               Reset
             </button>
@@ -319,10 +319,14 @@ export function CropCanvas({
           />
 
           {/* Floating Dimension & Ratio Badge */}
-          <div className="pointer-events-none absolute left-2 top-2 z-30 flex items-center gap-1.5 rounded-md border border-white/20 bg-black/75 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-white shadow-xs backdrop-blur-xs select-none">
+          <div className="pointer-events-none absolute left-2 top-2 z-30 flex select-none items-center gap-1.5 whitespace-nowrap rounded-md bg-black/75 px-2 py-1 text-[12px] font-semibold leading-none tabular-nums text-white">
             <span>{pixels.width} × {pixels.height} px</span>
-            <span className="text-white/60">·</span>
-            <span className="uppercase text-[9px] text-white/80">{ratioId === "free" ? "Free" : ratioId}</span>
+            {ratioId !== "free" && (
+              <>
+                <span className="text-white/60">·</span>
+                <span className="text-white/80">{ratioId}</span>
+              </>
+            )}
           </div>
 
           {/* ========================================================================= */}
@@ -401,9 +405,9 @@ export function CropCanvas({
       </div>
 
       {/* Bottom Hint */}
-      <div className="mt-2 text-center text-[10.5px] text-faint">
-        Drag borders or handles to resize · Drag center to reposition
-      </div>
+      <p className="mt-2 text-center text-[12.5px] leading-[18px] text-muted">
+        Drag the handles to resize, or drag inside the box to move it.
+      </p>
     </div>
   );
 }

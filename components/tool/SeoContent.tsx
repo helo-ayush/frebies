@@ -26,30 +26,29 @@ export function SeoContent({ tool, category }: { tool: Tool; category: Category 
       ];
 
   return (
-    <div className="mt-14 border-t border-line-soft pt-10">
+    <div className="mx-auto mt-16 max-w-[1280px] border-t border-line pt-12">
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-10">
           <section>
-            <p className="text-micro font-medium text-faint">A simpler workflow</p>
-            <h2 className="mt-1.5 text-[20px] font-semibold tracking-[-0.02em]">How {tool.name} works</h2>
+            <h2 className="font-display text-[26px] font-semibold tracking-[-0.03em]">How {tool.name} works</h2>
             <ol className="mt-5 grid gap-3 sm:grid-cols-3">
               {steps.map((step, index) => (
-                <li key={step} className="rounded-[13px] border border-line bg-white p-4">
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-rail text-micro font-semibold text-muted">
+                <li key={step} className="rounded-[18px] border border-line bg-white p-5">
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-[13px] font-semibold text-white">
                     {index + 1}
                   </span>
-                  <p className="mt-4 text-ui leading-relaxed text-muted">{step}</p>
+                  <p className="mt-4 text-[14.5px] leading-relaxed text-muted">{step}</p>
                 </li>
               ))}
             </ol>
           </section>
 
           <section>
-            <h2 className="text-[18px] font-semibold tracking-[-0.015em]">Made to stay out of your way</h2>
+            <h2 className="font-display text-[22px] font-semibold tracking-[-0.025em]">Why use it</h2>
             <ul className="mt-4 grid gap-3 sm:grid-cols-3">
               {benefits.map((benefit) => (
-                <li key={benefit} className="rounded-[13px] bg-rail p-4 text-ui leading-relaxed text-muted">
-                  <Check size={15} className="mb-3 text-ink" aria-hidden />
+                <li key={benefit} className="rounded-[18px] bg-card p-5 text-[14.5px] leading-relaxed text-muted">
+                  <Check size={16} className="mb-3 text-success" aria-hidden />
                   {benefit}
                 </li>
               ))}
@@ -58,26 +57,25 @@ export function SeoContent({ tool, category }: { tool: Tool; category: Category 
 
           {tool.seo.faq.length > 0 && (
             <section>
-              <h2 className="text-[18px] font-semibold tracking-[-0.015em]">Frequently asked questions</h2>
+              <h2 className="font-display text-[22px] font-semibold tracking-[-0.025em]">Frequently asked questions</h2>
               <div className="mt-3 border-t border-line-soft">
                 {tool.seo.faq.map((item) => (
                   <details key={item.q} className="group border-b border-line-soft py-4">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-ink">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-medium text-ink">
                       {item.q}
                       <ChevronDown size={15} className="shrink-0 text-faint transition-transform group-open:rotate-180" aria-hidden />
                     </summary>
-                    <p className="mt-2.5 max-w-2xl text-ui leading-relaxed text-muted">{item.a}</p>
+                    <p className="mt-2.5 max-w-2xl text-[14.5px] leading-relaxed text-muted">{item.a}</p>
                   </details>
                 ))}
               </div>
             </section>
           )}
 
-          <p className="text-micro text-faint">Last updated October 2026</p>
         </div>
 
         <aside className="min-w-0">
-          <h2 className="text-[18px] font-semibold tracking-[-0.015em]">Related tools</h2>
+          <h2 className="font-display text-[22px] font-semibold tracking-[-0.025em]">Related tools</h2>
           <div className="mt-3 space-y-2.5">
             {related.map((item) => (
               <RelatedRow key={item.path} tool={item} />

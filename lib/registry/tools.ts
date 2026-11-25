@@ -510,7 +510,7 @@ export const tools: Tool[] = [
     name: "Image Upscaler",
     shortName: "Upscale",
     h1: "Image Upscaler",
-    tagline: "Enlarge images 2× or 4× with Free FP16 & Pro SeedVR2-3B FP8 AI.",
+    tagline: "Enlarge images 2× or 4× with AI, keeping edges and detail sharp.",
     description:
       "Async GPU image super-resolution with 4x-UltraSharpV2 Lite (FP16) or Pro SeedVR2-3B (FP8), split/loupe comparison, and 24-hour cloud vault retention.",
     keywords: ["image upscaler", "upscale image", "ai image upscaler", "4x image"],
@@ -706,17 +706,50 @@ export const tools: Tool[] = [
     icon: Scissors,
     tier: "free",
     engine: "browser",
-    status: "soon",
+    status: "live",
     featured: true,
-    limits: { maxSizeMB: 25, formats: ["PDF"], maxPages: 100 },
+    limits: { maxSizeMB: 25, formats: ["PDF"] },
     resumeBehavior: "auto",
     seo: {
       title: "Split PDF Online Free — Extract Pages from a PDF",
       metaDescription:
-        "Split a PDF into separate files or extract page ranges in your browser. Free and private.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Split a PDF into separate files or extract page ranges in your browser. Pick pages on real thumbnails, split every N pages or by odd and even. Free and private.",
+      howItWorks: [
+        "Add a PDF. Its pages are read and drawn as thumbnails in your browser.",
+        "Click the pages to keep, type ranges like 1-3, 6, or split the whole file every N pages.",
+        "Split, then download one PDF or a ZIP with every part.",
+      ],
+      benefits: [
+        "Pages are copied, not re-rendered, so text, links and image quality stay intact.",
+        "Three ways to split: picked pages, even chunks, or odd and even sides.",
+        "Runs on your device with no account, no upload and no watermark.",
+      ],
+      faq: [
+        {
+          q: "Is Split PDF free?",
+          a: "Yes. Extracting pages and splitting a document are free and unlimited, with no account.",
+        },
+        {
+          q: "Is my PDF uploaded?",
+          a: "No. The file is opened and split inside your browser, and the new PDFs are created on your device.",
+        },
+        {
+          q: "How do I extract just a few pages?",
+          a: "Choose Extract pages, then click the thumbnails or type ranges such as 1-3, 6. Turn on One file per page to save each picked page separately.",
+        },
+        {
+          q: "Can I split a PDF into single pages?",
+          a: "Yes. Choose Split every N pages and set it to 1. You get one PDF per page in a single ZIP.",
+        },
+        {
+          q: "Does splitting reduce quality?",
+          a: "No. Pages are copied as they are, so nothing is recompressed.",
+        },
+        {
+          q: "Can I split a password-protected PDF?",
+          a: "Not directly. Remove the password first, then add the file again.",
+        },
+      ],
       related: ["merge-pdf", "pdf-to-jpg", "ocr"],
     },
   },
@@ -727,22 +760,55 @@ export const tools: Tool[] = [
     name: "PDF to JPG",
     shortName: "PDF to JPG",
     h1: "PDF to JPG",
-    tagline: "Turn PDF pages into images.",
+    tagline: "Turn PDF pages into JPG, PNG or WebP images.",
     description: "Export selected PDF pages as high-quality JPG images.",
     keywords: ["pdf to jpg", "pdf to image", "convert pdf to jpeg"],
     icon: FileImage,
     tier: "free",
     engine: "browser",
-    status: "soon",
-    limits: { maxSizeMB: 25, formats: ["PDF"], maxPages: 100 },
+    status: "live",
+    limits: { maxSizeMB: 25, formats: ["PDF"] },
     resumeBehavior: "auto",
     seo: {
       title: "PDF to JPG — Convert PDF Pages to Images Free",
       metaDescription:
-        "Convert PDF pages into JPG images in your browser. Free, private and no sign-up.",
-      howItWorks: [],
-      benefits: [],
-      faq: [],
+        "Convert PDF pages into JPG, PNG or WebP images in your browser at up to 300 DPI. Pick pages, download one image or a ZIP. Free, private and no sign-up.",
+      howItWorks: [
+        "Add a PDF. Every page appears as a thumbnail, all selected by default.",
+        "Choose JPG, PNG or WebP, a resolution from 72 to 300 DPI, and the pages you want.",
+        "Convert, preview the images, then download one file or a ZIP.",
+      ],
+      benefits: [
+        "Screen, standard and print resolutions, with the exact pixel size shown before you run.",
+        "Transparent PNG and WebP output, plus an option to trim empty page margins.",
+        "Runs on your device with no account, no upload and no watermark.",
+      ],
+      faq: [
+        {
+          q: "Is PDF to JPG free?",
+          a: "Yes. Converting PDF pages to images is free and unlimited, with no account.",
+        },
+        {
+          q: "Is my PDF uploaded?",
+          a: "No. Pages are rendered inside your browser and the images are created on your device.",
+        },
+        {
+          q: "Which resolution should I choose?",
+          a: "Standard (150 DPI) suits sharing and slides. Use Print (300 DPI) for paper or zooming in, and Screen (72 DPI) for the smallest files.",
+        },
+        {
+          q: "Can I convert only some pages?",
+          a: "Yes. Click thumbnails to include or skip pages, or type ranges such as 1-3, 6.",
+        },
+        {
+          q: "JPG, PNG or WebP?",
+          a: "JPG works everywhere. PNG is lossless and keeps text crisp. WebP gives the smallest files and supports transparency.",
+        },
+        {
+          q: "How do I download every page at once?",
+          a: "When more than one page is converted, the download button saves all images in a single ZIP. Each image can also be saved on its own.",
+        },
+      ],
       related: ["merge-pdf", "split-pdf", "ocr"],
     },
   },
@@ -1056,7 +1122,7 @@ export const tools: Tool[] = [
     name: "Vocal Remover",
     shortName: "Vocal remover",
     h1: "Vocal Remover",
-    tagline: "Separate studio-clean vocals and instrumentals with BS-RoFormer GPU AI.",
+    tagline: "Split a song into clean vocals and an instrumental.",
     description:
       "Async BS-RoFormer ViperX & MDX-Net stem separation with phase-locked Mute/Solo mixer, custom WAV mixdown, and 24-hour cloud vault retention.",
     keywords: ["vocal remover", "remove vocals from song", "instrumental maker", "stem separation", "karaoke maker"],
@@ -1122,7 +1188,7 @@ export const tools: Tool[] = [
     name: "AI Dubbing Studio",
     shortName: "AI Dubbing",
     h1: "AI Video & Audio Dubbing",
-    tagline: "Extract audio in-browser, transcribe with Deepgram, translate with emotion tags, and dub up to 2 hours.",
+    tagline: "Dub a video or audio file into another language, up to 2 hours long.",
     description: "Zero-video-upload dubbing studio: extracts and normalizes audio in your browser, transcribes via Deepgram, translates with Drama 3 expression tags, and lets you download or bind back to your video.",
     keywords: [
       "video dubbing",

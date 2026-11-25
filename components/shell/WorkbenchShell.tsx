@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { SiteProgressiveBlur } from "@/components/effects/SiteProgressiveBlur";
-import { ScrollProgress } from "@/components/magicui/scroll-progress";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
@@ -47,13 +45,40 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
     };
   }, [navOpen]);
 
+  // Remember the rail preference so a tool page keeps its width between visits.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("frebies:sidebar") === "collapsed") setSidebarCollapsed(true);
+    } catch {
+      // Storage can be blocked; the default expanded rail is fine.
+    }
+  }, []);
+
   function toggleSidebar() {
-    setSidebarCollapsed((current) => !current);
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem("frebies:sidebar", next ? "collapsed" : "expanded");
+      } catch {
+        // Ignore blocked storage.
+      }
+      return next;
+    });
   }
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-canvas text-ink">
-      <ScrollProgress />
+    <div className="min-h-screen bg-[#fcfbf9] text-ink">
       <Sidebar
         open={navOpen}
         collapsed={sidebarCollapsed}
@@ -80,14 +105,11 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
           collapsed={sidebarCollapsed}
           onToggleSidebar={toggleSidebar}
         />
-        <main className="mx-auto w-full max-w-[1280px] px-5 pb-24 pt-7 sm:px-6 lg:px-9 lg:pt-8">
+        <main className="mx-auto w-full max-w-[1520px] px-4 pb-24 pt-4 sm:px-5 lg:px-6 lg:pt-5">
           {children}
         </main>
       </div>
 
-      <SiteProgressiveBlur
-        className={sidebarCollapsed ? "lg:left-[72px]" : "lg:left-[264px]"}
-      />
     </div>
   );
 }

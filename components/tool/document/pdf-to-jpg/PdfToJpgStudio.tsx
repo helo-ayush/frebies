@@ -1,46 +1,65 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  Check,
-  FileImage,
-  ImageDown,
-  ShieldCheck,
-  TriangleAlert,
-  X,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, FileText, ImageDown, Loader2, Pencil } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { RailSlider } from "@/components/tool/studio/RailSlider";
 import {
-  PreviewNote,
-  RailSection,
-  SelectRow,
-  StudioAction,
-  StudioHeader,
-  TextRow,
-  ToggleRow,
-} from "../DocumentKit";
-import { PageGrid } from "../PagePreview";
+  ActionRow,
+  Chip,
+  DownloadAction,
+  Field,
+  FileRow,
+  Note,
+  PrimaryAction,
+  ResultCard,
+  STAGE_LABEL,
+  SecondaryAction,
+  Segmented,
+  StartOverAction,
+  StudioFrame,
+  StudioStage,
+} from "@/components/tool/kit";
+import { DropChip } from "@/components/tool/kit/Dropzone";
+import { downloadAllAsZip, downloadBlob } from "@/lib/image/encode";
+import { TextRow, ToggleRow } from "../DocumentKit";
 import { PdfDropzone } from "../PdfDropzone";
-import { formatBytes, fileStem, pagesOf, rangeLabel } from "../model";
+import { PdfPageGrid, usePdfDocument } from "../PdfPages";
+import { fileStem, formatBytes, pagesOf, parseRanges, rangeLabel } from "../model";
 import { usePdfQueue } from "../usePdfQueue";
+import {
+  outputPixels,
+  renderPagesToImages,
+  type PageImage,
+  type PageImageFormat,
+} from "./render-engine";
 
-const FORMATS = [
-  { id: "JPG", hint: "Universal", factor: 0.9 },
-  { id: "PNG", hint: "Lossless", factor: 1.5 },
-  { id: "WebP", hint: "Smallest", factor: 0.68 },
+const FORMATS: { value: PageImageFormat; label: string; title: string }[] = [
+  { value: "JPG", label: "JPG", title: "Works everywhere" },
+  { value: "PNG", label: "PNG", title: "Lossless, sharp text" },
+  { value: "WebP", label: "WebP", title: "Smallest files" },
+];
+
+const RESOLUTIONS = [
+  { value: "72", label: "Screen", detail: "72 DPI" },
+  { value: "150", label: "Standard", detail: "150 DPI" },
+  { value: "300", label: "Print", detail: "300 DPI" },
 ] as const;
 
-type Format = (typeof FORMATS)[number]["id"];
+const BACKGROUNDS: { value: string; label: string }[] = [
+  { value: "#ffffff", label: "White" },
+  { value: "#f7f1e3", label: "Cream" },
+  { value: "transparent", label: "Clear" },
+];
 
-const RESOLUTIONS = ["72 DPI", "150 DPI", "300 DPI"] as const;
-const BACKGROUNDS = ["White", "Cream", "Transparent"] as const;
+function safeName(value: string) {
+  return value.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "-").trim().slice(0, 90) || "pages";
+}
 
 export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const {
     activeItem,
-    error,
-    reading,
+    error: queueError,
     dragging,
     inputRef,
     openPicker,
@@ -51,381 +70,408 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     clear,
   } = usePdfQueue({ maxFiles: 1, maxSizeMB });
 
+  const doc = usePdfDocument(activeItem?.file ?? null);
+  const pageCount = doc.pageCount;
+
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [format, setFormat] = useState<Format>("JPG");
-  const [quality, setQuality] = useState(88);
-  const [resolution, setResolution] = useState<string>("150 DPI");
-  const [background, setBackground] = useState<string>("White");
+  const [ranges, setRanges] = useState("");
+  const [format, setFormat] = useState<PageImageFormat>("JPG");
+  const [quality, setQuality] = useState(90);
+  const [dpi, setDpi] = useState("150");
+  const [background, setBackground] = useState<string>("#ffffff");
   const [trimMargins, setTrimMargins] = useState(false);
   const [filename, setFilename] = useState("");
-  const [notice, setNotice] = useState<string | null>(null);
 
-  const pageCount = activeItem?.pages ?? 0;
-  const selectedPages = [...selected].sort((a, b) => a - b);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [images, setImages] = useState<PageImage[] | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const imagesRef = useRef<PageImage[] | null>(null);
+  const runRef = useRef(0);
 
+  function releaseImages() {
+    imagesRef.current?.forEach((image) => URL.revokeObjectURL(image.url));
+    imagesRef.current = null;
+  }
+
+  useEffect(() => releaseImages, []);
+
+  // Every page is exported by default: that is the common case for this tool.
   useEffect(() => {
-    if (!activeItem) {
-      setSelected(new Set());
-      return;
-    }
-    setSelected(new Set(pagesOf(activeItem.pages)));
-  }, [activeItem]);
+    runRef.current += 1;
+    releaseImages();
+    setImages(null);
+    setRunError(null);
+    const pages = pagesOf(pageCount);
+    setSelected(new Set(pages));
+    setRanges(pages.length > 0 ? `1-${pageCount}` : "");
+  }, [activeItem?.id, pageCount]);
 
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const selectedPages = useMemo(() => [...selected].sort((a, b) => a - b), [selected]);
   const lossy = format !== "PNG";
-  const dpi = Number.parseInt(resolution, 10);
-  const dpiFactor = Number.isFinite(dpi) ? (dpi / 150) ** 2 : 1;
-  const pages = Math.max(1, pageCount);
-  const perPage = (activeItem?.size ?? 0) / pages;
-  const formatMeta = FORMATS.find((entry) => entry.id === format) ?? FORMATS[0];
-  const qualityFactor = lossy ? 0.55 + 0.45 * (quality / 100) : 1;
-  const estimate = Math.round(perPage * formatMeta.factor * qualityFactor * dpiFactor * selectedPages.length);
-  const baseName = filename.trim() || fileStem(activeItem?.name ?? "pages");
+  const baseName = safeName(filename.trim() || fileStem(activeItem?.name ?? "pages"));
+  const pixels = doc.firstPage
+    ? outputPixels(doc.firstPage.width, doc.firstPage.height, Number(dpi))
+    : null;
 
-  function patch() {
-    setNotice(null);
+  function touch() {
+    runRef.current += 1;
+    releaseImages();
+    setImages(null);
+    setRunError(null);
+  }
+
+  function setPages(pages: number[]) {
+    selectedRef.current = new Set(pages);
+    setSelected(new Set(pages));
+    setRanges(pages.length > 0 ? rangeLabel(pages).replace(/–/g, "-") : "");
+    touch();
   }
 
   function togglePage(page: number) {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(page)) next.delete(page);
-      else next.add(page);
-      return next;
-    });
-    patch();
+    // Read through the ref so rapid clicks never work from a stale selection.
+    const next = new Set(selectedRef.current);
+    if (next.has(page)) next.delete(page);
+    else next.add(page);
+    setPages([...next].sort((a, b) => a - b));
   }
 
-  function handleConvert() {
-    setNotice(
-      `${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"} will become ${format} images at ${resolution}, named ${baseName}-1.${format.toLowerCase()}. Image rendering is connected in the next build step, and nothing leaves this device.`,
+  async function handleConvert() {
+    if (!doc.pdf || selectedPages.length === 0) return;
+    const run = (runRef.current += 1);
+    setBusy(true);
+    setProgress(0);
+    setRunError(null);
+    try {
+      const result = await renderPagesToImages(
+        doc.pdf,
+        selectedPages,
+        { format, quality, dpi: Number(dpi), background, trimMargins, baseName },
+        (done, total) => setProgress(done / total),
+        () => runRef.current !== run,
+      );
+      if (runRef.current !== run) {
+        result.forEach((image) => URL.revokeObjectURL(image.url));
+        return;
+      }
+      imagesRef.current = result;
+      setImages(result);
+    } catch {
+      setRunError("A page could not be rendered. Try a lower resolution or fewer pages.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function downloadAll() {
+    if (!images || images.length === 0) return;
+    if (images.length === 1) {
+      downloadBlob(images[0].blob, images[0].name);
+      return;
+    }
+    void downloadAllAsZip(
+      images.map((image) => ({ blob: image.blob, name: image.name })),
+      `${baseName}-${format.toLowerCase()}.zip`,
     );
   }
 
+  function reset() {
+    touch();
+    clear();
+  }
+
+  const totalBytes = images?.reduce((sum, image) => sum + image.blob.size, 0) ?? 0;
+  const error = queueError ?? doc.error ?? runError;
+  const count = selectedPages.length;
+
   return (
-    <section
-      id="pdf-to-jpg"
-      aria-label="PDF to image studio"
-      className="scroll-mt-20 overflow-hidden rounded-[26px] border border-line bg-white"
-    >
-      <StudioHeader
-        path="/document/pdf-to-jpg"
-        title="Page studio"
-        subtitle="Turn PDF pages into clean image files."
-        pills={
-          <>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] font-medium tabular-nums text-muted">
-              <ImageDown size={10} aria-hidden />
-              {activeItem ? `${selectedPages.length} of ${pageCount} pages` : "No document"}
-            </span>
-            <span className="flex items-center gap-1.5 rounded-full border border-[#eadfce] bg-[#fdf9f2] px-2.5 py-1 text-[10px] font-medium text-[#786344]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#c48c4a]" aria-hidden />
-              Interface preview
-            </span>
-          </>
-        }
-      />
-
-      <div className="grid lg:h-[780px] lg:grid-cols-[minmax(0,1fr)_372px]">
-        <div className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5">
-          {!activeItem ? (
-            <PdfDropzone
-              title="Drop a PDF to make images"
-              description="Every page can become a JPG, PNG or WebP. Pick the pages, set the resolution and export."
-              buttonLabel="Choose a PDF"
-              limits={`PDF · up to ${maxSizeMB} MB`}
-              note="Files are read locally. Nothing is uploaded."
-              onChoose={() => openPicker()}
-              dragging={dragging}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-              chips={
-                <>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <ImageDown size={9} aria-hidden />
-                    JPG, PNG, WebP
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <FileImage size={9} aria-hidden />
-                    Up to 300 DPI
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-[10px] text-muted">
-                    <ShieldCheck size={9} aria-hidden />
-                    Stays on device
-                  </span>
-                </>
-              }
-            />
-          ) : (
-            <>
-              <div className="flex min-h-[250px] flex-1 flex-col rounded-[16px] border border-line bg-[#f6f4f0] p-3">
-                <div className="flex items-center justify-between gap-3 px-0.5">
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
-                    Pages to export
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelected(new Set(pagesOf(pageCount)));
-                        patch();
-                      }}
-                      className="text-[10px] font-medium text-faint transition-colors hover:text-ink"
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelected(new Set());
-                        patch();
-                      }}
-                      className="text-[10px] font-medium text-faint transition-colors hover:text-ink"
-                    >
-                      None
-                    </button>
-                    <span className="text-[10px] tabular-nums text-faint">
-                      {selectedPages.length} of {pageCount}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-[10px] border border-line bg-[#f1efeb] p-2">
-                  <PageGrid
-                    count={pageCount}
-                    selected={selected}
-                    onToggle={togglePage}
-                    columns="grid-cols-4 sm:grid-cols-6"
-                    maxHeightClass="max-h-full"
-                  />
-                  {reading && pageCount === 1 ? (
-                    <p className="mt-2 text-[10px] text-faint">Reading page count…</p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="mt-2.5">
-                <div className="flex flex-wrap items-center gap-2 rounded-[11px] border border-line bg-white px-2.5 py-2">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[#f3f0f7] text-[#6b6384]">
-                    <FileImage size={15} aria-hidden />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-ui font-medium text-ink">{activeItem.name}</p>
-                    <p className="mt-0.5 text-micro text-faint">
-                      {formatBytes(activeItem.size)} · {pageCount} pages
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openPicker(activeItem.id)}
-                    className="h-7 rounded-lg px-2 text-[10.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                  >
-                    Replace
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clear();
-                      setNotice(null);
-                    }}
-                    aria-label={`Remove ${activeItem.name}`}
-                    data-slot="pdf-remove"
-                    className="grid h-7 w-7 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
-                  >
-                    <X size={13} aria-hidden />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-3 shrink-0 rounded-[13px] border border-line bg-white p-3.5">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
-                      Estimated output
-                    </p>
-                    <div className="mt-1.5 flex items-baseline gap-2">
-                      <span className="font-display text-[22px] font-semibold leading-none tabular-nums tracking-[-0.03em] text-ink">
-                        ≈ {formatBytes(estimate)}
-                      </span>
-                      <span className="text-[10px] text-faint">
-                        {selectedPages.length} × {format}
-                      </span>
-                    </div>
-                    <p className="mt-1 truncate text-[10px] text-faint">
-                      {baseName}-1.{format.toLowerCase()}
-                      {selectedPages.length > 1 ? ", …" : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="rounded-full border border-line px-2 py-1 text-[10px] font-medium text-muted">
-                      {resolution}
-                    </span>
-                    <span className="rounded-full border border-line px-2 py-1 text-[10px] font-medium text-muted">
-                      {background}
-                    </span>
-                  </div>
-                </div>
-                {selectedPages.length > 0 && (
-                  <p className="mt-2 border-t border-line-soft pt-2 text-[10px] tabular-nums text-faint">
-                    {rangeLabel(selectedPages)}
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            tabIndex={-1}
-            aria-label="Choose a PDF"
-            className="sr-only"
-            onChange={onPick}
+    <StudioFrame id="pdf-to-jpg" label="PDF to image studio">
+      <StudioStage>
+        {!activeItem ? (
+          <PdfDropzone
+            title="Drop a PDF to turn into images"
+            description="Every page becomes a JPG, PNG or WebP. Pick the pages, choose a resolution and download."
+            buttonLabel="Choose a PDF"
+            limits={`PDF · up to ${maxSizeMB} MB`}
+            onChoose={() => openPicker()}
+            dragging={dragging}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            chips={
+              <>
+                <DropChip>JPG · PNG · WebP</DropChip>
+                <DropChip>Up to 300 DPI</DropChip>
+                <DropChip>ZIP download</DropChip>
+              </>
+            }
           />
+        ) : (
+          <div
+            className="flex min-h-0 flex-1 flex-col gap-3"
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            {images ? (
+              <ResultCard
+                title={`${images.length} ${format} image${images.length === 1 ? "" : "s"} ready`}
+                meta={`${formatBytes(totalBytes)} · ${images[0]?.width} × ${images[0]?.height} px`}
+              >
+                <button
+                  type="button"
+                  onClick={downloadAll}
+                  className="inline-flex h-10 items-center gap-1.5 rounded-[12px] bg-success px-4 text-[13.5px] font-semibold text-white transition hover:brightness-110"
+                >
+                  <Download size={15} aria-hidden />
+                  {images.length === 1 ? "Download" : "Download ZIP"}
+                </button>
+              </ResultCard>
+            ) : null}
 
-          <span aria-hidden className="hidden" data-success={notice} data-error={error} />
-
-          {error && (
-            <p role="alert" className="mt-2.5 flex items-start gap-1.5 text-ui text-[#a13d30]">
-              <TriangleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
-              {error}
-            </p>
-          )}
-
-          {notice && (
-            <p
-              role="status"
-              className="mt-3 shrink-0 rounded-[10px] border border-[#eadfce] bg-[#fdf9f2] px-3 py-2.5 text-micro leading-relaxed text-[#786344]"
-            >
-              {notice}
-            </p>
-          )}
-        </div>
-
-        <StudioRail
-          label="Image settings"
-          action={
-            <StudioAction
-              label={`Convert ${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"}`}
-              hint={
-                <>
-                  <ShieldCheck size={12} aria-hidden />
-                  Free · no upload · no watermark
-                </>
-              }
-              disabled={!activeItem || selectedPages.length === 0}
-              onAction={handleConvert}
-            >
-              <span className="flex items-center gap-1">
-                <Check size={10} aria-hidden />
-                {format} · {resolution}
-              </span>
-            </StudioAction>
-          }
-        >
-          <div className="space-y-5">
-            <RailSection title="Image format" hint="Per page">
-              <div className="grid grid-cols-3 gap-1.5">
-                {FORMATS.map((option) => {
-                  const active = format === option.id;
-                  return (
+            <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
+              <span className={STAGE_LABEL}>{images ? "Your images" : "Click pages to include or skip them"}</span>
+              <div className="flex items-center gap-1.5">
+                {!images && pageCount > 0 ? (
+                  <>
                     <button
-                      key={option.id}
                       type="button"
-                      aria-pressed={active}
-                      onClick={() => {
-                        setFormat(option.id);
-                        patch();
-                      }}
-                      className={`rounded-[9px] border px-1 py-2.5 text-center transition-colors ${
-                        active
-                          ? "border-ink bg-rail text-ink"
-                          : "border-line bg-white text-muted hover:border-[#d8d4cb] hover:text-ink"
-                      }`}
+                      onClick={() => setPages(pagesOf(pageCount))}
+                      className="h-7 rounded-lg px-2 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
                     >
-                      <span className="block text-[12px] font-medium">{option.id}</span>
-                      <span className="mt-0.5 block text-[9px] text-faint">{option.hint}</span>
+                      Select all
                     </button>
-                  );
-                })}
+                    <button
+                      type="button"
+                      onClick={() => setPages([])}
+                      className="h-7 rounded-lg px-2 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
+                    >
+                      Clear
+                    </button>
+                  </>
+                ) : null}
+                <Chip>
+                  {images ? `${images.length} files` : `${count} of ${pageCount} pages`}
+                </Chip>
               </div>
-            </RailSection>
+            </div>
 
-            <RailSection title="Quality" hint={lossy ? `${quality}%` : "Lossless"} className="border-t border-line-soft pt-4">
-              <RailSlider
-                label="Image quality"
-                value={lossy ? quality : 100}
-                min={40}
-                max={100}
-                disabled={!lossy}
-                onValueChange={(next) => {
-                  setQuality(next);
-                  patch();
-                }}
-                className="mt-1"
-              />
-              <div className="flex justify-between text-[10px] text-faint">
-                <span>Smaller file</span>
-                <span>Better detail</span>
-              </div>
-              {!lossy && (
-                <p className="text-[10px] leading-relaxed text-faint">
-                  PNG keeps every pixel; quality does not apply.
-                </p>
-              )}
-            </RailSection>
+            <div className="studio-main min-h-[260px] flex-1 overflow-y-auto rounded-[16px] border border-line bg-[#f3f1ec] p-3 sm:p-4 lg:min-h-0">
+              {images ? (
+                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                  {images.map((image) => (
+                    <li key={image.name} className="group animate-kit-rise">
+                      <div className="checkerboard relative overflow-hidden rounded-[8px] border border-[#dedad2] shadow-[0_6px_16px_-10px_rgba(15,15,16,0.25)]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={image.url} alt={`Page ${image.page}`} className="block h-auto w-full" />
+                        <button
+                          type="button"
+                          onClick={() => downloadBlob(image.blob, image.name)}
+                          aria-label={`Download ${image.name}`}
+                          className="absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full bg-ink text-white opacity-90 shadow-pop transition hover:scale-105 hover:opacity-100"
+                        >
+                          <Download size={15} aria-hidden />
+                        </button>
+                      </div>
+                      <p className="mt-1.5 truncate text-[12px] font-medium text-ink">{image.name}</p>
+                      <p className="text-[12px] tabular-nums text-faint">{formatBytes(image.blob.size)}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : doc.pdf ? (
+                <PdfPageGrid
+                  pdf={doc.pdf}
+                  pageCount={pageCount}
+                  selected={selected}
+                  onToggle={busy ? undefined : togglePage}
+                />
+              ) : doc.loading ? (
+                <div className="grid h-full min-h-[220px] place-items-center text-[13px] text-muted">
+                  <span className="flex items-center gap-2">
+                    <Loader2 size={15} className="animate-spin" aria-hidden />
+                    Reading pages…
+                  </span>
+                </div>
+              ) : null}
+            </div>
 
-            <RailSection title="Rendering" hint="Resolution" className="border-t border-line-soft pt-4">
-              <SelectRow
-                label="Resolution"
-                options={[...RESOLUTIONS]}
-                value={resolution}
-                onChange={(value) => {
-                  setResolution(value);
-                  patch();
-                }}
-              />
-              <SelectRow
-                label="Page background"
-                options={[...BACKGROUNDS]}
-                value={background}
-                onChange={(value) => {
-                  setBackground(value);
-                  patch();
-                }}
-              />
-            </RailSection>
+            <FileRow
+              icon={<FileText size={16} aria-hidden />}
+              name={activeItem.name}
+              meta={`${formatBytes(activeItem.size)}${pageCount ? ` · ${pageCount} pages` : ""}`}
+              onReplace={() => openPicker(activeItem.id)}
+              onRemove={reset}
+            />
+          </div>
+        )}
 
-            <RailSection title="Naming" hint="Files" className="border-t border-line-soft pt-4">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          tabIndex={-1}
+          aria-label="Choose a PDF"
+          className="sr-only"
+          onChange={onPick}
+        />
+
+        {error ? (
+          <Note tone="error" className="mt-3 shrink-0">
+            {error}
+          </Note>
+        ) : null}
+      </StudioStage>
+
+      <StudioRail
+        label="Image settings"
+        action={
+          images ? (
+            <>
+              <DownloadAction
+                label={images.length === 1 ? `Download ${format}` : `Download ${images.length} images (ZIP)`}
+                onClick={downloadAll}
+                hint={`${formatBytes(totalBytes)} · no watermark`}
+              />
+              <ActionRow>
+                <SecondaryAction onClick={touch} icon={<Pencil size={13} aria-hidden />}>
+                  Change settings
+                </SecondaryAction>
+                <StartOverAction onClick={reset} label="New PDF" />
+              </ActionRow>
+            </>
+          ) : (
+            <PrimaryAction
+              label={
+                !activeItem
+                  ? `Convert to ${format}`
+                  : count === 0
+                    ? "Pick pages to convert"
+                    : `Convert ${count} page${count === 1 ? "" : "s"} to ${format}`
+              }
+              busyLabel="Rendering…"
+              icon={<ImageDown size={16} aria-hidden />}
+              busy={busy}
+              progress={progress}
+              disabled={!doc.pdf || count === 0}
+              onClick={handleConvert}
+              hint={activeItem ? "Free · runs in your browser · no watermark" : "Add a PDF to get started"}
+            />
+          )
+        }
+      >
+        <div className="space-y-6">
+          <Field label="Image format" hint={FORMATS.find((entry) => entry.value === format)?.title}>
+            <Segmented
+              label="Image format"
+              options={FORMATS}
+              value={format}
+              onChange={(value) => {
+                setFormat(value);
+                if (value === "JPG" && background === "transparent") setBackground("#ffffff");
+                touch();
+              }}
+            />
+          </Field>
+
+          <Field label="Resolution" hint={pixels ? `${pixels.width} × ${pixels.height} px` : undefined}>
+            <div className="grid grid-cols-3 gap-1.5">
+              {RESOLUTIONS.map((option) => {
+                const active = dpi === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => {
+                      setDpi(option.value);
+                      touch();
+                    }}
+                    className={`rounded-[10px] border px-1 py-2.5 text-center transition-colors ${
+                      active
+                        ? "border-ink bg-white shadow-[inset_0_0_0_1px_#0f0f10]"
+                        : "border-line bg-white hover:border-[#cfc9bd]"
+                    }`}
+                  >
+                    <span className="block text-[13px] font-medium text-ink">{option.label}</span>
+                    <span className="mt-0.5 block text-[12px] text-faint">{option.detail}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+
+          <Field label="Quality" hint={lossy ? `${quality}%` : "Lossless"}>
+            <RailSlider
+              label="Image quality"
+              value={lossy ? quality : 100}
+              min={40}
+              max={100}
+              disabled={!lossy}
+              onValueChange={(next) => {
+                setQuality(next);
+                touch();
+              }}
+              className="mt-1"
+            />
+            <div className="mt-1 flex justify-between text-[12px] text-faint">
+              <span>Smaller file</span>
+              <span>More detail</span>
+            </div>
+          </Field>
+
+          <Field label="Pages" hint={pageCount ? `${count} of ${pageCount}` : undefined}>
+            <TextRow
+              label="Page ranges"
+              value={ranges}
+              onChange={(value) => {
+                setRanges(value);
+                setSelected(new Set(parseRanges(value, pageCount)));
+                touch();
+              }}
+              placeholder="1-3, 5, 8-10"
+              hint="Or click the thumbnails."
+            />
+          </Field>
+
+          <Field label="Page background">
+            <Segmented
+              label="Page background"
+              options={BACKGROUNDS.filter((option) => option.value !== "transparent" || format !== "JPG")}
+              value={background}
+              onChange={(value) => {
+                setBackground(value);
+                touch();
+              }}
+            />
+          </Field>
+
+          <Field label="Output">
+            <div className="space-y-3.5">
               <TextRow
                 label="File name"
                 value={filename}
                 onChange={(value) => {
                   setFilename(value);
-                  patch();
+                  touch();
                 }}
                 placeholder={fileStem(activeItem?.name ?? "pages")}
-                hint="Each page gets a number suffix"
+                hint={`Each image is numbered: ${baseName}-1.${format.toLowerCase()}`}
               />
               <ToggleRow
-                label="Trim white margins"
-                description="Crop uniform page borders before rendering."
+                label="Trim empty margins"
+                description="Crop the blank border around each page."
                 checked={trimMargins}
                 onChange={(checked) => {
                   setTrimMargins(checked);
-                  patch();
+                  touch();
                 }}
               />
-            </RailSection>
-
-            <PreviewNote>
-              Rendering runs entirely on your device once the PDF engine is connected.
-              The size estimate is based on the pages you selected.
-            </PreviewNote>
-          </div>
-        </StudioRail>
-      </div>
-    </section>
+            </div>
+          </Field>
+        </div>
+      </StudioRail>
+    </StudioFrame>
   );
 }
