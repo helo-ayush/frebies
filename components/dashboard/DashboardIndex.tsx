@@ -28,6 +28,7 @@ const LINE: Record<string, string> = {
   "/image/to-pdf": "Photos into one clean PDF",
   "/image/upscaler": "2× or 4× larger, still sharp",
   "/image/remove-background": "Lift the subject off the photo",
+  "/document/edit-pdf": "Change text, pictures and pages",
   "/document/merge-pdf": "Several PDFs into one",
   "/document/split-pdf": "Pull out pages or ranges",
   "/document/pdf-to-jpg": "Pages as JPG, PNG or WebP",

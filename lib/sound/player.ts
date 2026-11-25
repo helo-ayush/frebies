@@ -96,6 +96,7 @@ const RUN: Record<string, SoundName> = {
   "/image/resize": "run-resize",
   "/image/to-pdf": "run-to-pdf",
   "/image/upscaler": "run-upscale",
+  "/document/edit-pdf": "run-merge",
   "/document/merge-pdf": "run-merge",
   "/document/split-pdf": "run-split",
   "/document/pdf-to-jpg": "run-to-jpg",

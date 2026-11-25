@@ -19,6 +19,7 @@ export const LID: Record<string, string[]> = {
   "/image/to-pdf": ["To PDF"],
   "/image/upscaler": ["Upscale"],
   "/image/remove-background": ["Cut out"],
+  "/document/edit-pdf": ["Edit"],
   "/document/merge-pdf": ["Merge"],
   "/document/split-pdf": ["Split"],
   "/document/pdf-to-jpg": ["PDF to", "JPG"],

@@ -13,7 +13,7 @@ A free-first online toolbox for images, documents and audio.
 Implemented:
 
 - Workbench shell: 264px tool index with one foldable group per category and a 64px collapsed rail (Ctrl B), both remembered between visits, 60px topbar, full-screen phone menu, Ctrl K tool search
-- Custom icon set for shell navigation and all 17 tools
+- Custom icon set for shell navigation and all 18 tools
 - Scrollbars hidden across the product while every scroll region remains usable
 - Typed tool registry driving navigation, dashboard, hubs, metadata and sitemap
 - `/dashboard`, `/image`, `/document`, `/audio`, `/video`
@@ -29,6 +29,7 @@ Implemented:
 - `robots.txt`, `sitemap.xml` with every canonical tool URL, JSON-LD, custom 404
 - Next.js upgraded from 14.2.15 to 16.4.3
 - Working on-device image tools: convert, compress, resize/crop (with a draggable crop box) and image-to-PDF
+- Working on-device PDF editor (`components/tool/document/edit/`): real text editing, pictures, signatures, shapes, links, form fields and page changes
 - Working on-device PDF tools: merge, split (pdf-lib) and PDF to JPG / PNG / WebP (pdf.js), with real page thumbnails
 - Interface previews, not connected yet: OCR, AI PDF editor, background remover, speech to text
 
@@ -92,5 +93,5 @@ services are created.
 - `/` — marketing landing page
 - `/dashboard` — workbench tool directory (`noindex`)
 - `/image`, `/document`, `/audio` — category hubs
-- `/{category}/{tool}` — all 17 tool workspaces
+- `/{category}/{tool}` — all 18 tool workspaces
 - `/sign-in` — sign-in preview (`noindex`)

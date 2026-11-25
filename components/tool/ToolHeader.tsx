@@ -21,7 +21,7 @@ export function ToolHeader({
   const EngineIcon = onDevice ? MonitorSmartphone : Cloud;
 
   return (
-    <header className="flex min-h-[var(--fb-head)] items-stretch border-b border-line">
+    <header data-slot="tool-header" className="flex min-h-[var(--fb-head)] items-stretch border-b border-line">
       <span
         className="fb-ear hidden w-[var(--fb-head)] shrink-0 place-items-center bg-ink text-white sm:grid"
         style={{ ["--ear" as string]: "18px" }}

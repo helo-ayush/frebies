@@ -6,6 +6,7 @@ import { ImageConvertStudio } from "@/components/tool/ImageConvertStudio";
 import { CompressorStudio } from "@/components/tool/compress/CompressorStudio";
 import { ResizeCropStudio } from "@/components/tool/resize/ResizeCropStudio";
 import { ImageToPdfStudio } from "@/components/tool/to-pdf/ImageToPdfStudio";
+import { EditPdfStudio } from "@/components/tool/document/edit/EditPdfStudio";
 import { MergePdfStudio } from "@/components/tool/document/merge/MergePdfStudio";
 import { SplitPdfStudio } from "@/components/tool/document/split/SplitPdfStudio";
 import { PdfToJpgStudio } from "@/components/tool/document/pdf-to-jpg/PdfToJpgStudio";
@@ -73,6 +74,8 @@ function studioFor(tool: Tool) {
       return <UpscalerStudio maxSizeMB={size ?? 25} />;
     case "/image/remove-background":
       return <RemoveBackgroundStudio maxSizeMB={size ?? 25} />;
+    case "/document/edit-pdf":
+      return <EditPdfStudio maxSizeMB={size ?? 50} />;
     case "/document/merge-pdf":
       return <MergePdfStudio maxSizeMB={size ?? 25} />;
     case "/document/split-pdf":
