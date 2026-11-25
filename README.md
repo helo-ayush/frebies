@@ -12,20 +12,21 @@ A free-first online toolbox for images, documents and audio.
 
 Implemented:
 
-- Workbench shell: 264px sidebar with a 72px collapsed rail (⌘B, remembered between visits), 56px topbar, mobile drawer, ⌘K tool search
-- Custom rounded-outline icon set for shell navigation and all 16 tools
+- Workbench shell: 248px tool index with a 64px collapsed rail (Ctrl B, remembered between visits), 60px topbar, full-screen phone menu, Ctrl K tool search
+- Custom icon set for shell navigation and all 17 tools
 - Scrollbars hidden across the product while every scroll region remains usable
 - Typed tool registry driving navigation, dashboard, hubs, metadata and sitemap
-- `/dashboard`, `/image`, `/document`, `/audio`
+- `/dashboard`, `/image`, `/document`, `/audio`, `/video`
 - Every tool page opens straight into its studio: a one-row header, then a studio that fills the viewport
-- Shared studio kit in `components/tool/kit/` (frame, stage, dropzone, primary action, result card); the primary action sits at the top of the settings rail and docks to the bottom of the screen on phones
-- Dashboard: quick-launch row, searchable tool grid with category and Free / AI filters
+- Shared studio kit in `components/tool/kit/` (frame, stage, dropzone, primary action, result band, history lists); the primary action sits at the top of the settings rail and docks to the bottom of the screen on phones
+- Shared viewers in `components/tool/viewer/` (image with zoom, rulers and a before / after wipe; PDF reader; video deck; lightboxes) and `components/tool/audio/` (audio deck and waveforms)
+- Files can be dropped anywhere on a tool page or pasted with Ctrl V (`components/tool/studio/useFileIntake.ts`)
+- Dashboard: one-screen index with search, isometric blocks and Free / AI filters
 - Landing page (`components/landing/site/`, styles scoped in `app/(marketing)/landing.css`): pinned sideways hero with a three.js machine and stripe wipe, isometric tool launcher, box-to-card walkthrough, pricing, FAQ
-- Richer category hubs, sign-in preview and custom 404
-- Guest-only credit locks, credit cost badges, disabled processing actions
+- Category hubs, sign-in and sign-up (Clerk), 404 and error pages
+- Sign-in gate on credit tools; a guest's file and settings wait on the device for up to an hour (`lib/held-file.ts`)
 - `robots.txt`, `sitemap.xml` with every canonical tool URL, JSON-LD, custom 404
 - Next.js upgraded from 14.2.15 to 16.4.3
-- Magic UI layer (blur reveals, number tickers, marquee, border beams, dot/grid patterns, gradient text, scroll progress)
 - Working on-device image tools: convert, compress, resize/crop (with a draggable crop box) and image-to-PDF
 - Working on-device PDF tools: merge, split (pdf-lib) and PDF to JPG / PNG / WebP (pdf.js), with real page thumbnails
 - Interface previews, not connected yet: OCR, AI PDF editor, background remover, speech to text
@@ -39,21 +40,18 @@ Not connected yet:
 
 ## UI system
 
-The interface combines the original warm editorial design with
-[Magic UI](https://magicui.design) primitives. Components live in
-`components/magicui/` and are adapted for Tailwind 3 (the upstream registry
-targets Tailwind 4), so animations use plain CSS keyframes and SVG strokes
-instead of v4-only utilities.
+One design language across the landing page, the workbench and the auth pages.
+Tokens and shared classes (`--fb-*`, `.fb-*`) live in `app/site.css`; shared
+pieces live in `components/site/` (blocks, machine, search, kit). Tailwind's
+`ink` / `line` / `panel` / `accent` palette in `tailwind.config.js` maps to the
+same tokens.
 
-Design tokens are bridged for registry components in `app/globals.css`
-(`--background`, `--primary`, `--border`, `--ring`, …) and mapped in
-`tailwind.config.js`, while the original `ink`/`line`/`card`/`accent` palette
-continues to drive the product UI.
+Colour carries meaning on every tool: coral is free, ink uses credits, grey is
+a preview that is not connected yet.
 
-A site-wide progressive blur sits along the bottom edge of every layout
-(`components/effects/SiteProgressiveBlur.tsx`). The workbench instance starts
-after the sidebar and follows its collapsed width; it fades out at the end of
-the page so footers and final controls stay readable.
+Registry components (`components/magicui/`, `components/aceternity/`,
+`components/arc/`) are kept for reuse; the product pages use Arc's slider,
+switch and progress.
 
 ### Magic UI MCP
 

@@ -13,40 +13,56 @@ import {
 } from "react";
 import {
   AudioLines,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Loader2,
   Lock,
   Mic,
   Music,
-  Pause,
   Play,
+  RefreshCw,
   RotateCcw,
   SlidersHorizontal,
   Trash2,
-  Volume2,
   X,
+  Zap,
 } from "lucide-react";
 import { useAuthSession } from "@/components/auth/AuthContext";
+import { buttonClasses } from "@/components/ui/Button";
 import { AudioPlayer } from "@/components/tool/audio/AudioPlayer";
-import { MiniWaveform } from "@/components/tool/audio/MiniWaveform";
+import { Waveform } from "@/components/tool/audio/Waveform";
 import { computePeaks, useAudioFile, type AudioItem } from "@/components/tool/audio/useAudioFile";
 import { GenerationExpiryBadge } from "@/components/tool/GenerationRetentionBadge";
 import {
-  Chip,
+  ActionRow,
+  DownloadAction,
   FileRow,
   Note,
   PrimaryAction,
+  ResultButton,
   ResultCard,
   STUDIO_GRID,
+  SecondaryAction,
   StudioFrame,
   StudioStage,
+  ToolIcon,
+  ToolText,
 } from "@/components/tool/kit";
 import { Dropzone } from "@/components/tool/kit/Dropzone";
+import {
+  HistoryButton,
+  HistoryEmpty,
+  HistoryList,
+  HistoryPager,
+  HistoryRow,
+  HistorySection,
+  JobBar,
+} from "@/components/tool/kit/History";
+import { EngineRow } from "@/components/tool/paid/EngineRow";
+import { DropOver } from "@/components/tool/viewer/DropOver";
 import { CreditGate } from "@/components/tool/paid/CreditGate";
+import { useHeldFile } from "@/components/tool/paid/useHeldFile";
+import { asFileList } from "@/lib/held-file";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
-import { buttonClasses } from "@/components/ui/Button";
 import {
   submitWorkerMultipartForm,
   type BrowserWorkerAuth,
@@ -88,14 +104,9 @@ const ACTIVE_STATUSES = new Set([
 const ITEMS_PER_PAGE = 5;
 
 /** Both left-hand blocks (track, history) share the column beside the sticky rail. */
-const LEFT_COLUMN = "lg:col-start-1 lg:-mr-px lg:self-stretch lg:border-r lg:border-line";
-/**
- * ResultCard keeps its buttons on one unshrinkable row. This lets the title keep
- * a readable width and the buttons wrap, so nothing is cut off on a phone.
- */
-const RESULT_CARD_FIT = "[&>div:nth-child(2)]:basis-[150px] [&>div:last-child]:max-w-full";
-const ICON_BUTTON =
-  "grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-white text-muted transition-colors hover:bg-hover hover:text-ink disabled:opacity-40";
+const LEFT_COLUMN = "lg:col-start-1 lg:self-stretch";
+/** At least a screen tall, but free to grow when the mixer is open. */
+const STAGE_FILL = "lg:min-h-[max(540px,calc(100dvh-var(--fb-bar)-var(--fb-head)))]";
 
 function encodePcm16Wav(audioBuffer: AudioBuffer): Blob {
   const numChannels = Math.min(2, Math.max(1, audioBuffer.numberOfChannels));
@@ -208,7 +219,7 @@ function buildDemoSongItem(): AudioItem {
 
   const blob = new Blob([wavBuffer], { type: "audio/wav" });
   const file = new File([blob], "demo-vocal-synth-mix.wav", { type: "audio/wav" });
-  const peaks = computePeaks(left, 80);
+  const peaks = computePeaks(left);
 
   return {
     id: `demo_${Date.now()}`,
@@ -220,7 +231,7 @@ function buildDemoSongItem(): AudioItem {
     sampleRate,
     channels: 2,
     peaks,
-    channelPeaks: [peaks, computePeaks(right, 80)],
+    channelPeaks: [peaks, computePeaks(right)],
     decoding: false,
   };
 }
@@ -241,6 +252,8 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
   const [wakingGpu, setWakingGpu] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showCreditGate, setShowCreditGate] = useState(false);
+  /** The job started from exactly this track and these settings. */
+  const [lastRun, setLastRun] = useState<{ id: string; key: string } | null>(null);
 
   const [mixerJobId, setMixerJobId] = useState<string | null>(null);
   const [vocalsGain, setVocalsGain] = useState(1.0);
@@ -272,6 +285,11 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
   const loadedMixerUrlsRef = useRef<string>("");
 
   const stagedAudio = audioFile.item ?? demoItem;
+
+  useHeldFile(stagedAudio?.file ?? null, (file, held) => {
+    if (held && typeof held === "object") setSettings((current) => ({ ...current, ...(held as VocalSettings) }));
+    audioFile.accept(asFileList(file));
+  });
 
   // Top of the stage: where the newest job and the mixer appear.
   const stageTopRef = useRef<HTMLDivElement>(null);
@@ -659,8 +677,16 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
     }
   }
 
+  const runKey = stagedAudio ? `${stagedAudio.id}:${JSON.stringify(settings)}` : "";
+  const lastJob = lastRun && lastRun.key === runKey ? (jobs.find((job) => job.id === lastRun.id) ?? null) : null;
+  const runningJob = lastJob && ACTIVE_STATUSES.has(lastJob.status) ? lastJob : null;
+  const finishedJob =
+    lastJob && lastJob.status === "completed" && (lastJob.vocalsDownloadUrl || lastJob.instrumentalDownloadUrl)
+      ? lastJob
+      : null;
+
   async function handleSubmitJob() {
-    if (!stagedAudio) return;
+    if (!stagedAudio || runningJob) return;
     if (!isSignedIn) {
       setShowCreditGate(true);
       return;
@@ -699,6 +725,7 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
       }
 
       setJobs((prev) => [data.job!, ...prev.filter((item) => item.id !== data.job!.id)]);
+      setLastRun({ id: data.job.id, key: runKey });
       setPage(1);
       // The queued track shows its progress at the top of the stage.
       scrollToStageTop();
@@ -774,6 +801,13 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
         : "Instrumental only"
   } · ${settings.format === "mp3" ? `MP3 ${settings.bitrate} kbps` : "WAV"}`;
 
+  function seekMixer(fraction: number) {
+    const next = Math.min(1, Math.max(0, fraction)) * (mixerDuration || 0);
+    playOffsetRef.current = next;
+    setMixerCurrentTime(next);
+    if (mixerPlaying && mixerJob) void startMixerPlayback(mixerJob, next);
+  }
+
   /** Opening the mixer from the history list brings it into view at the top. */
   function showMixer(job: VocalJobSnapshot) {
     openJobInMixer(job);
@@ -791,8 +825,8 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
         {/* ============================================================ */}
         {/* 1 · Track in, newest result, mixer                            */}
         {/* ============================================================ */}
-        <StudioStage className={`gap-3 lg:row-start-1 ${LEFT_COLUMN}`}>
-          <div ref={stageTopRef} aria-hidden className="-mb-3 h-0 scroll-mt-24" />
+        <StudioStage flush className={`lg:row-start-1 ${LEFT_COLUMN} ${STAGE_FILL}`}>
+          <div ref={stageTopRef} aria-hidden className="h-0 scroll-mt-24" />
 
           <input
             ref={audioFile.inputRef}
@@ -804,132 +838,157 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
             onChange={handlePickAudio}
           />
 
-          {audioFile.error ? <Note tone="error">{audioFile.error}</Note> : null}
-          {errorMsg ? <Note tone="error">{errorMsg}</Note> : null}
+          {audioFile.error ? <Note tone="error" className="m-3 shrink-0">{audioFile.error}</Note> : null}
+          {errorMsg ? <Note tone="error" className="m-3 shrink-0">{errorMsg}</Note> : null}
 
           {latestJob ? (
             ACTIVE_STATUSES.has(latestJob.status) ? (
-              <div className="rounded-[14px] border border-accent/30 bg-white px-3.5 py-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="flex min-w-0 items-center gap-2 text-[13.5px] font-medium text-ink">
-                    <Loader2 size={14} className="shrink-0 animate-spin text-accent" aria-hidden />
+              <div className="shrink-0 border-b border-line bg-panel px-4 py-4 sm:px-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="flex min-w-0 items-center gap-2.5 text-[15px] font-semibold">
+                    <Loader2 size={16} className="shrink-0 animate-spin text-accent-deep" aria-hidden />
                     <span className="truncate">{latestJob.sourceFileName}</span>
                   </p>
-                  <span className="shrink-0 text-[12.5px] tabular-nums text-faint">
+                  <span className="fb-num shrink-0 text-[13px] text-faint">
                     {formatElapsedClock(nowMs - latestJob.createdAt)}
                   </span>
                 </div>
-                <JobProgress label={latestJob.stageLabel} progress={latestJob.progress} />
-                <p className="mt-2 text-[12.5px] text-faint">
+                <div className="flex items-center justify-between gap-3 text-[13px] text-muted">
+                  <span className="min-w-0 truncate">{latestJob.stageLabel}</span>
+                  <span className="fb-num shrink-0">{Math.round(latestJob.progress)}%</span>
+                </div>
+                <JobBar className="mt-1.5" value={latestJob.progress} label={latestJob.stageLabel || "Separation progress"} />
+                <p className="mt-2.5 text-[13px] text-muted">
                   Runs in the background. You can add another track while this one finishes.
                 </p>
               </div>
             ) : latestJob.status === "failed" ? (
-              <Note tone="error">
+              <Note tone="error" className="m-3 shrink-0">
                 <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                   <span className="min-w-0 flex-1 basis-[200px] break-words">
                     {latestJob.sourceFileName}: {latestJob.error || "Vocal separation failed."}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => void handleRetryJob(latestJob.id)}
-                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] border border-[#f1cfc9] bg-white px-3 text-[12.5px] font-medium text-danger transition-colors hover:bg-danger-soft"
-                  >
-                    <RotateCcw size={13} aria-hidden />
+                  <ToolText onClick={() => void handleRetryJob(latestJob.id)} icon={<RotateCcw size={14} aria-hidden />}>
                     Try again
-                  </button>
+                  </ToolText>
                 </span>
               </Note>
             ) : latestJob.vocalsUrl || latestJob.instrumentalUrl ? (
               <ResultCard
-                className={RESULT_CARD_FIT}
-                title={`${latestJob.sourceFileName} is split`}
+                stack
+                title="Split"
                 meta={[
+                  latestJob.sourceFileName,
                   latestJob.durationSec > 0 ? formatTime(latestJob.durationSec) : null,
                   latestJob.format === "mp3" ? `MP3 ${latestJob.bitrate} kbps` : "WAV",
-                  "kept for 24 hours",
                 ]
                   .filter(Boolean)
                   .join(" · ")}
               >
                 {mixerJobId !== latestJob.id ? (
-                  <button
-                    type="button"
-                    onClick={() => showMixer(latestJob)}
-                    className={buttonClasses("secondary", "lg")}
-                  >
-                    <Play size={14} fill="currentColor" aria-hidden />
-                    Play in mixer
-                  </button>
+                  <ResultButton onClick={() => showMixer(latestJob)} icon={<Play size={15} fill="currentColor" aria-hidden />}>
+                    Mixer
+                  </ResultButton>
                 ) : null}
                 {latestJob.vocalsDownloadUrl ? (
-                  <a
+                  <ResultButton
+                    loud
                     href={latestJob.vocalsDownloadUrl}
-                    download={latestJob.vocalsFileName ?? undefined}
-                    aria-label="Download vocals"
-                    className={buttonClasses("success", "lg")}
+                    filename={latestJob.vocalsFileName ?? undefined}
+                    label="Download vocals"
+                    icon={<Download size={16} aria-hidden />}
                   >
-                    <Download size={15} aria-hidden />
                     Vocals
-                  </a>
+                  </ResultButton>
                 ) : null}
                 {latestJob.instrumentalDownloadUrl ? (
-                  <a
+                  <ResultButton
+                    loud
                     href={latestJob.instrumentalDownloadUrl}
-                    download={latestJob.instrumentalFileName ?? undefined}
-                    aria-label="Download instrumental"
-                    className={buttonClasses("success", "lg")}
+                    filename={latestJob.instrumentalFileName ?? undefined}
+                    label="Download instrumental"
+                    icon={<Download size={16} aria-hidden />}
                   >
-                    <Download size={15} aria-hidden />
                     Instrumental
-                  </a>
+                  </ResultButton>
                 ) : null}
               </ResultCard>
             ) : null
           ) : null}
 
           {mixerJob ? (
-            <section aria-label="Stem mixer" className="rounded-[16px] border border-line bg-white">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft px-4 py-3">
-                <div className="min-w-0 flex-1 basis-[160px]">
-                  <h2 className="text-[14px] font-semibold text-ink">Mixer</h2>
-                  <p className="truncate text-[12.5px] text-faint">{mixerJob.sourceFileName}</p>
+            <section aria-label="Stem mixer" className="shrink-0 border-t border-white/15 bg-ink text-white">
+              <div className="flex items-stretch border-b border-white/15">
+                <div className="flex min-w-0 flex-1 flex-col justify-center px-5 py-3">
+                  <h2 className="fb-wide text-[18px]">Mixer</h2>
+                  <p className="mt-1 truncate text-[13px] text-white/60">{mixerJob.sourceFileName}</p>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={exportingMix || mixerLoading}
-                    onClick={() => void handleExportCustomMix()}
-                    className={buttonClasses("secondary", "md", "h-10 rounded-[12px]")}
-                  >
-                    {exportingMix ? (
-                      <Loader2 size={14} className="animate-spin" aria-hidden />
+                <ResultButton
+                  loud
+                  disabled={exportingMix || mixerLoading}
+                  onClick={() => void handleExportCustomMix()}
+                  icon={
+                    exportingMix ? (
+                      <Loader2 size={16} className="animate-spin" aria-hidden />
                     ) : (
-                      <Download size={14} aria-hidden />
-                    )}
-                    Export this mix (WAV)
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Close mixer"
-                    onClick={() => {
-                      stopMixerPlayback(true);
-                      setMixerJobId(null);
-                    }}
-                    className="grid h-10 w-10 place-items-center rounded-[12px] text-faint transition-colors hover:bg-hover hover:text-ink"
-                  >
-                    <X size={16} aria-hidden />
-                  </button>
-                </div>
+                      <Download size={16} aria-hidden />
+                    )
+                  }
+                >
+                  Export mix<span className="max-sm:sr-only"> (WAV)</span>
+                </ResultButton>
+                <ResultButton
+                  label="Close mixer"
+                  onClick={() => {
+                    stopMixerPlayback(true);
+                    setMixerJobId(null);
+                  }}
+                  icon={<X size={18} aria-hidden />}
+                />
               </div>
 
-              <div className="space-y-4 p-4">
-                {/* Transport */}
-                <div className="flex items-center gap-3">
+              {/* One strip per stem */}
+              {mixerJob.vocalsUrl ? (
+                <MixerStrip
+                  label="Vocals"
+                  icon={<Mic size={17} aria-hidden />}
+                  peaks={mixerJob.vocalsPeaks}
+                  progress={mixerProgress}
+                  onSeek={seekMixer}
+                  muted={vocalsMuted}
+                  solo={vocalsSolo}
+                  onToggleMute={() => setVocalsMuted((m) => !m)}
+                  onToggleSolo={() => setVocalsSolo((value) => !value)}
+                  gain={vocalsGain}
+                  effectiveGain={effectiveVocalsGain}
+                  onGain={setVocalsGain}
+                />
+              ) : null}
+              {mixerJob.instrumentalUrl ? (
+                <MixerStrip
+                  label="Instrumental"
+                  icon={<Music size={17} aria-hidden />}
+                  peaks={mixerJob.instrumentalPeaks}
+                  progress={mixerProgress}
+                  onSeek={seekMixer}
+                  muted={instMuted}
+                  solo={instSolo}
+                  onToggleMute={() => setInstMuted((m) => !m)}
+                  onToggleSolo={() => setInstSolo((value) => !value)}
+                  gain={instGain}
+                  effectiveGain={effectiveInstGain}
+                  onGain={setInstGain}
+                />
+              ) : null}
+
+              {/* Transport */}
+              <div className="flex flex-wrap items-stretch">
+                <span className="grid w-[92px] shrink-0 place-items-center bg-black/40 py-3">
                   <button
                     type="button"
                     data-sound="none"
                     disabled={mixerLoading}
+                    data-playing={mixerPlaying || undefined}
                     onClick={() => {
                       if (mixerPlaying) {
                         stopMixerPlayback(false);
@@ -938,17 +997,26 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
                       }
                     }}
                     aria-label={mixerPlaying ? "Pause mixer" : "Play mixed stems"}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-ink text-white transition-colors hover:bg-[#2a2a2b] disabled:opacity-60"
+                    className="fb-play h-16 w-16"
                   >
                     {mixerLoading ? (
-                      <Loader2 size={16} className="animate-spin" aria-hidden />
+                      <Loader2 size={22} className="animate-spin" aria-hidden />
                     ) : mixerPlaying ? (
-                      <Pause size={16} fill="currentColor" aria-hidden />
+                      <svg aria-hidden width="22" height="22" viewBox="0 0 12 12" fill="currentColor">
+                        <path d="M2 1h3v10H2zM7 1h3v10H7z" />
+                      </svg>
                     ) : (
-                      <Play size={16} fill="currentColor" className="translate-x-[1px]" aria-hidden />
+                      <svg aria-hidden width="22" height="22" viewBox="0 0 12 12" fill="currentColor">
+                        <path d="M3 .8 11 6l-8 5.2z" />
+                      </svg>
                     )}
                   </button>
-
+                </span>
+                <span className="flex min-w-[150px] flex-col justify-center px-5 py-3">
+                  <span className="fb-wide fb-num text-[clamp(20px,2vw,28px)] normal-case">{formatTime(mixerCurrentTime)}</span>
+                  <span className="fb-num mt-1 text-[13px] text-white/55">of {formatTime(mixerDuration)}</span>
+                </span>
+                <span className="flex min-w-[180px] flex-1 items-center px-4 max-sm:basis-full max-sm:py-3">
                   <input
                     type="range"
                     aria-label="Mixer position"
@@ -956,73 +1024,23 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
                     max={Math.max(0.1, mixerDuration || 1)}
                     step={0.05}
                     value={mixerCurrentTime}
-                    onChange={(e) => {
-                      const next = Number(e.target.value);
-                      playOffsetRef.current = next;
-                      setMixerCurrentTime(next);
-                      if (mixerPlaying) {
-                        void startMixerPlayback(mixerJob, next);
-                      }
-                    }}
-                    className="range min-w-0 flex-1"
+                    onChange={(e) => seekMixer(Number(e.target.value) / Math.max(0.1, mixerDuration || 1))}
+                    className="range fb-deck-range min-w-0 flex-1"
                     style={fillStyle(mixerProgress)}
                   />
-
-                  <span className="shrink-0 text-[12.5px] font-medium tabular-nums text-muted">
-                    {formatTime(mixerCurrentTime)} / {formatTime(mixerDuration)}
-                  </span>
-                </div>
-
-                {/* Presets */}
-                <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Mix presets">
+                </span>
+                <span role="group" aria-label="Mix presets" className="flex flex-wrap items-stretch border-white/15 sm:border-l max-sm:w-full max-sm:border-t">
                   {MIXER_PRESETS.map((preset) => (
                     <button
                       key={preset.id}
                       type="button"
                       onClick={() => applyMixerPreset(preset)}
-                      className="inline-flex h-8 items-center rounded-full border border-line bg-white px-3 text-[12.5px] font-medium text-ink transition-colors hover:border-[#cfc9bd] hover:bg-hover"
+                      className="min-h-[48px] flex-1 whitespace-nowrap border-l border-white/15 px-3.5 text-[13px] font-medium text-white/75 transition-colors first:border-l-0 hover:bg-white hover:text-ink"
                     >
                       {preset.label}
                     </button>
                   ))}
-                </div>
-
-                {/* One strip per stem */}
-                <div className="grid gap-x-6 gap-y-4 border-t border-line-soft pt-4 sm:grid-cols-2">
-                  {mixerJob.vocalsUrl ? (
-                    <MixerStrip
-                      label="Vocals"
-                      icon={<Mic size={14} className="text-accent" aria-hidden />}
-                      peaks={mixerJob.vocalsPeaks}
-                      progress={mixerProgress}
-                      tone="coral"
-                      muted={vocalsMuted}
-                      solo={vocalsSolo}
-                      onToggleMute={() => setVocalsMuted((m) => !m)}
-                      onToggleSolo={() => setVocalsSolo((s) => !s)}
-                      gain={vocalsGain}
-                      effectiveGain={effectiveVocalsGain}
-                      onGain={setVocalsGain}
-                    />
-                  ) : null}
-
-                  {mixerJob.instrumentalUrl ? (
-                    <MixerStrip
-                      label="Instrumental"
-                      icon={<Music size={14} className="text-success" aria-hidden />}
-                      peaks={mixerJob.instrumentalPeaks}
-                      progress={mixerProgress}
-                      tone="sage"
-                      muted={instMuted}
-                      solo={instSolo}
-                      onToggleMute={() => setInstMuted((m) => !m)}
-                      onToggleSolo={() => setInstSolo((s) => !s)}
-                      gain={instGain}
-                      effectiveGain={effectiveInstGain}
-                      onGain={setInstGain}
-                    />
-                  ) : null}
-                </div>
+                </span>
               </div>
             </section>
           ) : null}
@@ -1034,48 +1052,25 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
               buttonLabel="Choose audio"
               limits={`MP3, WAV, M4A or OGG · up to ${maxSizeMB} MB · 30 minutes`}
               note="Stems stay in your account for 24 hours."
-              icon={<Music size={28} strokeWidth={1.5} aria-hidden />}
               onChoose={audioFile.openPicker}
               dragging={audioFile.dragging}
               onDragOver={audioFile.onDragOver}
               onDragLeave={audioFile.onDragLeave}
               onDrop={handleDropAudio}
-              minHeightClass={
-                mixerJob
-                  ? "min-h-[340px]"
-                  : "min-h-[380px] lg:min-h-[min(calc(100dvh_-_250px),640px)]"
-              }
-              chips={
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleLoadDemoSong();
-                  }}
-                  className="text-[13px] font-medium text-muted underline decoration-[#cfc9bd] underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
-                >
-                  No track handy? Try a 6-second demo
-                </button>
-              }
-            />
+            >
+              <ToolText onClick={handleLoadDemoSong}>Try a 6-second demo</ToolText>
+            </Dropzone>
           ) : (
             <div
               onDragOver={audioFile.onDragOver}
               onDragLeave={audioFile.onDragLeave}
               onDrop={handleDropAudio}
-              className={`flex flex-col gap-3 rounded-[16px] transition-shadow ${
-                audioFile.dragging ? "ring-2 ring-accent ring-offset-4 ring-offset-paper" : ""
-              }`}
+              className="relative flex min-h-0 flex-1 flex-col"
             >
-              <div className="rounded-[16px] border border-line bg-white px-4 py-5 sm:px-5">
-                <MiniWaveform peaks={stagedAudio.peaks} progress={1} bars={80} height={88} tone="ink" />
-                <p className="mt-4 text-[13px] text-muted">
-                  You get: <span className="font-medium text-ink">{outputSummary}</span>
-                </p>
-              </div>
-
               <FileRow
-                icon={<Music size={16} aria-hidden />}
+                flush
+                className="shrink-0 border-y border-line first:border-t-0"
+                icon={<Music size={17} aria-hidden />}
                 name={stagedAudio.name}
                 meta={stagedMeta}
                 onReplace={audioFile.openPicker}
@@ -1084,6 +1079,15 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
                   setDemoItem(null);
                 }}
               />
+              <AudioPlayer
+                src={stagedAudio.url}
+                duration={stagedAudio.duration}
+                peaks={stagedAudio.peaks}
+                fileName={stagedAudio.name}
+                formatLabel={`splits into ${outputSummary.toLowerCase()}`}
+                className="min-h-[330px]"
+              />
+              {audioFile.dragging ? <DropOver label="Drop to replace" /> : null}
             </div>
           )}
         </StudioStage>
@@ -1096,231 +1100,195 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
           label="Separation settings"
           className="lg:col-start-2 lg:row-span-2 lg:row-start-1"
           action={
-            <PrimaryAction
-              label={stagedAudio && signedOut ? "Sign in to separate" : "Separate vocals"}
-              busyLabel="Uploading…"
-              icon={
-                stagedAudio && signedOut ? (
-                  <Lock size={15} aria-hidden />
-                ) : (
-                  <AudioLines size={16} aria-hidden />
-                )
-              }
-              busy={submitting}
-              disabled={!stagedAudio}
-              onClick={() => void handleSubmitJob()}
-              hint={
-                stagedAudio ? (
-                  <>
-                    <span className="tabular-nums">{VOCAL_COST} credits</span>
-                    {gpuStatus?.state === "booting" ? (
-                      <>
-                        <span aria-hidden>·</span>
-                        <span className="tabular-nums">
-                          engine starting {formatElapsedClock(gpuStatus.bootElapsedMs)}
-                        </span>
-                      </>
-                    ) : null}
-                  </>
-                ) : (
-                  "Add a track to get started"
-                )
-              }
-            />
+            finishedJob ? (
+              <StemDownloads
+                job={finishedJob}
+                onNew={() => {
+                  audioFile.clear();
+                  setDemoItem(null);
+                }}
+              />
+            ) : (
+              <PrimaryAction
+                label={stagedAudio && signedOut ? "Sign in to separate" : "Separate vocals"}
+                busyLabel={runningJob ? "Separating…" : "Uploading…"}
+                progress={runningJob ? runningJob.progress / 100 : undefined}
+                icon={
+                  stagedAudio && signedOut ? (
+                    <Lock size={18} aria-hidden />
+                  ) : (
+                    <AudioLines size={19} aria-hidden />
+                  )
+                }
+                busy={submitting || Boolean(runningJob)}
+                disabled={!stagedAudio}
+                onClick={() => void handleSubmitJob()}
+                hint={
+                  stagedAudio ? (
+                    <>
+                      <span className="tabular-nums">{VOCAL_COST} credits</span>
+                      {gpuStatus?.state === "booting" ? (
+                        <>
+                          <span aria-hidden>·</span>
+                          <span className="tabular-nums">
+                            engine starting {formatElapsedClock(gpuStatus.bootElapsedMs)}
+                          </span>
+                        </>
+                      ) : null}
+                    </>
+                  ) : (
+                    "Add a track to get started"
+                  )
+                }
+              />
+            )
           }
         >
-          <div className="space-y-6">
-            <VocalControls
-              settings={settings}
-              onPatch={handlePatch}
-              onReset={() => setSettings(DEFAULT_VOCAL_SETTINGS)}
-              disabled={submitting}
-            />
+          <VocalControls
+            settings={settings}
+            onPatch={handlePatch}
+            onReset={() => setSettings(DEFAULT_VOCAL_SETTINGS)}
+            disabled={submitting}
+          />
 
-            <EngineStatus
-              status={gpuStatus}
-              waking={wakingGpu}
-              onWake={() => void handleWakeGpu()}
-              onRefresh={() => void fetchStatus(true)}
-            />
-          </div>
+          <EngineStatus
+            status={gpuStatus}
+            waking={wakingGpu}
+            onWake={() => void handleWakeGpu()}
+            onRefresh={() => void fetchStatus(true)}
+          />
         </StudioRail>
 
         {/* ============================================================ */}
         {/* 3 · Everything separated in the last 24 hours                 */}
         {/* ============================================================ */}
-        <StudioStage className={`border-t border-line lg:row-start-2 ${LEFT_COLUMN}`}>
-          <section aria-label="Your separated tracks">
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-              <h2 className="flex items-center gap-2 text-[15px] font-semibold text-ink">
-                Your tracks
-                {jobs.length > 0 ? <Chip>{jobs.length}</Chip> : null}
-              </h2>
-              {jobs.length > ITEMS_PER_PAGE ? (
-                <div className="flex items-center gap-1 text-[12.5px] text-muted">
-                  <button
-                    type="button"
-                    disabled={safePage <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className={ICON_BUTTON}
-                    aria-label="Previous page"
-                  >
-                    <ChevronLeft size={15} aria-hidden />
-                  </button>
-                  <span className="px-1.5 tabular-nums">
-                    {safePage} / {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={safePage >= totalPages}
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className={ICON_BUTTON}
-                    aria-label="Next page"
-                  >
-                    <ChevronRight size={15} aria-hidden />
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            <p className="mt-1 text-[12.5px] text-faint">
-              Stems are kept for 24 hours. Older ones can be cleared sooner if space runs out.
-            </p>
-
+        <div className={`min-w-0 border-t border-line lg:row-start-2 ${LEFT_COLUMN}`}>
+          <HistorySection
+            title="Your tracks"
+            label="Your separated tracks"
+            count={jobs.length}
+            note="Stems are kept for 24 hours. Older ones can be cleared sooner if space runs out."
+            pager={
+              jobs.length > ITEMS_PER_PAGE ? <HistoryPager page={safePage} pages={totalPages} onPage={setPage} /> : null
+            }
+          >
             {!isSignedIn ? (
-              <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
-                Sign in to separate tracks and find your stems here.{" "}
-                <button
-                  type="button"
-                  onClick={() => setShowCreditGate(true)}
-                  className="font-medium text-ink underline decoration-[#cfc9bd] underline-offset-4 transition-colors hover:decoration-ink"
-                >
-                  Sign in or create a free account
-                </button>
-              </p>
+              <HistoryEmpty>
+                <span>
+                  Sign in to separate tracks and find your stems here.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setShowCreditGate(true)}
+                    className="font-semibold text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:text-accent-deep"
+                  >
+                    Sign in or create a free account
+                  </button>
+                </span>
+              </HistoryEmpty>
             ) : loadingJobs && jobs.length === 0 ? (
-              <p className="mt-4 flex items-center gap-2 text-[13px] text-muted" aria-busy="true">
-                <Loader2 size={15} className="animate-spin" aria-hidden />
+              <HistoryEmpty>
+                <Loader2 size={16} className="animate-spin" aria-hidden />
                 Loading your tracks…
-              </p>
+              </HistoryEmpty>
             ) : jobs.length === 0 ? (
-              <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
-                Nothing separated yet. Finished tracks appear here with a player and a download for
-                each stem.
-              </p>
+              <HistoryEmpty>
+                Nothing separated yet. Finished tracks appear here with a player and a download for each stem.
+              </HistoryEmpty>
             ) : (
-              <ul className="mt-1 divide-y divide-line">
+              <HistoryList>
                 {pagedJobs.map((job) => {
                   const isRunning = ACTIVE_STATUSES.has(job.status);
                   const isFailed = job.status === "failed";
                   const elapsed = isRunning ? nowMs - job.createdAt : job.elapsedMs;
-                  const formatLabel = job.format.toUpperCase();
 
                   return (
-                    <li key={job.id} className="py-4 last:pb-1">
-                      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-                        <div className="min-w-0 flex-1 basis-[220px]">
-                          <p className="truncate text-[14px] font-medium text-ink">
-                            {job.sourceFileName}
-                          </p>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] tabular-nums text-muted">
-                            <span>
-                              {[
-                                job.durationSec > 0 ? formatTime(job.durationSec) : null,
-                                job.format === "mp3" ? `MP3 ${job.bitrate} kbps` : "WAV",
-                                `${Math.round(job.sampleRate / 100) / 10} kHz`,
-                                isRunning ? formatElapsedClock(elapsed) : null,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </span>
-                            <span className="text-faint">{job.modelLabel}</span>
-                            {job.status === "completed" ? (
-                              <GenerationExpiryBadge expiresAt={job.expiresAt} nowMs={nowMs} />
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-1.5">
+                    <HistoryRow
+                      key={job.id}
+                      active={mixerJobId === job.id}
+                      title={job.sourceFileName}
+                      badge={
+                        job.status === "completed" ? (
+                          <GenerationExpiryBadge expiresAt={job.expiresAt} nowMs={nowMs} />
+                        ) : null
+                      }
+                      meta={[
+                        job.durationSec > 0 ? formatTime(job.durationSec) : null,
+                        job.format === "mp3" ? `MP3 ${job.bitrate} kbps` : "WAV",
+                        `${Math.round(job.sampleRate / 100) / 10} kHz`,
+                        isRunning ? formatElapsedClock(elapsed) : null,
+                        job.modelLabel,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      progress={isRunning ? Math.round(job.progress) : undefined}
+                      progressLabel={job.stageLabel}
+                      error={isFailed ? job.error || "Vocal separation failed." : undefined}
+                      actions={
+                        <>
                           {job.status === "completed" && (job.vocalsUrl || job.instrumentalUrl) ? (
-                            <button
-                              type="button"
+                            <HistoryButton
                               onClick={() => showMixer(job)}
-                              className={buttonClasses("secondary", "md")}
+                              icon={<SlidersHorizontal size={14} aria-hidden />}
                             >
-                              <SlidersHorizontal size={14} aria-hidden />
                               Mixer
-                            </button>
+                            </HistoryButton>
                           ) : null}
-
                           {!isRunning ? (
                             <>
-                              <button
-                                type="button"
+                              <ToolIcon
+                                label={`Separate ${job.sourceFileName} again`}
                                 onClick={() => void handleRetryJob(job.id)}
-                                aria-label={`Separate ${job.sourceFileName} again`}
-                                title="Separate again with the same audio"
-                                className={ICON_BUTTON}
                               >
                                 <RotateCcw size={15} aria-hidden />
-                              </button>
-                              <button
-                                type="button"
+                              </ToolIcon>
+                              <ToolIcon
+                                label={`Delete ${job.sourceFileName}`}
+                                slot="history-remove"
                                 onClick={() => void handleDeleteJob(job.id)}
-                                aria-label={`Delete ${job.sourceFileName}`}
-                                title="Delete"
-                                className={`${ICON_BUTTON} hover:!bg-danger-soft hover:!text-danger`}
                               >
                                 <Trash2 size={15} aria-hidden />
-                              </button>
+                              </ToolIcon>
                             </>
                           ) : null}
-                        </div>
-                      </div>
-
-                      {isRunning ? (
-                        <JobProgress className="mt-3" label={job.stageLabel} progress={job.progress} />
-                      ) : isFailed ? (
-                        <Note tone="error" className="mt-3">
-                          {job.error || "Vocal separation failed."}
-                        </Note>
-                      ) : (
-                        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                        </>
+                      }
+                    >
+                      {!isRunning && !isFailed ? (
+                        <div className="grid gap-3 px-4 pb-4 sm:px-6 xl:grid-cols-2">
                           {job.vocalsUrl ? (
                             <StemBlock
                               label="Vocals"
-                              icon={<Mic size={14} className="text-accent" aria-hidden />}
+                              icon={<Mic size={15} aria-hidden />}
                               url={job.vocalsUrl}
                               downloadUrl={job.vocalsDownloadUrl}
                               fileName={job.vocalsFileName}
                               byteLength={job.vocalsByteLength}
                               peaks={job.vocalsPeaks}
                               duration={job.durationSec || 1}
-                              formatLabel={formatLabel}
                             />
                           ) : null}
 
                           {job.instrumentalUrl ? (
                             <StemBlock
                               label="Instrumental"
-                              icon={<Music size={14} className="text-success" aria-hidden />}
+                              icon={<Music size={15} aria-hidden />}
                               url={job.instrumentalUrl}
                               downloadUrl={job.instrumentalDownloadUrl}
                               fileName={job.instrumentalFileName}
                               byteLength={job.instrumentalByteLength}
                               peaks={job.instrumentalPeaks}
                               duration={job.durationSec || 1}
-                              formatLabel={formatLabel}
                             />
                           ) : null}
                         </div>
-                      )}
-                    </li>
+                      ) : null}
+                    </HistoryRow>
                   );
                 })}
-              </ul>
+              </HistoryList>
             )}
-          </section>
-        </StudioStage>
+          </HistorySection>
+        </div>
       </StudioFrame>
 
       <CreditGate
@@ -1328,6 +1296,8 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
         onClose={() => setShowCreditGate(false)}
         action="separate vocals"
         cost={VOCAL_COST}
+        file={stagedAudio?.file}
+        settings={settings}
       />
     </>
   );
@@ -1337,43 +1307,47 @@ export function VocalRemoverStudio({ maxSizeMB }: { maxSizeMB: number }) {
 /* Presentational pieces                                               */
 /* ------------------------------------------------------------------ */
 
-/** Sets the ink fill of a `.range` input. */
+/** The run button once the loaded track is split: one key per stem. */
+function StemDownloads({ job, onNew }: { job: VocalJobSnapshot; onNew: () => void }) {
+  const vocals = job.vocalsDownloadUrl
+    ? { href: job.vocalsDownloadUrl, filename: job.vocalsFileName ?? undefined, bytes: job.vocalsByteLength }
+    : null;
+  const instrumental = job.instrumentalDownloadUrl
+    ? { href: job.instrumentalDownloadUrl, filename: job.instrumentalFileName ?? undefined, bytes: job.instrumentalByteLength }
+    : null;
+  const first = vocals ?? instrumental;
+  if (!first) return null;
+  return (
+    <>
+      <DownloadAction
+        label={vocals ? "Download vocals" : "Download instrumental"}
+        href={first.href}
+        filename={first.filename}
+        hint={[job.format.toUpperCase(), first.bytes ? formatBytes(first.bytes) : null].filter(Boolean).join(" · ")}
+      />
+      <ActionRow>
+        {vocals && instrumental ? (
+          <a
+            href={instrumental.href}
+            download={instrumental.filename}
+            className={buttonClasses("secondary", "md", "!h-11 px-3 !text-[13px]")}
+          >
+            <Download size={15} aria-hidden />
+            <span className="truncate">Instrumental</span>
+          </a>
+        ) : null}
+        <SecondaryAction onClick={onNew} icon={<RotateCcw size={14} aria-hidden />}>
+          New track
+        </SecondaryAction>
+      </ActionRow>
+    </>
+  );
+}
+
+/** Sets the coral fill of a `.range` input. */
 function fillStyle(fraction: number): CSSProperties {
   const percent = Math.round(Math.min(1, Math.max(0, fraction)) * 1000) / 10;
   return { "--fill": `${percent}%` } as CSSProperties;
-}
-
-function JobProgress({
-  label,
-  progress,
-  className = "",
-}: {
-  label: string;
-  progress: number;
-  className?: string;
-}) {
-  const percent = Math.min(100, Math.max(0, Math.round(progress)));
-  return (
-    <div
-      role="progressbar"
-      aria-label={label || "Separation progress"}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={percent}
-      className={className}
-    >
-      <div className="flex items-center justify-between gap-3 text-[12.5px] text-muted">
-        <span className="min-w-0 truncate">{label}</span>
-        <span className="shrink-0 tabular-nums">{percent}%</span>
-      </div>
-      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#e9e6df]">
-        <div
-          className="h-full rounded-full bg-accent transition-[width] duration-300"
-          style={{ width: `${Math.max(6, percent)}%` }}
-        />
-      </div>
-    </div>
-  );
 }
 
 /** One stem in the mixer: mute / solo, its waveform and a volume fader. */
@@ -1382,7 +1356,7 @@ function MixerStrip({
   icon,
   peaks,
   progress,
-  tone,
+  onSeek,
   muted,
   solo,
   onToggleMute,
@@ -1395,7 +1369,7 @@ function MixerStrip({
   icon: ReactNode;
   peaks: number[];
   progress: number;
-  tone: "coral" | "sage";
+  onSeek: (fraction: number) => void;
   muted: boolean;
   solo: boolean;
   onToggleMute: () => void;
@@ -1405,45 +1379,46 @@ function MixerStrip({
   onGain: (gain: number) => void;
 }) {
   const name = label.toLowerCase();
-  const toggle =
-    "grid h-8 w-8 place-items-center rounded-lg text-[12.5px] font-semibold transition-colors";
-  const idle = "border border-line bg-white text-muted hover:border-[#cfc9bd] hover:text-ink";
+  const key = "grid h-9 w-9 place-items-center border text-[13px] font-semibold transition-colors";
+  const idle = "border-white/30 text-white/75 hover:bg-white hover:text-ink";
+  const silent = effectiveGain === 0;
 
   return (
-    <div className="min-w-0">
-      <div className="mb-2.5 flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink">
-          {icon}
-          {label}
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            aria-pressed={muted}
-            aria-label={`Mute ${name}`}
-            title="Mute"
-            onClick={onToggleMute}
-            className={`${toggle} ${muted ? "bg-danger text-white" : idle}`}
-          >
-            M
-          </button>
-          <button
-            type="button"
-            aria-pressed={solo}
-            aria-label={`Solo ${name}`}
-            title="Solo"
-            onClick={onToggleSolo}
-            className={`${toggle} ${solo ? "bg-ink text-white" : idle}`}
-          >
-            S
-          </button>
-        </div>
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-white/15 px-5 py-4">
+      <div className="flex w-[148px] shrink-0 items-center gap-3 max-sm:w-full">
+        <span className={silent ? "text-white/40" : "text-accent"}>{icon}</span>
+        <span className="text-[14.5px] font-semibold">{label}</span>
       </div>
-
-      <MiniWaveform peaks={peaks} progress={progress} tone={tone} height={32} />
-
-      <div className="mt-2.5 flex items-center gap-2.5">
-        <Volume2 size={14} className="shrink-0 text-muted" aria-hidden />
+      <div className="flex shrink-0 [&>*]:-ml-px">
+        <button
+          type="button"
+          aria-pressed={muted}
+          aria-label={`Mute ${name}`}
+          title="Mute"
+          onClick={onToggleMute}
+          className={`${key} ${muted ? "relative z-[1] border-accent bg-accent-deep text-white" : idle}`}
+        >
+          M
+        </button>
+        <button
+          type="button"
+          aria-pressed={solo}
+          aria-label={`Solo ${name}`}
+          title="Solo"
+          onClick={onToggleSolo}
+          className={`${key} ${solo ? "relative z-[1] border-white bg-white text-ink" : idle}`}
+        >
+          S
+        </button>
+      </div>
+      <Waveform
+        peaks={peaks}
+        progress={progress}
+        idle="rgba(255,255,255,.34)"
+        onSeek={onSeek}
+        className={`h-14 min-w-[140px] flex-1 transition-opacity ${silent ? "opacity-35" : ""}`}
+      />
+      <div className="flex w-[190px] shrink-0 items-center gap-3 max-sm:w-full">
         <input
           type="range"
           aria-label={`${label} volume`}
@@ -1452,12 +1427,10 @@ function MixerStrip({
           step={5}
           value={Math.round(gain * 100)}
           onChange={(e) => onGain(Number(e.target.value) / 100)}
-          className="range min-w-0 flex-1"
+          className="range fb-deck-range min-w-0 flex-1"
           style={fillStyle(gain / 1.5)}
         />
-        <span className="w-11 shrink-0 text-right text-[12.5px] font-medium tabular-nums text-ink">
-          {Math.round(effectiveGain * 100)}%
-        </span>
+        <span className="fb-num w-12 shrink-0 text-right text-[13.5px] font-semibold">{Math.round(effectiveGain * 100)}%</span>
       </div>
     </div>
   );
@@ -1473,7 +1446,6 @@ function StemBlock({
   byteLength,
   peaks,
   duration,
-  formatLabel,
 }: {
   label: string;
   icon: ReactNode;
@@ -1483,37 +1455,32 @@ function StemBlock({
   byteLength: number | null;
   peaks: number[];
   duration: number;
-  formatLabel: string;
 }) {
   return (
     <div className="min-w-0">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-ink">
+        <span className="inline-flex min-w-0 items-center gap-2 text-[14px] font-semibold">
           {icon}
           {label}
         </span>
         {downloadUrl ? (
-          <a
+          <HistoryButton
             href={downloadUrl}
-            download={fileName ?? undefined}
-            aria-label={`Download ${label.toLowerCase()}`}
-            className={buttonClasses("secondary", "sm")}
+            filename={fileName ?? undefined}
+            label={`Download ${label.toLowerCase()}`}
+            icon={<Download size={14} aria-hidden />}
           >
-            <Download size={13} aria-hidden />
-            Download
-            {byteLength ? (
-              <span className="font-normal tabular-nums text-faint">{formatBytes(byteLength)}</span>
-            ) : null}
-          </a>
+            {byteLength ? formatBytes(byteLength) : "Download"}
+          </HistoryButton>
         ) : null}
       </div>
       <AudioPlayer
         src={url}
         duration={duration}
         peaks={peaks}
-        fileName={fileName ?? undefined}
-        formatLabel={formatLabel}
+        fileName={fileName ?? label}
         compact
+        tone="light"
       />
     </div>
   );
@@ -1532,39 +1499,21 @@ function EngineStatus({
   onRefresh: () => void;
 }) {
   const state = status?.state;
-  const label =
-    state === "ready"
-      ? "Engine ready"
-      : state === "booting"
-        ? `Engine starting · ${formatElapsedClock(status?.bootElapsedMs ?? 0)}`
-        : "Engine asleep. It wakes when you start.";
-  const dot =
-    state === "ready"
-      ? "bg-success"
-      : state === "booting"
-        ? "animate-pulse bg-promo"
-        : state === "error"
-          ? "bg-danger"
-          : "bg-[#b9b5ac]";
-  const action =
-    "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink disabled:opacity-50";
-
+  const asleep = Boolean(status) && state !== "ready";
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-line-soft pt-4 text-[12.5px] text-muted">
-      <span className="flex min-w-0 items-center gap-2">
-        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
-        <span className="tabular-nums">{label}</span>
-      </span>
-      {status && state !== "ready" ? (
-        <button type="button" onClick={onWake} disabled={waking} className={action}>
-          {waking ? <Loader2 size={13} className="animate-spin" aria-hidden /> : null}
-          Wake now
-        </button>
-      ) : (
-        <button type="button" onClick={onRefresh} className={action}>
-          Refresh
-        </button>
-      )}
-    </div>
+    <EngineRow
+      state={state === "ready" ? "ready" : state === "booting" ? "booting" : state === "error" ? "error" : "asleep"}
+      label={
+        state === "ready"
+          ? "Engine ready"
+          : state === "booting"
+            ? `Engine starting · ${formatElapsedClock(status?.bootElapsedMs ?? 0)}`
+            : "Engine asleep. It wakes when you start."
+      }
+      actionLabel={asleep ? "Wake now" : "Refresh"}
+      onAction={asleep ? onWake : onRefresh}
+      busy={waking}
+      icon={asleep ? <Zap size={14} aria-hidden /> : <RefreshCw size={14} aria-hidden />}
+    />
   );
 }

@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useScroll, useSpring } from "framer-motion";
 import { useAuthSession } from "@/components/auth/AuthContext";
+import { LogoMark } from "@/components/brand/Wordmark";
 import { ToolGlyph } from "@/components/icons/NavGlyph";
 import { categories, tools, toolsForCategory } from "@/lib/registry/tools";
-import { Arrow, EASE, Roll } from "./kit";
+import { Arrow, EASE, Roll } from "@/components/site/kit";
 
 const LINKS = [
   { id: "journey", label: "How it works" },
@@ -14,27 +15,6 @@ const LINKS = [
   { id: "faq", label: "Questions" },
 ];
 const SECTIONS = ["tools", ...LINKS.map((link) => link.id)];
-
-/** The brand mark with a dog-ear: an ink file with a coral button. */
-export function LogoMark({ size = 26, invert = false }: { size?: number; invert?: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className="lp-ear grid shrink-0 place-items-center"
-      style={{
-        width: size,
-        height: size,
-        background: invert ? "#fff" : "var(--lp-ink)",
-        ["--ear" as string]: `${Math.round(size * 0.27)}px`,
-      }}
-    >
-      <span
-        className="rounded-full bg-[var(--lp-coral)]"
-        style={{ width: size * 0.36, height: size * 0.36 }}
-      />
-    </span>
-  );
-}
 
 export function Nav() {
   const { isSignedIn } = useAuthSession();
@@ -109,7 +89,7 @@ export function Nav() {
   const marker = (id: string) => (
     <span
       aria-hidden
-      className={`absolute -left-[15px] top-1/2 -mt-[3.5px] h-[7px] w-[7px] bg-[var(--lp-coral)] transition-transform duration-300 ${
+      className={`absolute -left-[15px] top-1/2 -mt-[3.5px] h-[7px] w-[7px] bg-[var(--fb-coral)] transition-transform duration-300 ${
         section === id ? "scale-100" : "scale-0"
       }`}
     />
@@ -118,16 +98,16 @@ export function Nav() {
   return (
     <header
       ref={headerRef}
-      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${solid ? "bg-[var(--lp-bg)]" : ""}`}
+      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${solid ? "bg-[var(--fb-bg)]" : ""}`}
     >
       <div
-        className={`relative flex h-[var(--lp-nav)] items-center justify-between gap-6 border-b px-[var(--lp-pad)] transition-colors duration-300 ${
-          solid ? "border-[var(--lp-line)]" : "border-transparent"
+        className={`relative flex h-[var(--fb-nav)] items-center justify-between gap-6 border-b px-[var(--fb-pad)] transition-colors duration-300 ${
+          solid ? "border-[var(--fb-line)]" : "border-transparent"
         }`}
       >
         <Link href="/" aria-label="frebies home" className="flex items-center gap-2.5" onClick={closeAll}>
           <LogoMark />
-          <span className="lp-wide text-[19px] lowercase leading-none">frebies</span>
+          <span className="fb-wide text-[19px] lowercase leading-none">frebies</span>
         </Link>
 
         <div className="flex items-center gap-[clamp(18px,2vw,34px)]">
@@ -138,7 +118,7 @@ export function Nav() {
                 aria-expanded={tray}
                 aria-controls="tools-tray"
                 onClick={() => setTray((value) => !value)}
-                className="relative flex h-[var(--lp-nav)] items-center text-[14px] uppercase"
+                className="relative flex h-[var(--fb-nav)] items-center text-[14px] uppercase"
               >
                 {marker("tools")}
                 <Roll>Tools</Roll>
@@ -170,7 +150,7 @@ export function Nav() {
 
           <Link
             href="/dashboard"
-            className="lp-btn lp-ear !h-[44px] max-sm:!px-4 max-sm:!text-[13px]"
+            className="fb-btn fb-ear !h-[44px] max-sm:!px-4 max-sm:!text-[13px]"
             style={{ ["--ear" as string]: "12px" }}
           >
             {isSignedIn ? "Open studio" : "Open the tools"}
@@ -191,7 +171,7 @@ export function Nav() {
         <motion.span
           aria-hidden
           style={{ scaleX: progress, originX: 0 }}
-          className="absolute inset-x-0 -bottom-px h-[2px] bg-[var(--lp-coral)]"
+          className="absolute inset-x-0 -bottom-px h-[2px] bg-[var(--fb-coral)]"
         />
       </div>
 
@@ -206,25 +186,25 @@ export function Nav() {
             animate={{ clipPath: "inset(0 0 0% 0)" }}
             exit={{ clipPath: "inset(0 0 100% 0)" }}
             transition={{ duration: 0.45, ease: EASE }}
-            className="absolute inset-x-0 top-full hidden border-b border-[var(--lp-line)] bg-[var(--lp-panel)] lg:block"
+            className="absolute inset-x-0 top-full hidden border-b border-[var(--fb-line)] bg-[var(--fb-panel)] lg:block"
           >
             <div className="grid grid-cols-4">
               {categories.map((category, index) => (
                 <div
                   key={category.slug}
-                  className={`flex flex-col px-[var(--lp-pad)] pb-9 pt-7 ${index > 0 ? "border-l border-[var(--lp-line)]" : ""}`}
+                  className={`flex flex-col px-[var(--fb-pad)] pb-9 pt-7 ${index > 0 ? "border-l border-[var(--fb-line)]" : ""}`}
                 >
                   <Link
                     href={`/${category.slug}`}
                     onClick={closeAll}
-                    className="lp-wide flex items-baseline justify-between text-[19px] hover:text-[var(--lp-coral)]"
+                    className="fb-wide flex items-baseline justify-between text-[19px] hover:text-[var(--fb-coral)]"
                   >
                     {category.name}
                     <Arrow />
                   </Link>
                   <ul className="mt-5">
                     {toolsForCategory(category.slug).map((tool) => (
-                      <li key={tool.path} className="border-t border-[var(--lp-line)]">
+                      <li key={tool.path} className="border-t border-[var(--fb-line)]">
                         <Link
                           href={tool.path}
                           onClick={closeAll}
@@ -233,10 +213,10 @@ export function Nav() {
                           <ToolGlyph
                             path={tool.path}
                             size={18}
-                            className="shrink-0 text-[var(--lp-muted)] transition-colors group-hover:text-[var(--lp-coral)]"
+                            className="shrink-0 text-[var(--fb-muted)] transition-colors group-hover:text-[var(--fb-coral)]"
                           />
                           <span className="flex-1">{tool.name}</span>
-                          <span className="lp-label !text-[12px]">
+                          <span className="fb-label !text-[12px]">
                             {tool.status === "soon" ? "Preview" : tool.tier === "free" ? "Free" : "AI"}
                           </span>
                         </Link>
@@ -247,7 +227,7 @@ export function Nav() {
                     <Link
                       href="/dashboard"
                       onClick={closeAll}
-                      className="lp-btn lp-ear mt-auto !h-[76px] !justify-between"
+                      className="fb-btn fb-ear mt-auto !h-[76px] !justify-between"
                       style={{ ["--ear" as string]: "20px" }}
                     >
                       All {tools.length} tools
@@ -269,7 +249,7 @@ export function Nav() {
             animate={{ clipPath: "inset(0 0 0% 0)" }}
             exit={{ clipPath: "inset(0 0 100% 0)" }}
             transition={{ duration: 0.5, ease: EASE }}
-            className="absolute inset-x-0 top-full flex h-[calc(100svh-var(--lp-nav))] flex-col overflow-y-auto bg-[var(--lp-bg)] lg:hidden"
+            className="absolute inset-x-0 top-full flex h-[calc(100svh-var(--fb-nav))] flex-col overflow-y-auto bg-[var(--fb-bg)] lg:hidden"
           >
             <div className="flex-1">
               {categories.map((category, index) => (
@@ -277,17 +257,17 @@ export function Nav() {
                   key={category.slug}
                   href={`/${category.slug}`}
                   onClick={closeAll}
-                  className="flex items-center justify-between border-b border-[var(--lp-line)] px-[var(--lp-pad)] py-5"
+                  className="flex items-center justify-between border-b border-[var(--fb-line)] px-[var(--fb-pad)] py-5"
                 >
                   <motion.span
                     initial={{ y: 24, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.12 + index * 0.05, duration: 0.5, ease: EASE }}
-                    className="lp-wide text-[26px]"
+                    className="fb-wide text-[26px]"
                   >
                     {category.name}
                   </motion.span>
-                  <span className="lp-label">{toolsForCategory(category.slug).length}</span>
+                  <span className="fb-label">{toolsForCategory(category.slug).length}</span>
                 </Link>
               ))}
               <div className="grid grid-cols-2">
@@ -297,7 +277,7 @@ export function Nav() {
                       key={link.href}
                       href={link.href}
                       onClick={closeAll}
-                      className="border-b border-r border-[var(--lp-line)] px-[var(--lp-pad)] py-4 text-[14px] uppercase even:border-r-0"
+                      className="border-b border-r border-[var(--fb-line)] px-[var(--fb-pad)] py-4 text-[14px] uppercase even:border-r-0"
                     >
                       {link.label}
                     </a>
@@ -308,7 +288,7 @@ export function Nav() {
             <Link
               href="/dashboard"
               onClick={closeAll}
-              className="flex items-center justify-between bg-[var(--lp-coral-deep)] px-[var(--lp-pad)] py-6 text-[15px] font-semibold uppercase text-white"
+              className="flex items-center justify-between bg-[var(--fb-coral-deep)] px-[var(--fb-pad)] py-6 text-[15px] font-semibold uppercase text-white"
             >
               All {tools.length} tools
               <Arrow size={18} />

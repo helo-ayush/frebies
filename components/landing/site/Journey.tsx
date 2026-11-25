@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { motion, useInView, useScroll, useSpring, useTransform, type MotionValue } from "framer-motion";
 import { tools } from "@/lib/registry/tools";
-import { Arrow, EASE, FileIcon, MaskBlock, MaskLines, Rule, Sq, useMedia } from "./kit";
+import { Arrow, EASE, FileIcon, MaskBlock, MaskLines, Rule, Sq, useMedia } from "@/components/site/kit";
 
 const freeCount = tools.filter((tool) => tool.tier === "free").length;
 const NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
@@ -15,7 +15,7 @@ function Cube({ size, className = "" }: { size: number; className?: string }) {
   const half = size / 2;
   return (
     <div className={`[perspective:900px] ${className}`} style={{ width: size, height: size }} aria-hidden>
-      <div className="lp-cube relative h-full w-full">
+      <div className="fb-cube relative h-full w-full">
         {[
           `translateZ(${half}px)`,
           `rotateY(90deg) translateZ(${half}px)`,
@@ -177,13 +177,13 @@ function WorkArt() {
           className="absolute"
           style={{ left: `${(knob.x / 320) * 100}%`, top: `${(knob.y / 270) * 100}%`, width: `${(knob.w / 320) * 100}%` }}
         >
-          <div className="relative h-[22px] border border-[var(--lp-ink)]/60 bg-[var(--lp-panel)]">
+          <div className="relative h-[22px] border border-[var(--fb-ink)]/60 bg-[var(--fb-panel)]">
             <span
-              className={`absolute bottom-[3px] top-[3px] w-[32%] ${knob.tone === "coral" ? "bg-[var(--lp-coral)]" : "bg-[var(--lp-ink)]"}`}
-              style={{ animation: `lp-knob 4.2s cubic-bezier(.65,0,.35,1) ${knob.delay}s infinite` }}
+              className={`absolute bottom-[3px] top-[3px] w-[32%] ${knob.tone === "coral" ? "bg-[var(--fb-coral)]" : "bg-[var(--fb-ink)]"}`}
+              style={{ animation: `fb-knob 4.2s cubic-bezier(.65,0,.35,1) ${knob.delay}s infinite` }}
             />
           </div>
-          <p className="lp-label mt-1 !text-[11px]">{knob.label}</p>
+          <p className="fb-label mt-1 !text-[11px]">{knob.label}</p>
         </div>
       ))}
     </div>
@@ -202,7 +202,7 @@ function SaveArt({ nodeRef }: { nodeRef: RefObject<HTMLSpanElement> }) {
           <g key={index}>
             <motion.path
               d={`M160 136 L${x} ${y}`}
-              stroke={index === 5 ? "var(--lp-coral)" : "rgba(29,28,31,.35)"}
+              stroke={index === 5 ? "var(--fb-coral)" : "rgba(29,28,31,.35)"}
               variants={{
                 off: { pathLength: 0 },
                 on: { pathLength: 1, transition: { duration: 0.6, delay: 0.3 + index * 0.08 } },
@@ -210,7 +210,7 @@ function SaveArt({ nodeRef }: { nodeRef: RefObject<HTMLSpanElement> }) {
             />
             <motion.path
               d={`M${x - 10} ${y - 12} h13 l7 7 v17 h-20z`}
-              fill={index === 5 ? "#f2552c" : "var(--lp-panel)"}
+              fill={index === 5 ? "#f2552c" : "var(--fb-panel)"}
               stroke={index === 5 ? "#f2552c" : "rgba(29,28,31,.45)"}
               variants={{
                 off: { scale: 0 },
@@ -237,8 +237,8 @@ function CardText({ title, n, copy, dark = false }: { title: string; n: number; 
   return (
     <div className="px-7 pb-8 lg:px-9">
       <div className="flex items-baseline gap-2.5">
-        <MaskLines as="h3" className="lp-wide text-[26px]" lines={[title]} />
-        <span className={`text-[13px] ${dark ? "text-white/45" : "text-[var(--lp-muted)]"}`}>// 0{n}</span>
+        <MaskLines as="h3" className="fb-wide text-[26px]" lines={[title]} />
+        <span className={`text-[13px] ${dark ? "text-white/45" : "text-[var(--fb-muted)]"}`}>// 0{n}</span>
       </div>
       <MaskBlock className="mt-3.5 max-w-[400px]" delay={0.12}>
         <p className={`text-[15.5px] leading-[1.5] ${dark ? "text-white/75" : "text-[#3d3c41]"}`}>{copy}</p>
@@ -351,26 +351,26 @@ export function Journey() {
   );
 
   return (
-    <section id="journey" aria-label="How it works" className="relative border-t border-[var(--lp-line)]">
-      <div className="relative px-[var(--lp-pad)] pb-[clamp(56px,7vw,110px)] pt-[clamp(84px,9vw,150px)] text-center">
+    <section id="journey" aria-label="How it works" className="relative border-t border-[var(--fb-line)]">
+      <div className="relative px-[var(--fb-pad)] pb-[clamp(56px,7vw,110px)] pt-[clamp(84px,9vw,150px)] text-center">
         <Rule vertical className="bottom-0 left-[17%] top-0 hidden md:block" />
         <Rule vertical className="bottom-0 right-[17%] top-0 hidden md:block" />
-        <MaskLines as="h2" className="lp-wide lp-title" lines={["Your file takes", "a short trip"]} />
+        <MaskLines as="h2" className="fb-wide fb-title" lines={["Your file takes", "a short trip"]} />
         <MaskBlock className="mx-auto mt-8 max-w-[500px]" delay={0.16}>
-          <p className="lp-body">
+          <p className="fb-body">
             {NUMBER_WORDS[freeCount] ?? freeCount} of our tools are code that runs inside this page. This is everything that happens between
             opening a file and saving the result.
           </p>
         </MaskBlock>
         <MaskBlock className="mt-7" delay={0.24}>
-          <Link href="/dashboard" className="lp-link">
+          <Link href="/dashboard" className="fb-link">
             See the free tools
             <Arrow />
           </Link>
         </MaskBlock>
         <div className="absolute right-[calc(17%-140px)] top-[52%] hidden items-start gap-3 text-left xl:flex">
           <Sq className="-ml-[6px]" />
-          <p className="lp-label">
+          <p className="fb-label">
             Browser tab
             <br />
             // No server
@@ -382,29 +382,29 @@ export function Journey() {
         <motion.div
           ref={bandRef}
           style={{ backgroundPosition: stripePos }}
-          className="lp-stripes relative flex h-[clamp(240px,27vw,420px)] items-start justify-center"
+          className="fb-stripes relative flex h-[clamp(240px,27vw,420px)] items-start justify-center"
         >
           <div className="absolute -top-[11%]">
             <Exploded progress={open} frontRef={frontRef} />
           </div>
         </motion.div>
 
-        <div className="h-[clamp(36px,6vw,96px)] border-b border-[var(--lp-line)] max-lg:hidden" />
+        <div className="h-[clamp(36px,6vw,96px)] border-b border-[var(--fb-line)] max-lg:hidden" />
 
         <div ref={boardRef} className="relative">
         <div ref={gridRef} className="relative grid lg:grid-cols-3">
           <div ref={slotRef} className="relative z-10 lg:min-h-[520px]">
             <motion.div
               style={{ transform: cardTransform, transformOrigin: "0 0", borderColor: edge }}
-              className="h-full border bg-[var(--lp-ink-2)] text-white will-change-transform"
+              className="h-full border bg-[var(--fb-ink-2)] text-white will-change-transform"
             >
               <motion.div style={desktop ? { opacity: inside } : undefined} className="flex h-full flex-col justify-between">
                 {ink}
               </motion.div>
             </motion.div>
           </div>
-          <div className="flex flex-col justify-between border-[var(--lp-line)] lg:border-r">
-            <div className="m-4 h-[clamp(220px,23vw,360px)] bg-[var(--lp-tint)] p-6">
+          <div className="flex flex-col justify-between border-[var(--fb-line)] lg:border-r">
+            <div className="m-4 h-[clamp(220px,23vw,360px)] bg-[var(--fb-tint)] p-6">
               <WorkArt />
             </div>
             <CardText
@@ -413,7 +413,7 @@ export function Journey() {
               copy="You set the format, quality, size or pages. The tool does the job on your own processor."
             />
           </div>
-          <div className="flex flex-col justify-between bg-[var(--lp-panel)]">
+          <div className="flex flex-col justify-between bg-[var(--fb-panel)]">
             <div className="m-4 h-[clamp(220px,23vw,360px)] p-6">
               <SaveArt nodeRef={nodeRef} />
             </div>
@@ -426,8 +426,8 @@ export function Journey() {
         </div>
 
         {/* Trace: from the saved file, back to the disk it came from */}
-        <div ref={stripRef} className="relative grid border-y border-[var(--lp-line)] lg:grid-cols-3">
-          <div className="flex flex-wrap items-center justify-center gap-x-9 gap-y-4 px-[var(--lp-pad)] py-11 lg:col-span-2">
+        <div ref={stripRef} className="relative grid border-y border-[var(--fb-line)] lg:grid-cols-3">
+          <div className="flex flex-wrap items-center justify-center gap-x-9 gap-y-4 px-[var(--fb-pad)] py-11 lg:col-span-2">
             {["JPG", "PDF", "MP3", "PNG", "WAV"].map((ext, index) => (
               <motion.span
                 key={ext}
@@ -439,7 +439,7 @@ export function Journey() {
               </motion.span>
             ))}
           </div>
-          <div className="pt-9 max-lg:border-t max-lg:border-[var(--lp-line)] lg:pl-6">
+          <div className="pt-9 max-lg:border-t max-lg:border-[var(--fb-line)] lg:pl-6">
             <CardText
               title="Forget"
               n={4}
@@ -458,7 +458,7 @@ export function Journey() {
             <motion.path
               d={trace.d}
               fill="none"
-              stroke="var(--lp-coral)"
+              stroke="var(--fb-coral)"
               strokeWidth="1.5"
               initial={{ pathLength: 0 }}
               animate={{ pathLength: traced ? 1 : 0 }}
@@ -474,7 +474,7 @@ export function Journey() {
                 y={y - 5.5}
                 width={11}
                 height={11}
-                fill="var(--lp-coral)"
+                fill="var(--fb-coral)"
                 stroke="#fff"
                 strokeWidth={delay > 1 ? 3 : 0}
                 initial={{ scale: 0 }}

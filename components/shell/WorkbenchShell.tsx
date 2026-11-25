@@ -1,18 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { sweepHeldFiles } from "@/lib/held-file";
+import { CommandMenu } from "./CommandMenu";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
+const COLLAPSED_WIDTH = "64px";
+
 export function WorkbenchShell({ children }: { children: ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
   useEffect(() => {
     setNavOpen(false);
+    setSearchOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -20,7 +26,6 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
     const onChange = () => {
       if (query.matches) setNavOpen(false);
     };
-
     query.addEventListener("change", onChange);
     return () => query.removeEventListener("change", onChange);
   }, []);
@@ -28,16 +33,13 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     const node = contentRef.current;
     if (node) (node as HTMLElement & { inert: boolean }).inert = navOpen;
-
     if (!navOpen) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setNavOpen(false);
     };
-
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
@@ -45,17 +47,22 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
     };
   }, [navOpen]);
 
-  // Remember the rail preference so a tool page keeps its width between visits.
+  // Files left at the sign-in gate are gone after an hour.
+  useEffect(() => {
+    void sweepHeldFiles();
+  }, []);
+
+  // Remember the index width, so a tool page keeps its room between visits.
   useEffect(() => {
     try {
-      if (window.localStorage.getItem("frebies:sidebar") === "collapsed") setSidebarCollapsed(true);
+      if (window.localStorage.getItem("frebies:sidebar") === "collapsed") setCollapsed(true);
     } catch {
-      // Storage can be blocked; the default expanded rail is fine.
+      // Storage can be blocked; the open index is a fine default.
     }
   }, []);
 
-  function toggleSidebar() {
-    setSidebarCollapsed((current) => {
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((current) => {
       const next = !current;
       try {
         window.localStorage.setItem("frebies:sidebar", next ? "collapsed" : "expanded");
@@ -64,52 +71,54 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
       }
       return next;
     });
-  }
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
+      const command = event.metaKey || event.ctrlKey;
+      if (command && event.key.toLowerCase() === "b") {
         event.preventDefault();
         toggleSidebar();
+        return;
+      }
+      if (command && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (event.key === "/" && !command && !target?.closest("input, textarea, select, [contenteditable]")) {
+        event.preventDefault();
+        setSearchOpen(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [toggleSidebar]);
 
   return (
-    <div className="min-h-screen bg-[#fcfbf9] text-ink">
-      <Sidebar
-        open={navOpen}
-        collapsed={sidebarCollapsed}
-        onClose={() => setNavOpen(false)}
+    <div
+      className="min-h-dvh bg-canvas text-ink"
+      style={{ "--fb-side": collapsed ? COLLAPSED_WIDTH : "248px" } as CSSProperties}
+    >
+      <Topbar
+        navOpen={navOpen}
+        onToggleNav={() => setNavOpen((value) => !value)}
+        onSearch={() => setSearchOpen(true)}
+        collapsed={collapsed}
+        onToggleSidebar={toggleSidebar}
       />
-
-      {navOpen && (
-        <div
-          aria-hidden="true"
-          onClick={() => setNavOpen(false)}
-          className="fixed inset-0 z-35 bg-black/30 lg:hidden"
-        />
-      )}
+      <Sidebar open={navOpen} collapsed={collapsed} onClose={() => setNavOpen(false)} />
 
       <div
         ref={contentRef}
         aria-hidden={navOpen || undefined}
-        className={`transition-[padding] duration-200 motion-reduce:transition-none ${
-          sidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-[264px]"
-        }`}
+        className="pt-[var(--fb-bar)] transition-[padding] duration-200 motion-reduce:transition-none lg:pl-[var(--fb-side)]"
       >
-        <Topbar
-          onOpenNav={() => setNavOpen(true)}
-          collapsed={sidebarCollapsed}
-          onToggleSidebar={toggleSidebar}
-        />
-        <main className="mx-auto w-full max-w-[1520px] px-4 pb-24 pt-4 sm:px-5 lg:px-6 lg:pt-5">
-          {children}
-        </main>
+        <main>{children}</main>
       </div>
 
+      <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

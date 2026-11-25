@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function SsoCallbackPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#fcfcfb]" />}>
+    <Suspense fallback={<div className="min-h-dvh bg-canvas" />}>
       <SsoCallbackClient />
     </Suspense>
   );

@@ -3,9 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSignIn } from "@clerk/nextjs";
-import { Eye, EyeOff, KeyRound, Mail } from "lucide-react";
+import { KeyRound, Mail } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { Input } from "@/components/aceternity/input";
 import { AUTH_ROUTES, sanitizeRedirectUrl } from "@/lib/auth/clerk-config";
 import {
   extractSignalError,
@@ -14,8 +13,8 @@ import {
 } from "@/lib/auth/clerk-errors";
 import { useAuthSession } from "./AuthContext";
 import { AuthCodeVerification } from "./AuthCodeVerification";
-import { AuthErrorBanner, AuthShell } from "./AuthShell";
-import { GlossySubmitButton } from "./GlossySubmitButton";
+import { AuthDivider, AuthErrorBanner, AuthHeading, AuthShell } from "./AuthShell";
+import { AuthField, AuthSubmit, PasswordInput } from "./AuthSubmit";
 import { GoogleOAuthButton } from "./GoogleOAuthButton";
 
 type SignInMethod = "code" | "password";
@@ -31,6 +30,7 @@ function SignInView({
   busy,
   oauthBusy,
   error,
+  signUpHref,
   onEmailChange,
   onPasswordChange,
   onCodeChange,
@@ -51,6 +51,8 @@ function SignInView({
   busy: boolean;
   oauthBusy: boolean;
   error: ParsedAuthError | null;
+  /** Sign up, with the email and the page to return to. */
+  signUpHref: string;
   onEmailChange: (v: string) => void;
   onPasswordChange: (v: string) => void;
   onCodeChange: (v: string) => void;
@@ -67,25 +69,18 @@ function SignInView({
     error?.code === "identifier_not_found";
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="font-display text-[22px] font-semibold leading-tight tracking-[-0.025em] text-ink">
-          Sign in to frebies
-        </h2>
-        <p className="mt-1 text-[13px] text-muted">
-          Use Google or your email address to open your workspace.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <AuthHeading title="Sign in">
+        {step === "credentials"
+          ? "With Google, or a code sent to your email."
+          : "Type the code from your email. It signs you in on the last digit."}
+      </AuthHeading>
 
       {error && (
         <AuthErrorBanner
           message={error.message}
-          actionLabel={showSignUpHint ? "No account yet? Create one →" : undefined}
-          actionHref={
-            showSignUpHint
-              ? `/sign-up${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ""}`
-              : undefined
-          }
+          actionLabel={showSignUpHint ? "No account yet? Create one" : undefined}
+          actionHref={showSignUpHint ? signUpHref : undefined}
         />
       )}
 
@@ -93,11 +88,11 @@ function SignInView({
         {step === "credentials" ? (
           <motion.div
             key="signin-credentials"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.22 }}
-            className="space-y-4"
+            initial={{ opacity: 0, x: -14 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -14 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-5"
           >
             <GoogleOAuthButton
               label="Continue with Google"
@@ -106,20 +101,11 @@ function SignInView({
               onClick={onGoogleClick}
             />
 
-            <div className="relative flex items-center py-0.5">
-              <span className="h-px flex-1 bg-black/[0.08]" />
-              <span className="px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
-                or sign in with email
-              </span>
-              <span className="h-px flex-1 bg-black/[0.08]" />
-            </div>
+            <AuthDivider>or with email</AuthDivider>
 
-            <form onSubmit={onSubmitCredentials} className="space-y-3.5">
-              <div className="space-y-1.5">
-                <label htmlFor="signin-email" className="block text-[12px] font-medium text-ink">
-                  Email address
-                </label>
-                <Input
+            <form onSubmit={onSubmitCredentials} className="space-y-5">
+              <AuthField id="signin-email" label="Email address">
+                <input
                   id="signin-email"
                   type="email"
                   autoComplete="email"
@@ -127,9 +113,9 @@ function SignInView({
                   placeholder="you@domain.com"
                   value={email}
                   onChange={(e) => onEmailChange(e.target.value)}
-                  className="bg-white/85 backdrop-blur-sm"
+                  className="fb-input !h-[52px] !text-[16px]"
                 />
-              </div>
+              </AuthField>
 
               <AnimatePresence initial={false}>
                 {method === "password" && (
@@ -140,73 +126,50 @@ function SignInView({
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    <div className="space-y-1.5 pt-0.5">
-                      <label
-                        htmlFor="signin-password"
-                        className="block text-[12px] font-medium text-ink"
-                      >
-                        Password
-                      </label>
-                      <div className="relative">
-                        <Input
-                          id="signin-password"
-                          type={showPassword ? "text" : "password"}
-                          autoComplete="current-password"
-                          required
-                          placeholder="Enter your password"
-                          value={password}
-                          onChange={(e) => onPasswordChange(e.target.value)}
-                          className="bg-white/85 pr-10 backdrop-blur-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={onTogglePasswordVisibility}
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-faint transition-colors hover:text-ink"
-                        >
-                          {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                        </button>
-                      </div>
-                    </div>
+                    <AuthField id="signin-password" label="Password">
+                      <PasswordInput
+                        id="signin-password"
+                        value={password}
+                        onChange={onPasswordChange}
+                        shown={showPassword}
+                        onToggle={onTogglePasswordVisibility}
+                        placeholder="Your password"
+                        autoComplete="current-password"
+                      />
+                    </AuthField>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              <GlossySubmitButton
-                label={method === "code" ? "Send 6-digit code" : "Sign in"}
-                busyLabel={method === "code" ? "Sending 6-digit code…" : "Signing in…"}
+              <AuthSubmit
+                label={method === "code" ? "Send me a code" : "Sign in"}
+                busyLabel={method === "code" ? "Sending the code…" : "Signing in…"}
                 busy={busy}
                 disabled={oauthBusy || !email.trim() || (method === "password" && !password)}
-                icon={method === "code" ? <Mail size={15} aria-hidden /> : <KeyRound size={15} aria-hidden />}
+                icon={method === "code" ? <Mail size={19} aria-hidden /> : <KeyRound size={19} aria-hidden />}
               />
             </form>
 
-            <div className="flex items-center justify-center pt-0.5">
-              <button
-                type="button"
-                onClick={() => onSwitchMethod(method === "code" ? "password" : "code")}
-                className="rounded-full border border-transparent px-3 py-1 text-[12px] font-medium text-muted transition-all duration-200 hover:-translate-y-px hover:border-white/95 hover:bg-white/80 hover:text-ink hover:shadow-sm"
-              >
-                {method === "code" ? "Sign in with password instead" : "Use a 6-digit email code instead"}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => onSwitchMethod(method === "code" ? "password" : "code")}
+              className="text-[14px] font-semibold underline decoration-line-strong underline-offset-4 transition-colors hover:text-accent-deep"
+            >
+              {method === "code" ? "Use a password instead" : "Use an email code instead"}
+            </button>
           </motion.div>
         ) : (
           <motion.div
             key="signin-otp"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.22 }}
+            initial={{ opacity: 0, x: 14 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 14 }}
+            transition={{ duration: 0.2 }}
           >
             <AuthCodeVerification
               email={email}
-              title={
-                step === "verify_second_factor"
-                  ? "Security check · Code sent to"
-                  : "6-digit code sent to"
-              }
-              submitLabel="Verify & sign in"
+              title={step === "verify_second_factor" ? "Security check, code sent to" : "Code sent to"}
+              submitLabel="Sign in"
               code={code}
               onCodeChange={onCodeChange}
               onSubmit={onSubmitCode}
@@ -219,6 +182,14 @@ function SignInView({
       </AnimatePresence>
     </div>
   );
+}
+
+/** Where "create one" goes: same return page, same email. */
+function otherPage(path: string, redirectUrl: string, email: string): string {
+  const query = new URLSearchParams();
+  if (redirectUrl && redirectUrl !== AUTH_ROUTES.afterAuth) query.set("redirect_url", redirectUrl);
+  if (email.trim()) query.set("email", email.trim());
+  return query.size > 0 ? `${path}?${query}` : path;
 }
 
 function ClerkSignInFlow({
@@ -407,6 +378,7 @@ function ClerkSignInFlow({
       busy={busy}
       oauthBusy={oauthBusy}
       error={activeError}
+      signUpHref={otherPage(AUTH_ROUTES.signUp, redirectUrl, email)}
       onEmailChange={(v) => {
         setLocalError(null);
         setEmail(v);
@@ -433,7 +405,7 @@ function ClerkSignInFlow({
   );
 }
 
-function PreviewSignInFlow({ initialEmail }: { initialEmail: string }) {
+function PreviewSignInFlow({ redirectUrl, initialEmail }: { redirectUrl: string; initialEmail: string }) {
   const [method, setMethod] = useState<SignInMethod>("code");
   const [step, setStep] = useState<SignInStep>("credentials");
   const [email, setEmail] = useState(initialEmail);
@@ -461,6 +433,7 @@ function PreviewSignInFlow({ initialEmail }: { initialEmail: string }) {
       busy={false}
       oauthBusy={false}
       error={error}
+      signUpHref={otherPage(AUTH_ROUTES.signUp, redirectUrl, email)}
       onEmailChange={(v) => {
         setError(null);
         setEmail(v);
@@ -500,11 +473,11 @@ export function SignInClient() {
   const initialEmail = searchParams.get("email")?.trim() ?? "";
 
   return (
-    <AuthShell mode="sign-in" redirectUrl={redirectUrl}>
+    <AuthShell mode="sign-in" redirectUrl={redirectUrl} email={initialEmail}>
       {clerkEnabled ? (
         <ClerkSignInFlow redirectUrl={redirectUrl} initialEmail={initialEmail} />
       ) : (
-        <PreviewSignInFlow initialEmail={initialEmail} />
+        <PreviewSignInFlow redirectUrl={redirectUrl} initialEmail={initialEmail} />
       )}
     </AuthShell>
   );

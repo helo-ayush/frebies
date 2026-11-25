@@ -47,30 +47,16 @@ export default async function ToolPage({ params }: ToolParams) {
   if (!tool || !category) notFound();
 
   const studio = studioFor(tool);
-  const hideBadges = PLAIN_HEADER.has(tool.path);
 
   return (
     <>
       <JsonLd data={toolJsonLd(tool, category)} />
-      <ToolHeader
-        tool={tool}
-        category={category}
-        showTierBadge={!hideBadges}
-        showEngineBadge={!hideBadges}
-      />
-      <section className="mt-3.5">{studio ?? <ToolWorkspace tool={tool} />}</section>
+      <ToolHeader tool={tool} category={category} />
+      {studio ?? <ToolWorkspace tool={tool} />}
       <SeoContent tool={tool} category={category} />
     </>
   );
 }
-
-/** Tools whose studio shows its own Free / Pro pricing, so the header stays plain. */
-const PLAIN_HEADER = new Set([
-  "/image/upscaler",
-  "/audio/text-to-speech",
-  "/audio/vocal-remover",
-  "/video/dubbing",
-]);
 
 function studioFor(tool: Tool) {
   const size = tool.limits.maxSizeMB;

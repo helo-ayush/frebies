@@ -79,7 +79,7 @@ export const CROP_RATIOS: {
   hint: string;
   ratio: number | null;
 }[] = [
-  { id: "free", label: "Free", hint: "Any size", ratio: null },
+  { id: "free", label: "Free", hint: "Any", ratio: null },
   { id: "1:1", label: "1:1", hint: "Square", ratio: 1 },
   { id: "4:5", label: "4:5", hint: "Portrait", ratio: 4 / 5 },
   { id: "16:9", label: "16:9", hint: "Wide", ratio: 16 / 9 },

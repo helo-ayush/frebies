@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, RotateCcw } from "lucide-react";
+import { FileCog } from "lucide-react";
 import { Field } from "@/components/tool/kit";
+import { RailNumber, RailReset } from "@/components/tool/studio/RailControls";
+import { RailSection } from "@/components/tool/studio/RailSection";
 import { RailSlider } from "@/components/tool/studio/RailSlider";
 import { SelectRow, TextRow, ToggleRow } from "../DocumentKit";
 import {
@@ -26,8 +27,6 @@ export function MergeSettings({
   totalPages: number;
   advancedModified: boolean;
 }) {
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-
   const formatLabel =
     NUMBER_FORMAT_OPTIONS.find((option) => option.value === settings.numberFormat)?.label ?? "1, 2, 3";
   const positionLabel =
@@ -41,7 +40,7 @@ export function MergeSettings({
         : String(settings.numberStart);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <Field label="Output file">
         <TextRow
           label="File name"
@@ -53,7 +52,7 @@ export function MergeSettings({
       </Field>
 
       <Field label="Between documents">
-        <div className="space-y-3.5">
+        <div className="space-y-4">
           <ToggleRow
             label="Bookmark each document"
             description="Each file becomes a section in the PDF outline."
@@ -78,7 +77,7 @@ export function MergeSettings({
         />
 
         {settings.pageNumbers && (
-          <div className="mt-3.5 space-y-3.5">
+          <div className="mt-4 space-y-4">
             <SelectRow
               label="Format"
               options={NUMBER_FORMAT_OPTIONS.map((option) => option.label)}
@@ -98,29 +97,23 @@ export function MergeSettings({
               }}
             />
 
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block">
-                <span className="block text-[12.5px] font-medium text-muted">Start at</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={999}
-                  value={settings.numberStart}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    onChange({
-                      numberStart: Number.isFinite(next)
-                        ? Math.max(0, Math.min(999, Math.round(next)))
-                        : 1,
-                    });
-                  }}
-                  className="mt-1.5 h-10 w-full rounded-[10px] border border-line bg-white px-3 text-[13px] tabular-nums text-ink outline-none transition-colors hover:border-[#cfc9bd] focus:border-ink"
-                />
-              </label>
+            <div className="grid grid-cols-2 gap-4">
+              <RailNumber
+                label="Start at"
+                unit=""
+                min={0}
+                max={999}
+                value={settings.numberStart}
+                onChange={(next) =>
+                  onChange({
+                    numberStart: Number.isFinite(next) ? Math.max(0, Math.min(999, Math.round(next))) : 1,
+                  })
+                }
+              />
               <div>
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-[12.5px] font-medium text-muted">Size</span>
-                  <span className="text-[12px] tabular-nums text-faint">{settings.numberSize} pt</span>
+                  <span className="text-[13px] font-medium text-muted">Size</span>
+                  <span className="fb-num text-[13px] text-faint">{settings.numberSize} pt</span>
                 </div>
                 <RailSlider
                   label="Page number size"
@@ -128,7 +121,7 @@ export function MergeSettings({
                   min={8}
                   max={14}
                   onValueChange={(numberSize) => onChange({ numberSize })}
-                  className="mt-2.5"
+                  className="mt-2"
                 />
               </div>
             </div>
@@ -136,37 +129,14 @@ export function MergeSettings({
         )}
       </Field>
 
-      <div>
-        <button
-          type="button"
-          aria-expanded={advancedOpen}
-          aria-controls="merge-advanced-settings"
-          data-slot="advanced-trigger"
-          onClick={() => setAdvancedOpen((open) => !open)}
-          className="flex w-full items-center justify-between gap-3 rounded-lg py-1 text-left"
+      <div className="-mx-4 border-t border-line px-4 sm:-mx-5 sm:px-5">
+        <RailSection
+          icon={FileCog}
+          title="Document details"
+          aside={advancedModified ? "Changed" : "Title, author"}
+          defaultOpen={false}
         >
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="text-[13px] font-semibold text-ink">Document details</span>
-            {advancedModified && (
-              <span
-                className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent"
-                role="img"
-                aria-label="Document details were changed"
-              />
-            )}
-          </span>
-          <span className="flex shrink-0 items-center gap-1.5">
-            <span className="text-[12px] text-faint">Title, author, metadata</span>
-            <ChevronDown
-              size={15}
-              className={`text-faint transition-transform ${advancedOpen ? "rotate-180" : ""}`}
-              aria-hidden
-            />
-          </span>
-        </button>
-
-        {advancedOpen && (
-          <div id="merge-advanced-settings" className="mt-3 space-y-3.5">
+          <div className="space-y-4">
             <TextRow
               label="Title"
               value={settings.title}
@@ -197,17 +167,9 @@ export function MergeSettings({
               checked={settings.optimize}
               onChange={(optimize) => onChange({ optimize })}
             />
-
-            <button
-              type="button"
-              onClick={onReset}
-              className="flex h-10 w-full items-center justify-center gap-1.5 rounded-[10px] border border-line bg-white text-[13px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-            >
-              <RotateCcw size={13} aria-hidden />
-              Reset all settings
-            </button>
+            <RailReset onClick={onReset} label="Reset all settings" />
           </div>
-        )}
+        </RailSection>
       </div>
     </div>
   );

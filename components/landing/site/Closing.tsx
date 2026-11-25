@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { motion, useMotionValueEvent, useScroll, useSpring, useTransform, type MotionValue } from "framer-motion";
 import { categories, tools, toolsForCategory } from "@/lib/registry/tools";
-import { EASE, MaskBlock, MaskLines, Rule, Sq, roundPath, useSize } from "./kit";
-import { LogoMark } from "./Nav";
+import { EASE, MaskBlock, MaskLines, Rule, Sq, roundPath, useSize } from "@/components/site/kit";
+import { LogoMark } from "@/components/brand/Wordmark";
 
-const MachineFront = dynamic(() => import("./MachineCanvas").then((module) => module.MachineFront), { ssr: false });
+const MachineFront = dynamic(() => import("@/components/site/MachineCanvas").then((module) => module.MachineFront), { ssr: false });
 
 const freeCount = tools.filter((tool) => tool.tier === "free").length;
 
@@ -39,21 +39,21 @@ const FAQ = [
 
 export function Questions() {
   return (
-    <section id="faq" aria-label="Questions" className="relative scroll-mt-[var(--lp-nav)] px-[var(--lp-pad)] py-[clamp(80px,9vw,150px)]">
+    <section id="faq" aria-label="Questions" className="relative scroll-mt-[var(--fb-nav)] px-[var(--fb-pad)] py-[clamp(80px,9vw,150px)]">
       <div className="grid gap-y-10 md:grid-cols-[38%_minmax(0,1fr)]">
-        <MaskLines as="h2" className="lp-wide lp-title" lines={["Before", "you ask"]} />
-        <div className="border-t border-[var(--lp-line-strong)]">
+        <MaskLines as="h2" className="fb-wide fb-title" lines={["Before", "you ask"]} />
+        <div className="border-t border-[var(--fb-line-strong)]">
           {FAQ.map((item) => (
-            <details key={item.q} className="group border-b border-[var(--lp-line)]">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-6 text-[18px] font-medium transition-colors hover:text-[var(--lp-coral)] md:text-[20px]">
+            <details key={item.q} className="group border-b border-[var(--fb-line)]">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-6 text-[18px] font-medium transition-colors hover:text-[var(--fb-coral)] md:text-[20px]">
                 {item.q}
-                <span className="lp-plus grid h-9 w-9 shrink-0 place-items-center bg-[var(--lp-panel)] text-[var(--lp-ink)] transition-all duration-300">
+                <span className="fb-plus grid h-9 w-9 shrink-0 place-items-center bg-[var(--fb-panel)] text-[var(--fb-ink)] transition-all duration-300">
                   <svg aria-hidden width="13" height="13" viewBox="0 0 13 13" stroke="currentColor" strokeWidth="1.6">
                     <path d="M6.5 0v13M0 6.5h13" />
                   </svg>
                 </span>
               </summary>
-              <p className="lp-body max-w-[640px] pb-8">{item.a}</p>
+              <p className="fb-body max-w-[640px] pb-8">{item.a}</p>
             </details>
           ))}
         </div>
@@ -87,7 +87,7 @@ function Wire({
     <motion.path
       d={d}
       fill="none"
-      stroke={coral ? "var(--lp-coral)" : "rgba(29,28,31,.5)"}
+      stroke={coral ? "var(--fb-coral)" : "rgba(29,28,31,.5)"}
       strokeWidth={coral ? 2 : 1.4}
       style={{ pathLength }}
     />
@@ -97,10 +97,10 @@ function Wire({
 function Pin({ left, top, label, coral = false, side = "right" }: { left: string; top: string; label?: string; coral?: boolean; side?: "right" | "above" }) {
   return (
     <span className="absolute hidden md:block" style={{ left, top }}>
-      <span className={`absolute h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 ${coral ? "bg-[var(--lp-coral)]" : "bg-[var(--lp-ink)]"}`} />
+      <span className={`absolute h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 ${coral ? "bg-[var(--fb-coral)]" : "bg-[var(--fb-ink)]"}`} />
       {label && (
         <span
-          className={`lp-label absolute whitespace-nowrap !text-[12px] ${
+          className={`fb-label absolute whitespace-nowrap !text-[12px] ${
             side === "above" ? "bottom-3 left-0 -translate-x-1/2" : "left-4 top-0 -translate-y-1/2"
           }`}
         >
@@ -124,18 +124,18 @@ export function Closing() {
 
   return (
     <div ref={ref} className="relative h-[150svh]">
-      <section ref={stageRef} aria-label="Get started" className="sticky top-0 h-[100svh] min-h-[600px] overflow-clip border-t border-[var(--lp-line)] pt-[var(--lp-nav)]">
-        <Rule vertical className="bottom-0 left-[var(--lp-pad)] top-0" />
-        <Rule vertical className="bottom-0 right-[var(--lp-pad)] top-0" />
+      <section ref={stageRef} aria-label="Get started" className="sticky top-0 h-[100svh] min-h-[600px] overflow-clip border-t border-[var(--fb-line)] pt-[var(--fb-nav)]">
+        <Rule vertical className="bottom-0 left-[var(--fb-pad)] top-0" />
+        <Rule vertical className="bottom-0 right-[var(--fb-pad)] top-0" />
         <Rule vertical className="bottom-0 left-[25%] top-0 hidden md:block" />
         <Rule vertical className="bottom-0 right-[25%] top-0 hidden md:block" />
-        <div aria-hidden className="lp-hatch absolute left-[calc(25%-120px)] top-[14%] hidden h-[26%] w-[120px] opacity-70 md:block" />
-        <div aria-hidden className="lp-hatch absolute right-[calc(25%-120px)] top-[14%] hidden h-[20%] w-[120px] opacity-70 md:block" />
-        <div aria-hidden className="absolute inset-x-[var(--lp-pad)] top-[73%] h-[6%] bg-[var(--lp-panel)]" />
-        <p className="lp-label absolute left-[var(--lp-pad)] top-[76%] hidden w-[calc(25%-var(--lp-pad))] -translate-y-1/2 text-center md:block">
+        <div aria-hidden className="fb-hatch absolute left-[calc(25%-120px)] top-[14%] hidden h-[26%] w-[120px] opacity-70 md:block" />
+        <div aria-hidden className="fb-hatch absolute right-[calc(25%-120px)] top-[14%] hidden h-[20%] w-[120px] opacity-70 md:block" />
+        <div aria-hidden className="absolute inset-x-[var(--fb-pad)] top-[73%] h-[6%] bg-[var(--fb-panel)]" />
+        <p className="fb-label absolute left-[var(--fb-pad)] top-[76%] hidden w-[calc(25%-var(--fb-pad))] -translate-y-1/2 text-center md:block">
           {freeCount} free tools
         </p>
-        <p className="lp-label absolute right-[var(--lp-pad)] top-[76%] hidden w-[calc(25%-var(--lp-pad))] -translate-y-1/2 text-center md:block">
+        <p className="fb-label absolute right-[var(--fb-pad)] top-[76%] hidden w-[calc(25%-var(--fb-pad))] -translate-y-1/2 text-center md:block">
           No account
         </p>
 
@@ -164,16 +164,16 @@ export function Closing() {
           animate={{ opacity: live ? 1 : 0, scale: live ? 1 : 0.6 }}
           transition={{ duration: 0.35, ease: EASE }}
         >
-          <span className="grid h-[26px] w-[26px] place-items-center border-2 border-[var(--lp-coral)]">
-            <span className="lp-sq lp-blink !h-[10px] !w-[10px]" />
+          <span className="grid h-[26px] w-[26px] place-items-center border-2 border-[var(--fb-coral)]">
+            <span className="fb-sq fb-blink !h-[10px] !w-[10px]" />
           </span>
-          <span className="lp-label absolute left-9 whitespace-nowrap !text-[12px]">File, fixed</span>
+          <span className="fb-label absolute left-9 whitespace-nowrap !text-[12px]">File, fixed</span>
         </motion.span>
 
-        <div className="relative z-10 mx-auto flex flex-col items-center px-[var(--lp-pad)] pt-[7svh] text-center">
-          <MaskLines as="h2" className="lp-wide lp-title !text-[clamp(28px,min(4.05vw,8.2svh),70px)]" lines={["Too big?", "Wrong format?"]} />
+        <div className="relative z-10 mx-auto flex flex-col items-center px-[var(--fb-pad)] pt-[7svh] text-center">
+          <MaskLines as="h2" className="fb-wide fb-title !text-[clamp(28px,min(4.05vw,8.2svh),70px)]" lines={["Too big?", "Wrong format?"]} />
           <MaskBlock className="mt-[3svh]" delay={0.14}>
-            <p className="lp-body">There is a button for that.</p>
+            <p className="fb-body">There is a button for that.</p>
           </MaskBlock>
           <MaskBlock className="mt-[3svh]" delay={0.2}>
             <Link
@@ -181,7 +181,7 @@ export function Closing() {
               data-lit={lit}
               onPointerEnter={() => setHeld(true)}
               onPointerLeave={() => setHeld(false)}
-              className="lp-btn lp-ear !h-[54px] !px-12"
+              className="fb-btn fb-ear !h-[54px] !px-12"
             >
               Open the tools
             </Link>
@@ -201,11 +201,11 @@ export function Closing() {
 
 export function Footer() {
   return (
-    <footer className="relative z-20 bg-[var(--lp-bg)] px-[clamp(8px,2.1vw,34px)] pb-[clamp(8px,2.1vw,34px)] pt-0">
-      <div className="lp-ear relative overflow-hidden bg-[#1f1e21] text-white" style={{ ["--ear" as string]: "clamp(34px,4.4vw,66px)" }}>
+    <footer className="relative z-20 bg-[var(--fb-bg)] px-[clamp(8px,2.1vw,34px)] pb-[clamp(8px,2.1vw,34px)] pt-0">
+      <div className="fb-ear relative overflow-hidden bg-[#1f1e21] text-white" style={{ ["--ear" as string]: "clamp(34px,4.4vw,66px)" }}>
         <div className="flex items-center gap-4 px-[clamp(20px,3vw,44px)] pb-10 pt-11">
           <LogoMark invert size={38} />
-          <p className="lp-wide text-[clamp(18px,1.9vw,30px)] leading-[1.1]">
+          <p className="fb-wide text-[clamp(18px,1.9vw,30px)] leading-[1.1]">
             Every tool you need,
             <br />
             mostly free.
@@ -216,13 +216,13 @@ export function Footer() {
           <div className="grid grid-cols-2 gap-x-6 gap-y-10 px-[clamp(20px,3vw,44px)] py-11 md:grid-cols-4">
             {categories.map((category) => (
               <div key={category.slug}>
-                <Link href={`/${category.slug}`} className="lp-label !text-white/45 hover:!text-white">
+                <Link href={`/${category.slug}`} className="fb-label !text-white/45 hover:!text-white">
                   {category.name}
                 </Link>
                 <ul className="mt-5 space-y-3">
                   {toolsForCategory(category.slug).map((tool) => (
                     <li key={tool.path}>
-                      <Link href={tool.path} className="text-[15.5px] text-white/85 transition-colors hover:text-[var(--lp-coral)]">
+                      <Link href={tool.path} className="text-[15.5px] text-white/85 transition-colors hover:text-[var(--fb-coral)]">
                         {tool.name}
                       </Link>
                     </li>
@@ -233,24 +233,24 @@ export function Footer() {
           </div>
           <div className="flex flex-col justify-between gap-10 border-white/10 px-[clamp(20px,3vw,44px)] py-11 max-lg:border-t lg:border-l lg:px-8">
             <div>
-              <p className="lp-label !text-white/45">Your files</p>
+              <p className="fb-label !text-white/45">Your files</p>
               <p className="mt-5 text-[15.5px] leading-[1.5] text-white/75">
                 Free tools run in your browser. AI results are kept for 24 hours, then deleted.
               </p>
             </div>
             <ul className="space-y-3 text-[15.5px]">
               <li>
-                <Link href="/dashboard" className="text-white/85 hover:text-[var(--lp-coral)]">
+                <Link href="/dashboard" className="text-white/85 hover:text-[var(--fb-coral)]">
                   All {tools.length} tools
                 </Link>
               </li>
               <li>
-                <Link href="/sign-in" className="text-white/85 hover:text-[var(--lp-coral)]">
+                <Link href="/sign-in" className="text-white/85 hover:text-[var(--fb-coral)]">
                   Sign in
                 </Link>
               </li>
               <li>
-                <Link href="/sign-up" className="text-white/85 hover:text-[var(--lp-coral)]">
+                <Link href="/sign-up" className="text-white/85 hover:text-[var(--fb-coral)]">
                   Create account
                 </Link>
               </li>
@@ -260,7 +260,7 @@ export function Footer() {
 
         <motion.p
           aria-hidden
-          className="lp-wide flex justify-center overflow-hidden px-2 pt-2 text-[18.4vw] lowercase !leading-[0.92] !tracking-[-0.05em] text-[#39383c]"
+          className="fb-wide flex justify-center overflow-hidden px-2 pt-2 text-[18.4vw] lowercase !leading-[0.92] !tracking-[-0.05em] text-[#39383c]"
           initial="hidden"
           whileInView="shown"
           viewport={{ once: true, amount: 0.2 }}
@@ -269,7 +269,7 @@ export function Footer() {
           {"frebies".split("").map((letter, index) => (
             <motion.span
               key={index}
-              className="inline-block transition-colors duration-300 hover:text-[var(--lp-coral)]"
+              className="inline-block transition-colors duration-300 hover:text-[var(--fb-coral)]"
               variants={{ hidden: { y: "105%" }, shown: { y: 0, transition: { duration: 0.9, ease: EASE } } }}
             >
               {letter}

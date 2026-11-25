@@ -10,7 +10,7 @@ export function Sq({ className = "" }: { className?: string }) {
   return (
     <motion.span
       aria-hidden
-      className={`lp-sq ${className}`}
+      className={`fb-sq ${className}`}
       initial={{ scale: 0.01 }}
       whileInView={{ scale: 1 }}
       viewport={{ once: true }}
@@ -54,7 +54,7 @@ export function MaskLines({
   return (
     <Tag className={className} initial="hidden" {...play}>
       {lines.map((line, index) => (
-        <span key={index} className="lp-mask">
+        <span key={index} className="fb-mask">
           <motion.span className="block" variants={LINE} custom={delay + index * stagger}>
             {line}
           </motion.span>
@@ -93,7 +93,7 @@ export function Rule({ vertical = false, className = "" }: { vertical?: boolean;
   return (
     <motion.span
       aria-hidden
-      className={`pointer-events-none absolute bg-[var(--lp-line)] ${vertical ? "w-px" : "h-px"} ${className}`}
+      className={`pointer-events-none absolute bg-[var(--fb-line)] ${vertical ? "w-px" : "h-px"} ${className}`}
       style={{ originX: 0, originY: 0 }}
       initial={vertical ? { scaleY: 0 } : { scaleX: 0 }}
       whileInView={vertical ? { scaleY: 1 } : { scaleX: 1 }}
@@ -106,7 +106,7 @@ export function Rule({ vertical = false, className = "" }: { vertical?: boolean;
 /** Label that rolls to a coral copy of itself when its link is hovered. */
 export function Roll({ children }: { children: string }) {
   return (
-    <span className="lp-roll">
+    <span className="fb-roll">
       <span>{children}</span>
       <span aria-hidden>{children}</span>
     </span>
@@ -126,13 +126,13 @@ export function FileIcon({ ext, lit = false }: { ext: string; lit?: boolean }) {
   return (
     <span className="relative inline-block h-[54px] w-[42px]">
       <svg aria-hidden viewBox="0 0 42 54" className="absolute inset-0 h-full w-full" fill="none">
-        <path d="M.75.75h28L41.25 13v40.25H.75z" fill="var(--lp-panel)" stroke="var(--lp-line-strong)" />
-        <path d="M28.75.75V13h12.5" stroke="var(--lp-line-strong)" />
-        <path d="M9 22h24M9 28h24" stroke="var(--lp-line)" />
+        <path d="M.75.75h28L41.25 13v40.25H.75z" fill="var(--fb-panel)" stroke="var(--fb-line-strong)" />
+        <path d="M28.75.75V13h12.5" stroke="var(--fb-line-strong)" />
+        <path d="M9 22h24M9 28h24" stroke="var(--fb-line)" />
       </svg>
       <span
-        className={`lp-wide absolute -left-1.5 bottom-[9px] px-1.5 py-[4px] text-[11px] leading-none tracking-normal text-white ${
-          lit ? "bg-[var(--lp-coral)]" : "bg-[var(--lp-ink)]"
+        className={`fb-wide absolute -left-1.5 bottom-[9px] px-1.5 py-[4px] text-[11px] leading-none tracking-normal text-white ${
+          lit ? "bg-[var(--fb-coral)]" : "bg-[var(--fb-ink)]"
         }`}
       >
         {ext}

@@ -1,10 +1,11 @@
 import { Cloud, MonitorSmartphone } from "lucide-react";
 import type { Category, Tool } from "@/lib/registry/tools";
 import { ToolGlyph } from "@/components/icons/NavGlyph";
+import { SeamTag } from "@/components/ui/Seam";
 
 /**
- * Compact page header for a tool: one row, so the studio underneath starts
- * right below the topbar and the tool is usable without scrolling.
+ * One row between the top bar and the studio: what this tool is, and whether
+ * it is free. The studio fills everything below it, so nothing needs scrolling.
  */
 export function ToolHeader({
   tool,
@@ -20,45 +21,29 @@ export function ToolHeader({
   const EngineIcon = onDevice ? MonitorSmartphone : Cloud;
 
   return (
-    <header className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
-      <span className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[13px] bg-ink text-white shadow-[0_10px_20px_-10px_rgba(15,15,16,0.55)]">
-        <ToolGlyph path={tool.path} size={21} />
+    <header className="flex min-h-[var(--fb-head)] items-stretch border-b border-line">
+      <span
+        className="fb-ear hidden w-[var(--fb-head)] shrink-0 place-items-center bg-ink text-white sm:grid"
+        style={{ ["--ear" as string]: "18px" }}
+      >
+        <ToolGlyph path={tool.path} size={27} />
       </span>
 
-      <div className="min-w-0 flex-1 basis-[240px]">
-        <h1 className="font-display text-[22px] font-semibold leading-[1.15] tracking-[-0.03em] text-ink">
-          {tool.h1}
-        </h1>
-        <p className="mt-0.5 text-[13.5px] leading-snug text-muted max-sm:line-clamp-2 sm:truncate">{tool.tagline}</p>
-      </div>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-8 gap-y-1 px-4 py-3 sm:px-5 lg:px-6">
+        <div className="min-w-0">
+          <h1 className="fb-wide text-[clamp(19px,1.75vw,26px)]">{tool.h1}</h1>
+          <p className="mt-1.5 text-[14px] leading-snug text-muted max-sm:line-clamp-1 sm:truncate">{tool.tagline}</p>
+        </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        {tool.status === "soon" && (
-          <span className="inline-flex h-7 items-center rounded-full bg-[#fdf3e2] px-3 text-[12px] font-medium text-[#8a6320]">
-            Preview
-          </span>
-        )}
-        {showTierBadge &&
-          (tool.tier === "free" ? (
-            <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-success-soft px-3 text-[12px] font-semibold text-success">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden />
-              Free
+        <div className="hidden flex-wrap items-center gap-x-6 gap-y-1 md:flex">
+          {(showTierBadge || tool.status === "soon") && <SeamTag tool={tool} />}
+          {showEngineBadge && (
+            <span className="inline-flex items-center gap-2 text-[12.5px] uppercase leading-none text-muted">
+              <EngineIcon size={14} strokeWidth={1.7} aria-hidden />
+              {onDevice ? "Runs in your browser" : "Runs on our server"}
             </span>
-          ) : (
-            <span
-              title="Uses credits. Sign in to run."
-              className="inline-flex h-7 items-center gap-1.5 rounded-full bg-accent-soft px-3 text-[12px] font-semibold text-accent-deep"
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-              {tool.creditCost} {tool.creditCost === 1 ? "credit" : "credits"}
-            </span>
-          ))}
-        {showEngineBadge && (
-          <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-line bg-white px-3 text-[12px] font-medium text-muted">
-            <EngineIcon size={13} aria-hidden />
-            {onDevice ? "Runs on your device" : "Cloud"}
-          </span>
-        )}
+          )}
+        </div>
       </div>
     </header>
   );

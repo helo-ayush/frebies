@@ -39,13 +39,13 @@ export function StandardWorkspace({ tool }: { tool: Tool }) {
         />
 
         {multiple && (
-          <div className="mt-3 flex items-center gap-3 rounded-[11px] border border-line bg-[#fdfdfc] px-3.5 py-3">
+          <div className="mt-3 flex items-center gap-3 border border-line bg-panel px-3.5 py-3">
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-rail text-muted">
               <FileStack size={15} strokeWidth={1.5} aria-hidden />
             </span>
             <div>
               <p className="text-ui font-medium text-ink">Your file queue</p>
-              <p className="mt-0.5 text-micro text-faint">Added files can be reordered here before creating the output.</p>
+              <p className="mt-0.5 text-[12px] text-faint">Added files can be reordered here before creating the output.</p>
             </div>
           </div>
         )}
@@ -167,7 +167,7 @@ function Settings({ tool }: { tool: Tool }) {
             <input
               aria-label="Pages to extract"
               defaultValue="1–5"
-              className="h-9 w-full rounded-[9px] border border-line bg-white px-3 text-ui outline-none focus:border-[#bbbbb6]"
+              className="h-9 w-full border border-line bg-white px-3 text-ui outline-none focus:border-ink"
             />
           </Field>
           <SelectField label="Output" options={["Separate PDF files", "One PDF with selected pages"]} />
@@ -182,7 +182,7 @@ function Settings({ tool }: { tool: Tool }) {
             <input
               aria-label="PDF pages to convert"
               placeholder="e.g. 1–5, 8, 12"
-              className="h-9 w-full rounded-[9px] border border-line bg-white px-3 text-ui outline-none placeholder:text-faint focus:border-[#bbbbb6]"
+              className="h-9 w-full border border-line bg-white px-3 text-ui outline-none placeholder:text-faint focus:border-ink"
             />
           </Field>
           <SelectField label="Image resolution" options={["150 DPI", "300 DPI", "600 DPI"]} defaultValue="300 DPI" />
@@ -200,7 +200,7 @@ function Settings({ tool }: { tool: Tool }) {
             <input
               aria-label="OCR page range"
               placeholder="All pages"
-              className="h-9 w-full rounded-[9px] border border-line bg-white px-3 text-ui outline-none placeholder:text-faint focus:border-[#bbbbb6]"
+              className="h-9 w-full border border-line bg-white px-3 text-ui outline-none placeholder:text-faint focus:border-ink"
             />
           </Field>
           <Toggle label="Preserve layout" description="Keep paragraphs, columns and line breaks where possible." defaultChecked />
@@ -249,7 +249,7 @@ function Settings({ tool }: { tool: Tool }) {
 
 function InfoBox({ children }: { children: string }) {
   return (
-    <div className="flex gap-2 rounded-[10px] border border-line bg-rail p-3 text-micro leading-relaxed text-muted">
+    <div className="flex gap-2 border border-line bg-rail p-3 text-[12px] leading-relaxed text-muted">
       <Info size={13} className="mt-0.5 shrink-0 text-faint" aria-hidden />
       <p>{children}</p>
     </div>
@@ -259,13 +259,13 @@ function InfoBox({ children }: { children: string }) {
 function OutputCard({ icon, title, copy }: { icon: "mic" | "music"; title: string; copy: string }) {
   const Icon = icon === "mic" ? Mic2 : Music2;
   return (
-    <div className="flex items-center gap-3 rounded-[11px] border border-line bg-[#fdfdfc] p-3">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-rail text-muted">
+    <div className="flex items-center gap-3 border border-line bg-panel p-3">
+      <span className="grid h-9 w-9 place-items-center bg-rail text-muted">
         <Icon size={16} strokeWidth={1.5} aria-hidden />
       </span>
       <div>
         <p className="text-ui font-medium">{title}</p>
-        <p className="mt-0.5 text-micro text-faint">{copy}</p>
+        <p className="mt-0.5 text-[12px] text-faint">{copy}</p>
       </div>
     </div>
   );

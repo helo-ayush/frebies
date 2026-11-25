@@ -1,33 +1,26 @@
 "use client";
 
-import { Suspense, useEffect, useState, useRef, useMemo, type ReactNode } from "react";
+import { Suspense, useEffect, useState, useRef, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  ArrowRightLeft,
-  Check,
-  Download,
-  Grid,
-  Image as ImageIcon,
-  ImagePlus,
-  Loader2,
-  Maximize2,
-  Plus,
-} from "lucide-react";
-import { ImageCompare } from "@/components/arc/image-compare/image-compare";
+import { ArrowRightLeft, Download, Image as ImageIcon, ImagePlus, Loader2 } from "lucide-react";
 import {
   ActionRow,
-  Chip,
   DownloadAction,
   FileRow,
   Note,
   PrimaryAction,
+  QuickPick,
+  ResultButton,
   ResultCard,
   STUDIO_HEIGHT,
   SecondaryAction,
   StartOverAction,
   StudioFrame,
   StudioStage,
+  ToolText,
 } from "@/components/tool/kit";
+import { Filmstrip } from "@/components/tool/viewer/Filmstrip";
+import { ImageViewer, ViewTabs, type ViewMode } from "@/components/tool/viewer/ImageViewer";
 import { StudioDropzone, StudioChip } from "@/components/tool/studio/StudioDropzone";
 import { useImageQueue } from "@/components/tool/studio/useImageQueue";
 import type { StudioImage } from "@/components/tool/studio/types";
@@ -57,8 +50,6 @@ import {
 } from "@/lib/image/encode";
 
 const MAX_FILES = 20;
-/** Padding between the preview stage edge and the image, in px. */
-const STAGE_PADDING = 20;
 
 type ConvertedResult = {
   blob: Blob;
@@ -124,11 +115,7 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
   const [sharpenAmount, setSharpenAmount] = useState(0);
   const [grayscale, setGrayscale] = useState(false);
 
-  // Preview stage state: Scale to Fit & Checkerboard grid
-  const [scaleToFit, setScaleToFit] = useState(true);
-  const [showGrid, setShowGrid] = useState(true);
-  const [viewMode, setViewMode] = useState<"converted" | "original" | "split">("converted");
-  const [splitPos, setSplitPos] = useState(50);
+  const [viewMode, setViewMode] = useState<ViewMode>("after");
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeTone, setNoticeTone] = useState<"success" | "error">("success");
   const [busy, setBusy] = useState(false);
@@ -143,11 +130,17 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
   const origHeight = activeItem?.height || 1;
   const longestEdge = Math.max(origWidth, origHeight);
 
-  // Auto-synchronize custom dimensions when activeItem changes
+  // Auto-synchronize custom dimensions when activeItem changes. An exact size the
+  // user typed for a batch stays put while they look through its images.
+  const keepCustomSize = resizeMode === "custom" && items.length > 1;
+  const keepCustomSizeRef = useRef(keepCustomSize);
+  keepCustomSizeRef.current = keepCustomSize;
   useEffect(() => {
     if (activeItem?.width && activeItem.height) {
-      setCustomWidth(activeItem.width);
-      setCustomHeight(activeItem.height);
+      if (!keepCustomSizeRef.current) {
+        setCustomWidth(activeItem.width);
+        setCustomHeight(activeItem.height);
+      }
       setMaxEdgePx((curr) => {
         const longest = Math.max(activeItem.width!, activeItem.height!);
         return curr > longest ? longest : curr;
@@ -576,69 +569,6 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
     grayscale,
   };
 
-  // Stage measurement for "Fit" scaling. The stage only mounts once an image
-  // is added, so it is tracked through a callback ref rather than a mount-only effect.
-  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
-  const [stageSize, setStageSize] = useState<{ width: number; height: number }>({
-    width: 760,
-    height: 480,
-  });
-
-  useEffect(() => {
-    if (!stageEl) return;
-
-    const updateSize = () => {
-      const rect = stageEl.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        setStageSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
-      }
-    };
-
-    updateSize();
-
-    if (typeof ResizeObserver !== "undefined") {
-      const ro = new ResizeObserver(updateSize);
-      ro.observe(stageEl);
-      return () => ro.disconnect();
-    }
-
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
-  }, [stageEl]);
-
-  // Active preview dimensions (either converted output resolution or original source dimensions)
-  const currentW =
-    viewMode === "original"
-      ? (dimensions?.width || 1)
-      : shownResult
-        ? shownResult.width
-        : (dimensions?.width || 1);
-  const currentH =
-    viewMode === "original"
-      ? (dimensions?.height || 1)
-      : shownResult
-        ? shownResult.height
-        : (dimensions?.height || 1);
-
-  // Room inside the stage once its padding is taken off
-  const availableW = Math.max(120, stageSize.width - STAGE_PADDING * 2);
-  const availableH = Math.max(120, stageSize.height - STAGE_PADDING * 2);
-
-  // Fit multiplier: scale image so it comfortably fills available stage width & height
-  const scaleX = availableW / Math.max(1, currentW);
-  const scaleY = availableH / Math.max(1, currentH);
-  const fitMultiplier = Math.max(0.01, Math.min(scaleX, scaleY));
-
-  const fitW = Math.max(1, roundSize(currentW * fitMultiplier));
-  const fitH = Math.max(1, roundSize(currentH * fitMultiplier));
-
-  // In "Fit" mode: scaled up/down to fully fill stage. In "100%" mode: literal 1:1 screen pixels
-  const renderedW = scaleToFit ? fitW : currentW;
-  const renderedH = scaleToFit ? fitH : currentH;
-
-  // When magnified above native size or low-res, use crisp pixelated rendering
-  const isMagnified = renderedW > currentW || currentW < 256;
-
   const count = items.length;
   const isBatch = count > 1;
   const formatLabel = FORMAT_LABEL[activeTargetFormat];
@@ -667,9 +597,23 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
   // On phones the dock keeps only the big button; these two sit under the file instead.
   const fileActions = count > 0 ? <ActionRow className="max-lg:hidden">{fileButtons}</ActionRow> : null;
 
+  const quickFormats = available.slice(0, 6);
+  const quick = (
+    <QuickPick
+      label="Convert to"
+      value={format}
+      options={(quickFormats.includes(format) ? quickFormats : [format, ...quickFormats]).map((value) => ({
+        value,
+        label: FORMAT_LABEL[value],
+      }))}
+      onChange={chooseFormat}
+    />
+  );
+
   const action =
     ready && activeResult && !busy ? (
       <>
+        {quick}
         <DownloadAction
           label={
             isBatch
@@ -683,6 +627,7 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
       </>
     ) : (
       <>
+        {quick}
         <PrimaryAction
           label={isBatch ? `Convert ${count} images to ${formatLabel}` : `Convert to ${formatLabel}`}
           busyLabel={
@@ -711,8 +656,8 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
 
   return (
     <StudioFrame id="converter" label="Image conversion studio">
-      <StudioStage>
-        {count === 0 ? (
+      <StudioStage flush>
+        {count === 0 || !activeItem ? (
           <StudioDropzone
             title="Drop images to convert"
             description={`Turn JPG, PNG, HEIC, WebP and more into any of ${available.length} formats. One image or a batch of ${MAX_FILES}.`}
@@ -736,14 +681,44 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
-            className="-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-1 lg:overflow-y-auto"
+            className="flex min-h-0 min-w-0 flex-1 flex-col"
           >
+            <FileRow
+              flush
+              className="border-b border-line"
+              icon={<ImageIcon size={17} aria-hidden />}
+              name={activeItem.file.name}
+              meta={
+                <>
+                  {formatBytes(activeItem.file.size)}
+                  {dimensions ? ` · ${dimensions.width} × ${dimensions.height} px` : ""}
+                  {shownResult && resized ? ` → ${shownResult.width} × ${shownResult.height} px` : ""}
+                </>
+              }
+              onReplace={() => openPicker(activeItem.id)}
+              onRemove={() => removeItem(activeItem.id)}
+            >
+              {shownResult ? (
+                <ViewTabs mode={viewMode} onChange={setViewMode} afterLabel="Converted" />
+              ) : null}
+              {isBatch && activeResult ? (
+                <ToolText
+                  onClick={() => downloadBlob(activeResult.blob, activeResult.name)}
+                  title={`Download ${activeResult.name} (${formatBytes(activeResult.bytes)})`}
+                  icon={<Download size={14} aria-hidden />}
+                  compact
+                >
+                  Save this one
+                </ToolText>
+              ) : null}
+            </FileRow>
+
             {(ready && activeResult) || (!isBatch && shownResult) ? (
               <ResultCard
-                className="shrink-0"
+                busy={!activeResult || previewBusy}
                 title={
                   !activeResult
-                    ? `Converting to ${formatLabel}…`
+                    ? `Converting to ${formatLabel}`
                     : isBatch
                       ? `${count} images converted`
                       : `Converted to ${FORMAT_LABEL[activeResult.format]}`
@@ -756,255 +731,69 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
                       : `${formatBytes(activeResult.originalBytes)} → ${formatBytes(activeResult.bytes)} · ${sizeChange(activeResult.originalBytes, activeResult.bytes)}`
                 }
               >
-                <button
-                  type="button"
+                <ResultButton
+                  loud
                   onClick={isBatch ? handleDownloadZip : handleConvertAll}
                   disabled={!activeResult || busy}
-                  className="inline-flex h-10 items-center gap-1.5 rounded-[12px] bg-success px-4 text-[13.5px] font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+                  icon={<Download size={16} aria-hidden />}
                 >
-                  <Download size={15} aria-hidden />
                   {isBatch ? "Download ZIP" : "Download"}
-                </button>
+                </ResultButton>
               </ResultCard>
             ) : null}
 
-            {/* Stage toolbar: what is happening on the left, how to look at it on the right */}
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Chip>
-                  {sourceFormat(activeItem?.file)} → {formatLabel}
-                  {previewBusy ? (
-                    <Loader2 size={12} className="animate-spin" aria-label="Updating preview" />
-                  ) : null}
-                </Chip>
-                {isBatch ? (
-                  <Chip>
-                    {count} images · {formatBytes(totalInputBytes)}
-                  </Chip>
-                ) : null}
-              </div>
+            <ImageViewer
+              title={activeItem.file.name}
+              before={{
+                src: activeItem.preview,
+                width: dimensions?.width ?? shownResult?.width ?? 1,
+                height: dimensions?.height ?? shownResult?.height ?? 1,
+                label: sourceFormat(activeItem.file),
+                note: formatBytes(activeItem.file.size),
+                alt: `Original ${activeItem.file.name}`,
+              }}
+              after={
+                shownResult
+                  ? {
+                      src: shownResult.previewUrl,
+                      width: shownResult.width,
+                      height: shownResult.height,
+                      label: FORMAT_LABEL[shownResult.format],
+                      note: formatBytes(shownResult.bytes),
+                      alt: `Converted ${activeItem.file.name}`,
+                    }
+                  : null
+              }
+              mode={viewMode}
+              onModeChange={setViewMode}
+              busy={previewBusy || busy}
+              busyLabel={busy && progress ? `${progress.current} of ${progress.total}` : "Converting"}
+              dragging={dragging}
+            />
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                {shownResult ? (
-                  <ToolbarGroup label="Preview">
-                    <ToolbarToggle
-                      active={viewMode === "converted"}
-                      onClick={() => setViewMode("converted")}
-                    >
-                      Converted
-                    </ToolbarToggle>
-                    <ToolbarToggle
-                      active={viewMode === "original"}
-                      onClick={() => setViewMode("original")}
-                    >
-                      Original
-                    </ToolbarToggle>
-                    <ToolbarToggle active={viewMode === "split"} onClick={() => setViewMode("split")}>
-                      Compare
-                    </ToolbarToggle>
-                  </ToolbarGroup>
-                ) : null}
-
-                <ToolbarGroup label="Zoom">
-                  <ToolbarToggle
-                    active={scaleToFit}
-                    onClick={() => setScaleToFit(true)}
-                    title={`Fit to the stage (${Math.round(fitMultiplier * 100)}%)`}
-                  >
-                    <Maximize2 size={12} aria-hidden />
-                    Fit
-                  </ToolbarToggle>
-                  <ToolbarToggle
-                    active={!scaleToFit}
-                    onClick={() => setScaleToFit(false)}
-                    title="Actual size: one image pixel per screen pixel"
-                    ariaLabel="Show actual size"
-                  >
-                    100%
-                  </ToolbarToggle>
-                </ToolbarGroup>
-
-                <button
-                  type="button"
-                  onClick={() => setShowGrid(!showGrid)}
-                  aria-pressed={showGrid}
-                  title="Toggle transparency grid"
-                  aria-label="Toggle transparency grid"
-                  className={`grid h-[34px] w-[34px] place-items-center rounded-[10px] border transition-colors ${
-                    showGrid
-                      ? "border-ink bg-white text-ink"
-                      : "border-line bg-white text-muted hover:text-ink"
-                  }`}
-                >
-                  <Grid size={14} aria-hidden />
-                </button>
-
-                {isBatch && activeResult ? (
-                  <button
-                    type="button"
-                    onClick={() => downloadBlob(activeResult.blob, activeResult.name)}
-                    title={`Download ${activeResult.name} (${formatBytes(activeResult.bytes)})`}
-                    className="inline-flex h-[34px] items-center gap-1.5 rounded-[10px] border border-line bg-white px-2.5 text-[12.5px] font-medium text-muted transition-colors hover:text-ink"
-                  >
-                    <Download size={13} aria-hidden />
-                    Save this one
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            {/* Preview */}
-            <div
-              ref={setStageEl}
-              className={`relative min-h-[300px] flex-1 overflow-hidden rounded-[16px] border transition-colors lg:min-h-[200px] ${
-                dragging ? "border-accent" : "border-line"
-              } ${
-                showGrid
-                  ? "bg-white bg-[repeating-conic-gradient(#00000008_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]"
-                  : "bg-card"
-              }`}
-            >
-              {activeItem && (
-                <div className="absolute inset-0 flex overflow-auto" style={{ padding: STAGE_PADDING }}>
-                  <div className="relative m-auto flex shrink-0 items-center justify-center">
-                    {shownResult && viewMode === "split" ? (
-                      <div
-                        className="relative shrink-0 select-none"
-                        style={{
-                          width: `${renderedW}px`,
-                          height: `${renderedH}px`,
-                          maxWidth: scaleToFit ? "100%" : "none",
-                          maxHeight: scaleToFit ? "100%" : "none",
-                        }}
-                      >
-                        <span className="pointer-events-none absolute left-2.5 top-2.5 z-20 rounded-md bg-black/65 px-2 py-0.5 text-[12px] font-semibold text-white">
-                          Original
-                        </span>
-                        <span className="pointer-events-none absolute right-2.5 top-2.5 z-20 rounded-md bg-black/65 px-2 py-0.5 text-[12px] font-semibold text-white">
-                          {FORMAT_LABEL[shownResult.format]}
-                        </span>
-
-                        <ImageCompare
-                          before={
-                            <img
-                              src={activeItem.preview}
-                              alt="Original"
-                              style={{ objectFit: "contain", imageRendering: isMagnified ? "pixelated" : "auto" }}
-                            />
-                          }
-                          after={
-                            <img
-                              src={shownResult.previewUrl}
-                              alt="Converted"
-                              style={{ objectFit: "contain", imageRendering: isMagnified ? "pixelated" : "auto" }}
-                            />
-                          }
-                          position={splitPos}
-                          onPositionChange={setSplitPos}
-                          labels={false}
-                          label="Before after split slider"
-                          className="h-full w-full rounded-[8px] shadow-md"
-                        />
-                      </div>
-                    ) : (
-                      <img
-                        src={shownResult && viewMode === "converted" ? shownResult.previewUrl : activeItem.preview}
-                        alt={`Preview of ${activeItem.file.name}`}
-                        className="shrink-0 select-none rounded-[8px] border border-black/10 object-contain shadow-md transition-all"
-                        style={{
-                          width: `${renderedW}px`,
-                          height: `${renderedH}px`,
-                          maxWidth: scaleToFit ? "100%" : "none",
-                          maxHeight: scaleToFit ? "100%" : "none",
-                          imageRendering: isMagnified ? "pixelated" : "auto",
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Batch filmstrip */}
-            {isBatch && (
-              <ul
-                aria-label="Images in this batch"
-                className="flex shrink-0 gap-2 overflow-x-auto p-0.5"
-              >
-                {items.map((item) => {
-                  const isSelected = item.id === activeItem?.id;
-                  const itemRes = currentResult(item.id);
-
-                  return (
-                    <li key={item.id} className="shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setActiveId(item.id)}
-                        data-slot="queue-item"
-                        aria-current={isSelected ? "true" : undefined}
-                        aria-label={`Show ${item.file.name}`}
-                        title={`${item.file.name} · ${formatBytes(item.file.size)}${
-                          itemRes ? ` → ${formatBytes(itemRes.bytes)}` : ""
-                        }`}
-                        className={`relative block h-[68px] w-[92px] overflow-hidden rounded-[10px] border bg-white transition-colors ${
-                          isSelected
-                            ? "border-ink ring-1 ring-ink"
-                            : "border-line hover:border-[#cfc9bd]"
-                        }`}
-                      >
-                        <img
-                          src={itemRes ? itemRes.previewUrl : item.preview}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                        <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-px text-[11px] font-semibold uppercase text-white">
-                          {itemRes ? FORMAT_LABEL[itemRes.format] : sourceFormat(item.file)}
-                        </span>
-                        {itemRes && (
-                          <span className="absolute left-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-success text-white">
-                            <Check size={10} strokeWidth={3} aria-hidden />
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  );
+            {isBatch ? (
+              <Filmstrip
+                label="Images in this batch"
+                addLabel="Add more images"
+                activeId={activeItem.id}
+                onSelect={setActiveId}
+                onRemove={removeItem}
+                onAdd={() => openPicker()}
+                items={items.map((item) => {
+                  const made = currentResult(item.id);
+                  return {
+                    id: item.id,
+                    name: item.file.name,
+                    src: made ? made.previewUrl : item.preview,
+                    done: Boolean(made),
+                    badge: made ? FORMAT_LABEL[made.format] : sourceFormat(item.file),
+                    title: `${item.file.name} · ${formatBytes(item.file.size)}${made ? ` → ${formatBytes(made.bytes)}` : ""}`,
+                  };
                 })}
-                <li className="shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => openPicker()}
-                    aria-label="Add more images to batch"
-                    className="grid h-[68px] w-[68px] place-items-center rounded-[10px] border border-dashed border-[#d5d1c8] bg-white text-faint transition-colors hover:border-[#b5ae9f] hover:text-ink"
-                  >
-                    <Plus size={18} aria-hidden />
-                  </button>
-                </li>
-              </ul>
-            )}
-
-            {activeItem && (
-              <FileRow
-                className="shrink-0"
-                icon={<ImageIcon size={16} aria-hidden />}
-                name={activeItem.file.name}
-                meta={
-                  <>
-                    {formatBytes(activeItem.file.size)}
-                    {dimensions ? ` · ${dimensions.width} × ${dimensions.height} px` : ""}
-                    {shownResult ? (
-                      <span className="font-medium text-ink">
-                        {` → ${formatBytes(shownResult.bytes)}`}
-                        {resized ? ` · ${shownResult.width} × ${shownResult.height} px` : ""}
-                      </span>
-                    ) : null}
-                  </>
-                }
-                onReplace={() => openPicker(activeItem.id)}
-                onRemove={() => removeItem(activeItem.id)}
               />
-            )}
+            ) : null}
 
-            <div className="flex shrink-0 gap-2 lg:hidden [&>*]:flex-1">{fileButtons}</div>
+            <div className="flex shrink-0 gap-2 border-t border-line bg-panel p-3 lg:hidden [&>*]:flex-1">{fileButtons}</div>
           </div>
         )}
 
@@ -1026,17 +815,15 @@ function ImageConvertStudioInner({ maxSizeMB }: { maxSizeMB: number }) {
           data-error={error ?? (noticeTone === "error" ? notice : undefined)}
         />
 
-        {error ? (
-          <Note tone="error" className="mt-3 shrink-0">
-            {error}
-          </Note>
-        ) : null}
-
-        {notice ? (
-          <Note tone={noticeTone === "error" ? "error" : "success"} className="mt-3 shrink-0">
+        {error ? <Note tone="error" className="m-3 shrink-0">{error}</Note> : null}
+        {notice && (noticeTone === "error" || count === 0) ? (
+          <Note tone={noticeTone === "error" ? "error" : "info"} className="m-3 shrink-0">
             {notice}
           </Note>
         ) : null}
+        <p role="status" className="sr-only">
+          {noticeTone === "success" && count > 0 ? notice : ""}
+        </p>
       </StudioStage>
 
       <ImageConvertSettings
@@ -1066,48 +853,11 @@ function sizeChange(original: number, output: number): string {
   return "same size";
 }
 
-function ToolbarGroup({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div role="group" aria-label={label} className="flex rounded-[10px] border border-line bg-white p-0.5">
-      {children}
-    </div>
-  );
-}
-
-function ToolbarToggle({
-  active,
-  onClick,
-  title,
-  ariaLabel,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title?: string;
-  ariaLabel?: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      aria-label={ariaLabel}
-      title={title}
-      className={`inline-flex h-7 items-center gap-1 rounded-[8px] px-2.5 text-[12.5px] font-medium transition-colors ${
-        active ? "bg-ink text-white" : "text-muted hover:text-ink"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function ImageConvertStudioSkeleton() {
   return (
     <div
       role="status"
-      className={`grid h-[520px] place-items-center rounded-[22px] border border-line bg-white shadow-stage ${STUDIO_HEIGHT}`}
+      className={`fb-stage grid h-[520px] place-items-center ${STUDIO_HEIGHT}`}
     >
       <span className="flex items-center gap-2 text-[13px] text-muted">
         <Loader2 size={15} className="animate-spin" aria-hidden />

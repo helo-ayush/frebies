@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import {
-  Check,
-  ChevronDown,
-  Cloud,
-  FileStack,
-  Gauge,
-  WandSparkles,
-  type LucideIcon,
-} from "lucide-react";
-import { ToolDirectory } from "@/components/dashboard/ToolDirectory";
+import { Cloud, FileStack, Gauge, WandSparkles, type LucideIcon } from "lucide-react";
+import { CategoryIndex } from "@/components/dashboard/CategoryIndex";
+import { FaqList } from "@/components/site/FaqList";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { categories, getCategory, toolsForCategory, type CategorySlug } from "@/lib/registry/tools";
+import { categories, getCategory, type CategorySlug } from "@/lib/registry/tools";
 import { categoryMetadata } from "@/lib/seo/metadata";
 import { categoryJsonLd } from "@/lib/seo/schema";
 
@@ -90,96 +83,49 @@ export default async function CategoryPage({ params }: CategoryParams) {
   const category = getCategory(slug);
   if (!category) notFound();
 
-  const categoryTools = toolsForCategory(category.slug);
   const showcase = showcases[category.slug];
-  const Icon = category.icon;
 
   return (
-    <div className="mx-auto max-w-[1280px]">
+    <>
       <JsonLd data={categoryJsonLd(category)} />
+      <CategoryIndex slug={category.slug} title={category.title} description={category.description} />
 
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[16px] bg-ink text-white shadow-[0_12px_24px_-12px_rgba(15,15,16,0.55)]">
-          <Icon size={24} strokeWidth={1.6} aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1 basis-[280px]">
-          <h1 className="font-display text-[clamp(1.75rem,3.4vw,2.4rem)] font-semibold leading-[1.1] tracking-[-0.035em] text-ink">
-            {category.title}
-          </h1>
-          <p className="mt-1 text-[15px] leading-relaxed text-muted">{category.description}</p>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {showcase.points.map((point) => (
-            <span
-              key={point}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-white px-3 text-[13px] font-medium text-muted"
+      <section className="grid grid-cols-1 border-b border-line lg:grid-cols-3">
+        {showcase.useCases.map((item, index) => {
+          const UseCaseIcon = item.icon;
+          return (
+            <article
+              key={item.title}
+              className={`border-line px-[var(--fb-pad)] py-[clamp(30px,3.4vw,56px)] max-lg:border-b max-lg:last:border-b-0 lg:border-l lg:first:border-l-0 ${
+                index === 0 ? "bg-ink-2 text-white" : index === 2 ? "bg-panel" : ""
+              }`}
             >
-              <Check size={13} className="text-success" aria-hidden />
-              {point}
-            </span>
+              <UseCaseIcon
+                size={26}
+                strokeWidth={1.4}
+                className={index === 0 ? "text-accent" : "text-muted"}
+                aria-hidden
+              />
+              <h2 className="fb-wide mt-10 text-[22px] !leading-[1.08]">{item.title}</h2>
+              <p className={`mt-3.5 max-w-[400px] text-[15.5px] leading-[1.5] ${index === 0 ? "text-white/70" : "text-muted"}`}>
+                {item.copy}
+              </p>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="grid grid-cols-1 gap-y-10 px-[var(--fb-pad)] py-[clamp(48px,6vw,100px)] lg:grid-cols-[38%_minmax(0,1fr)]">
+        <div className="max-w-[420px]">
+          <h2 className="fb-wide text-[clamp(26px,2.7vw,44px)]">About {category.title.toLowerCase()}</h2>
+          {category.intro.map((paragraph) => (
+            <p key={paragraph} className="mt-5 text-[15.5px] leading-[1.55] text-muted">
+              {paragraph}
+            </p>
           ))}
         </div>
-      </header>
-
-      <section id="tools" className="mt-7 scroll-mt-24">
-        <ToolDirectory category={category.slug} />
+        <FaqList items={category.faq} />
       </section>
-
-      <section className="mt-14">
-        <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-accent-deep">{showcase.eyebrow}</p>
-        <h2 className="mt-2 font-display text-[26px] font-semibold tracking-[-0.03em] text-ink">{showcase.title}</h2>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-muted">{showcase.copy}</p>
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          {showcase.useCases.map((item) => {
-            const UseCaseIcon = item.icon;
-            return (
-              <article key={item.title} className="rounded-[18px] border border-line bg-white p-5">
-                <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-card text-ink">
-                  <UseCaseIcon size={18} strokeWidth={1.6} aria-hidden />
-                </span>
-                <h3 className="mt-4 text-[16px] font-semibold text-ink">{item.title}</h3>
-                <p className="mt-1.5 text-[14px] leading-relaxed text-muted">{item.copy}</p>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="mt-14 border-t border-line pt-10">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_420px]">
-          <div>
-            <h2 className="font-display text-[22px] font-semibold tracking-[-0.025em] text-ink">
-              About {category.title.toLowerCase()}
-            </h2>
-            {category.intro.map((paragraph) => (
-              <p key={paragraph} className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted">
-                {paragraph}
-              </p>
-            ))}
-          </div>
-
-          <aside>
-            <h2 className="font-display text-[22px] font-semibold tracking-[-0.025em] text-ink">
-              Frequently asked questions
-            </h2>
-            <div className="mt-3 border-t border-line">
-              {category.faq.map((item) => (
-                <details key={item.q} className="group border-b border-line py-4">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-medium text-ink">
-                    {item.q}
-                    <ChevronDown
-                      size={16}
-                      className="shrink-0 text-faint transition-transform group-open:rotate-180"
-                      aria-hidden
-                    />
-                  </summary>
-                  <p className="mt-2.5 text-[14px] leading-relaxed text-muted">{item.a}</p>
-                </details>
-              ))}
-            </div>
-          </aside>
-        </div>
-      </section>
-    </div>
+    </>
   );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useId } from "react";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -8,26 +7,28 @@ import {
   Frame,
   Image as ImageIcon,
   Lock,
-  Minus,
   Percent,
-  Plus,
-  RotateCcw,
   Scaling,
   Target,
   Unlock,
   Wand2,
 } from "lucide-react";
-import { Segmented } from "@/components/tool/kit";
+import { Segmented, ToolIcon } from "@/components/tool/kit";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { RailSlider } from "@/components/tool/studio/RailSlider";
+import { RailSection } from "@/components/tool/studio/RailSection";
+import { RailSwitch } from "@/components/tool/studio/RailSwitch";
 import {
-  RailSection,
-  RAIL_CARD_ACTIVE,
-  RAIL_CARD_IDLE,
-  RAIL_FIELD_LABEL,
-  RAIL_FIELD_META,
-} from "@/components/tool/studio/RailSection";
-import { Switch } from "@/components/arc/switch/switch";
+  RailCards,
+  RailColors,
+  RailEnds,
+  RailHint,
+  RailLabel,
+  RailNumber,
+  RailPick,
+  RailReset,
+  RailStepper,
+} from "@/components/tool/studio/RailControls";
 import type {
   CompressGoal,
   CompressSettings,
@@ -147,11 +148,6 @@ const SHARPEN_OPTIONS = [
   { label: "Heavy", value: 0.45 },
 ];
 
-const PILL_ACTIVE = "border-ink bg-ink text-white";
-const PILL_IDLE = "border-line bg-white text-muted hover:border-[#cfc9bd] hover:text-ink";
-const STEP_BUTTON =
-  "grid h-11 w-11 shrink-0 place-items-center rounded-[10px] border border-line bg-white text-muted transition-colors hover:border-[#cfc9bd] hover:text-ink";
-
 function qualityBand(quality: number) {
   if (quality >= 95) return "Maximum detail";
   if (quality >= 85) return "High quality";
@@ -224,464 +220,263 @@ export function ImageCompressSettings({
 
   return (
     <StudioRail label="Compression settings" action={action}>
-      <div className="space-y-4">
-        <RailSection icon={Target} title="Compress by" aside={goalSummary}>
-          <Segmented
-            label="Compression goal"
-            options={GOAL_OPTIONS}
-            value={settings.goal}
-            onChange={(goal) => onPatch({ goal })}
-          />
+      <RailSection icon={Target} title="Compress by" aside={goalSummary}>
+        <Segmented
+          label="Compression goal"
+          options={GOAL_OPTIONS}
+          value={settings.goal}
+          onChange={(goal) => onPatch({ goal })}
+        />
 
-          {settings.goal === "target" && (
-            <div className="mt-4">
-              <div className="mb-2 flex items-baseline justify-between gap-3">
-                <span className={RAIL_FIELD_LABEL}>Maximum file size</span>
-                {originalBytes && targetEstimatedDelta !== null ? (
-                  <span className={RAIL_FIELD_META}>
-                    {targetEstimatedDelta > 0
-                      ? `about ${targetEstimatedDelta}% smaller`
-                      : "already under this size"}
-                  </span>
-                ) : null}
-              </div>
+        {settings.goal === "target" && (
+          <div className="mt-4">
+            <RailLabel
+              value={
+                originalBytes && targetEstimatedDelta !== null
+                  ? targetEstimatedDelta > 0
+                    ? `about ${targetEstimatedDelta}% smaller`
+                    : "already under this size"
+                  : undefined
+              }
+            >
+              Maximum file size
+            </RailLabel>
 
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => adjustTarget(settings.targetUnit === "MB" ? -0.5 : -10)}
-                  aria-label="Decrease target size"
-                  className={STEP_BUTTON}
-                >
-                  <Minus size={15} aria-hidden />
-                </button>
-                <input
-                  type="number"
-                  min={1}
-                  max={settings.targetUnit === "MB" ? 100 : 100000}
-                  step={settings.targetUnit === "MB" ? 0.1 : 1}
-                  value={settings.targetValue}
-                  onChange={(event) => onPatch({ targetValue: event.target.value })}
-                  aria-label={`Target file size in ${settings.targetUnit}`}
-                  className="h-11 min-w-0 flex-1 rounded-[10px] border border-line bg-white px-2 text-center font-display text-[16px] font-semibold tabular-nums text-ink outline-none transition-colors hover:border-[#cfc9bd] focus:border-ink"
-                  placeholder="100"
-                />
-                <button
-                  type="button"
-                  onClick={() => adjustTarget(settings.targetUnit === "MB" ? 0.5 : 10)}
-                  aria-label="Increase target size"
-                  className={STEP_BUTTON}
-                >
-                  <Plus size={15} aria-hidden />
-                </button>
-                <Segmented
-                  label="Size unit"
-                  options={UNIT_OPTIONS}
-                  value={settings.targetUnit}
-                  onChange={(targetUnit) => onPatch({ targetUnit })}
-                  className="w-[100px] shrink-0"
-                />
-              </div>
-
-              <div className="mt-2.5 grid grid-cols-3 gap-1.5">
-                {TARGET_PRESETS.map((preset) => {
-                  const selected =
-                    settings.targetValue === preset.value && settings.targetUnit === preset.unit;
-                  return (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => onPatch({ targetValue: preset.value, targetUnit: preset.unit })}
-                      className={`h-9 rounded-[9px] border text-[12.5px] font-medium tabular-nums transition-colors ${
-                        selected ? PILL_ACTIVE : PILL_IDLE
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <p className="mt-3 text-[13px] leading-relaxed text-faint">
-                Keeps the best quality that fits under this size. If that is still too big, the
-                image is scaled down a little.
-              </p>
-            </div>
-          )}
-
-          {settings.goal === "quality" && (
-            <div className="mt-4">
-              <span className={RAIL_FIELD_LABEL}>{qualityBand(settings.quality)}</span>
-              <RailSlider
-                label="Quality percent"
-                value={settings.quality}
-                min={10}
-                max={100}
-                onValueChange={(quality) => onPatch({ quality })}
-                className="mt-2.5"
+            <RailStepper
+              label={`Target file size in ${settings.targetUnit}`}
+              min={1}
+              max={settings.targetUnit === "MB" ? 100 : 100000}
+              step={settings.targetUnit === "MB" ? 0.1 : 1}
+              value={settings.targetValue}
+              placeholder="100"
+              onChange={(targetValue) => onPatch({ targetValue })}
+              onStep={(direction) => adjustTarget(direction * (settings.targetUnit === "MB" ? 0.5 : 10))}
+            >
+              <Segmented
+                label="Size unit"
+                options={UNIT_OPTIONS}
+                value={settings.targetUnit}
+                onChange={(targetUnit) => onPatch({ targetUnit })}
+                className="w-[104px] [&>button]:h-[46px]"
               />
-              <div className="mt-1 flex justify-between text-[12px] text-faint">
-                <span>Smaller file</span>
-                <span>Best detail</span>
-              </div>
+            </RailStepper>
 
-              <div className="mt-3 grid grid-cols-3 gap-1.5">
-                {QUALITY_PRESETS.map((preset) => {
-                  const selected = settings.quality === preset.value;
-                  return (
-                    <button
-                      key={preset.value}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => onPatch({ quality: preset.value })}
-                      className={`flex h-9 items-center justify-center gap-1.5 rounded-[9px] border text-[12.5px] font-medium transition-colors ${
-                        selected ? PILL_ACTIVE : PILL_IDLE
-                      }`}
-                    >
-                      {preset.label}
-                      <span className={`tabular-nums ${selected ? "text-white/65" : "text-faint"}`}>
-                        {preset.value}%
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {settings.goal === "percent" && (
-            <div className="mt-4">
-              <span className={RAIL_FIELD_LABEL}>
-                Cut {settings.percent}% off every image
-              </span>
-              <RailSlider
-                label="Percentage reduction"
-                value={settings.percent}
-                min={10}
-                max={95}
-                onValueChange={(percent) => onPatch({ percent })}
-                className="mt-2.5"
-              />
-              <div className="mt-1 flex justify-between text-[12px] text-faint">
-                <span>Light trim</span>
-                <span>Heavy squeeze</span>
-              </div>
-
-              <div className="mt-3 grid grid-cols-6 gap-1">
-                {PERCENT_PRESETS.map((value) => {
-                  const selected = settings.percent === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={selected}
-                      aria-label={`Reduce by ${value} percent`}
-                      onClick={() => onPatch({ percent: value })}
-                      className={`h-8 rounded-[8px] border text-[12px] font-medium tabular-nums transition-colors ${
-                        selected ? PILL_ACTIVE : PILL_IDLE
-                      }`}
-                    >
-                      {value}%
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </RailSection>
-
-        <RailSection icon={FileOutput} title="Output format" aside={activeFormatMeta.label}>
-          <Segmented
-            label="Output format"
-            options={FORMAT_OPTIONS}
-            value={settings.format}
-            onChange={(format) => onPatch({ format })}
-          />
-          <p className="mt-2.5 text-[13px] leading-relaxed text-muted">
-            {activeFormatMeta.description}
-          </p>
-
-          {(settings.format === "jpg" || !settings.preserveAlpha) && (
-            <div className="mt-4">
-              <div className="mb-2 flex items-baseline justify-between gap-3">
-                <span className={RAIL_FIELD_LABEL}>Background color</span>
-                <span className={`${RAIL_FIELD_META} font-mono uppercase`}>
-                  {settings.backgroundColor}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {BG_COLOR_PRESETS.map((color) => {
-                  const selected =
-                    settings.backgroundColor.toLowerCase() === color.value.toLowerCase();
-                  return (
-                    <button
-                      key={color.value}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => onPatch({ backgroundColor: color.value })}
-                      className={`flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[10px] border px-2 text-[13px] font-medium text-ink transition-colors ${
-                        selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
-                      }`}
-                    >
-                      <span
-                        className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/15"
-                        style={{ backgroundColor: color.value }}
-                        aria-hidden
-                      />
-                      {color.label}
-                    </button>
-                  );
-                })}
-                <input
-                  type="color"
-                  value={settings.backgroundColor}
-                  onChange={(event) => onPatch({ backgroundColor: event.target.value })}
-                  aria-label="Custom background color"
-                  title="Custom color"
-                  className="h-10 w-11 shrink-0 cursor-pointer rounded-[10px] border border-line bg-white p-1"
-                />
-              </div>
-            </div>
-          )}
-        </RailSection>
-
-        <RailSection icon={Scaling} title="Resize" aside={resizeSummary} defaultOpen={false}>
-          <div className="grid grid-cols-2 gap-1.5">
-            {RESIZE_MODES.map((mode) => {
-              const selected = settings.resizeMode === mode.id;
-              const Icon = mode.icon;
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  disabled={!hasImage}
-                  aria-pressed={selected}
-                  onClick={() => onPatch({ resizeMode: mode.id })}
-                  className={`flex h-10 min-w-0 items-center gap-2 rounded-[10px] border px-2.5 text-left text-[13px] font-medium text-ink transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-                    selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
-                  }`}
-                >
-                  <Icon size={14} strokeWidth={1.8} className="shrink-0 text-muted" aria-hidden />
-                  <span className="truncate">{mode.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {!hasImage ? (
-            <p className="mt-2.5 text-[13px] leading-relaxed text-faint">
-              Add an image to set its size.
-            </p>
-          ) : null}
-
-          {hasImage && settings.resizeMode === "scale" && (
-            <div className="mt-4">
-              <div className="flex items-baseline justify-between gap-3">
-                <span className={RAIL_FIELD_LABEL}>Scale</span>
-                <span className={RAIL_FIELD_META}>{settings.scalePercent}% of original</span>
-              </div>
-              <RailSlider
-                label="Scale percent"
-                value={settings.scalePercent}
-                min={10}
-                max={100}
-                onValueChange={(scalePercent) => onPatch({ scalePercent })}
-                className="mt-2.5"
-              />
-              <div className="mt-3 grid grid-cols-6 gap-1">
-                {[100, 75, 50, 33, 25, 10].map((value) => {
-                  const selected = settings.scalePercent === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={selected}
-                      aria-label={`${value} percent`}
-                      onClick={() => onPatch({ scalePercent: value })}
-                      className={`h-8 rounded-[8px] border text-[12px] font-medium tabular-nums transition-colors ${
-                        selected ? PILL_ACTIVE : PILL_IDLE
-                      }`}
-                    >
-                      {value}%
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {hasImage && settings.resizeMode === "maxEdge" && (
-            <div className="mt-4">
-              <span className={RAIL_FIELD_LABEL}>Longest edge</span>
-              <div className="mt-2 grid grid-cols-3 gap-1.5">
-                {[2048, 1600, 1200, 800, 600, 400].map((px) => {
-                  const selected = settings.maxEdgePx === px;
-                  return (
-                    <button
-                      key={px}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => onPatch({ maxEdgePx: px })}
-                      className={`h-9 rounded-[9px] border text-[12.5px] font-medium tabular-nums transition-colors ${
-                        selected ? PILL_ACTIVE : PILL_IDLE
-                      }`}
-                    >
-                      {px} px
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {hasImage && settings.resizeMode === "custom" && dimensions && (
-            <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
-              <DimensionField
-                label="Width"
-                max={dimensions.width * 2}
-                value={settings.customWidth}
-                onChange={(value) => onCustomWidth?.(value)}
-              />
-              <button
-                type="button"
-                onClick={() => onPatch({ lockAspect: !settings.lockAspect })}
-                className={`grid h-10 w-10 place-items-center rounded-[10px] border transition-colors ${
-                  settings.lockAspect
-                    ? "border-ink bg-card text-ink"
-                    : "border-line bg-white text-faint hover:text-ink"
-                }`}
-                title={settings.lockAspect ? "Aspect ratio locked" : "Aspect ratio unlocked"}
-                aria-label={settings.lockAspect ? "Unlock aspect ratio" : "Lock aspect ratio"}
-                aria-pressed={settings.lockAspect}
-              >
-                {settings.lockAspect ? <Lock size={14} aria-hidden /> : <Unlock size={14} aria-hidden />}
-              </button>
-              <DimensionField
-                label="Height"
-                max={dimensions.height * 2}
-                value={settings.customHeight}
-                onChange={(value) => onCustomHeight?.(value)}
-              />
-            </div>
-          )}
-        </RailSection>
-
-        <RailSection
-          icon={Wand2}
-          title="More options"
-          aside={hasCustomOptions ? "Customized" : undefined}
-          defaultOpen={false}
-        >
-          <div className="mb-2 flex items-baseline justify-between gap-3">
-            <span className={RAIL_FIELD_LABEL}>Sharpen</span>
-            <span className={RAIL_FIELD_META}>Helps after resizing</span>
-          </div>
-          <Segmented
-            label="Sharpen"
-            options={SHARPEN_OPTIONS.map((option) => ({
-              value: String(option.value),
-              label: option.label,
-            }))}
-            value={String(settings.sharpenAmount ?? 0)}
-            onChange={(value) =>
-              onPatch({ sharpenAmount: Number(value), sharpen: Number(value) > 0 })
-            }
-          />
-
-          <div className="mt-4 space-y-3.5">
-            <SwitchRow
-              label="Keep original if larger"
-              description="Never save a result bigger than the file you started with."
-              checked={settings.keepSmaller}
-              onChange={(checked) => onPatch({ keepSmaller: checked })}
+            <RailPick
+              className="mt-2.5"
+              label="Common sizes"
+              value={`${settings.targetValue}${settings.targetUnit}`}
+              options={TARGET_PRESETS.map((preset) => ({
+                value: `${preset.value}${preset.unit}`,
+                label: preset.label,
+              }))}
+              onChange={(key) => {
+                const preset = TARGET_PRESETS.find((item) => `${item.value}${item.unit}` === key);
+                if (preset) onPatch({ targetValue: preset.value, targetUnit: preset.unit });
+              }}
             />
-            <SwitchRow
-              label="Black and white"
-              description="Drops color for a smaller file."
-              checked={Boolean(settings.grayscale)}
-              onChange={(checked) => onPatch({ grayscale: checked })}
+
+            <RailHint>
+              Keeps the best quality that fits under this size. If that is still too big, the image is
+              scaled down a little.
+            </RailHint>
+          </div>
+        )}
+
+        {settings.goal === "quality" && (
+          <div className="mt-4">
+            <RailLabel value={`${settings.quality}%`}>{qualityBand(settings.quality)}</RailLabel>
+            <RailSlider
+              label="Quality percent"
+              value={settings.quality}
+              min={10}
+              max={100}
+              onValueChange={(quality) => onPatch({ quality })}
             />
-            <SwitchRow
-              label="Keep transparency"
-              description="Clear areas stay clear in PNG and WebP files."
-              checked={settings.preserveAlpha}
-              onChange={(checked) => onPatch({ preserveAlpha: checked })}
+            <RailEnds left="Smaller file" right="Best detail" />
+            <RailPick
+              className="mt-3"
+              label="Quality presets"
+              value={settings.quality}
+              options={QUALITY_PRESETS.map((preset) => ({
+                value: preset.value,
+                label: preset.label,
+                note: `${preset.value}%`,
+              }))}
+              onChange={(quality) => onPatch({ quality })}
             />
           </div>
-        </RailSection>
+        )}
 
-        <button
-          type="button"
-          onClick={onReset}
-          className="-ml-2 inline-flex h-9 items-center gap-1.5 rounded-[10px] px-2 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-        >
-          <RotateCcw size={13} aria-hidden />
-          Reset settings
-        </button>
+        {settings.goal === "percent" && (
+          <div className="mt-4">
+            <RailLabel value={`${settings.percent}%`}>Cut off every image</RailLabel>
+            <RailSlider
+              label="Percentage reduction"
+              value={settings.percent}
+              min={10}
+              max={95}
+              onValueChange={(percent) => onPatch({ percent })}
+            />
+            <RailEnds left="Light trim" right="Heavy squeeze" />
+            <RailPick
+              className="mt-3"
+              columns={6}
+              label="Reduction presets"
+              value={settings.percent}
+              options={PERCENT_PRESETS.map((value) => ({
+                value,
+                label: `${value}%`,
+                ariaLabel: `Reduce by ${value} percent`,
+              }))}
+              onChange={(percent) => onPatch({ percent })}
+            />
+          </div>
+        )}
+      </RailSection>
+
+      <RailSection icon={FileOutput} title="Output format" aside={activeFormatMeta.label}>
+        <Segmented
+          label="Output format"
+          options={FORMAT_OPTIONS}
+          value={settings.format}
+          onChange={(format) => onPatch({ format })}
+        />
+        <RailHint>{activeFormatMeta.description}</RailHint>
+
+        {(settings.format === "jpg" || !settings.preserveAlpha) && (
+          <div className="mt-4">
+            <RailLabel value={<span className="uppercase">{settings.backgroundColor}</span>}>Background color</RailLabel>
+            <RailColors
+              presets={BG_COLOR_PRESETS}
+              value={settings.backgroundColor}
+              onChange={(backgroundColor) => onPatch({ backgroundColor })}
+            />
+          </div>
+        )}
+      </RailSection>
+
+      <RailSection icon={Scaling} title="Resize" aside={resizeSummary} defaultOpen={false}>
+        <RailCards
+          label="Resize mode"
+          value={settings.resizeMode}
+          disabled={!hasImage}
+          options={RESIZE_MODES.map(({ id, label, icon: Icon }) => ({
+            value: id,
+            label,
+            icon: <Icon size={15} strokeWidth={1.8} aria-hidden />,
+          }))}
+          onChange={(resizeMode) => onPatch({ resizeMode })}
+        />
+
+        {!hasImage ? <RailHint>Add an image to set its size.</RailHint> : null}
+
+        {hasImage && settings.resizeMode === "scale" && (
+          <div className="mt-4">
+            <RailLabel value={`${settings.scalePercent}% of original`}>Scale</RailLabel>
+            <RailSlider
+              label="Scale percent"
+              value={settings.scalePercent}
+              min={10}
+              max={100}
+              onValueChange={(scalePercent) => onPatch({ scalePercent })}
+            />
+            <RailPick
+              className="mt-3"
+              columns={6}
+              label="Scale presets"
+              value={settings.scalePercent}
+              options={[100, 75, 50, 33, 25, 10].map((value) => ({
+                value,
+                label: `${value}%`,
+                ariaLabel: `${value} percent`,
+              }))}
+              onChange={(scalePercent) => onPatch({ scalePercent })}
+            />
+          </div>
+        )}
+
+        {hasImage && settings.resizeMode === "maxEdge" && (
+          <div className="mt-4">
+            <RailLabel>Longest edge</RailLabel>
+            <RailPick
+              label="Longest edge"
+              value={settings.maxEdgePx}
+              options={[2048, 1600, 1200, 800, 600, 400].map((value) => ({ value, label: `${value} px` }))}
+              onChange={(maxEdgePx) => onPatch({ maxEdgePx })}
+            />
+          </div>
+        )}
+
+        {hasImage && settings.resizeMode === "custom" && dimensions && (
+          <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
+            <RailNumber
+              label="Width"
+              min={16}
+              max={dimensions.width * 2}
+              value={settings.customWidth}
+              onChange={(value) => onCustomWidth?.(value)}
+            />
+            <ToolIcon
+              label={settings.lockAspect ? "Unlock aspect ratio" : "Lock aspect ratio"}
+              active={settings.lockAspect}
+              onClick={() => onPatch({ lockAspect: !settings.lockAspect })}
+              className="!h-11 !w-11"
+            >
+              {settings.lockAspect ? <Lock size={15} aria-hidden /> : <Unlock size={15} aria-hidden />}
+            </ToolIcon>
+            <RailNumber
+              label="Height"
+              min={16}
+              max={dimensions.height * 2}
+              value={settings.customHeight}
+              onChange={(value) => onCustomHeight?.(value)}
+            />
+          </div>
+        )}
+      </RailSection>
+
+      <RailSection
+        icon={Wand2}
+        title="More options"
+        aside={hasCustomOptions ? "Customized" : undefined}
+        defaultOpen={false}
+      >
+        <RailLabel value="Helps after resizing">Sharpen</RailLabel>
+        <Segmented
+          label="Sharpen"
+          options={SHARPEN_OPTIONS.map((option) => ({
+            value: String(option.value),
+            label: option.label,
+          }))}
+          value={String(settings.sharpenAmount ?? 0)}
+          onChange={(value) => onPatch({ sharpenAmount: Number(value), sharpen: Number(value) > 0 })}
+        />
+
+        <div className="mt-5 space-y-4">
+          <RailSwitch
+            label="Keep original if larger"
+            description="Never save a result bigger than the file you started with."
+            checked={settings.keepSmaller}
+            onChange={(checked) => onPatch({ keepSmaller: checked })}
+          />
+          <RailSwitch
+            label="Black and white"
+            description="Drops color for a smaller file."
+            checked={Boolean(settings.grayscale)}
+            onChange={(checked) => onPatch({ grayscale: checked })}
+          />
+          <RailSwitch
+            label="Keep transparency"
+            description="Clear areas stay clear in PNG and WebP files."
+            checked={settings.preserveAlpha}
+            onChange={(checked) => onPatch({ preserveAlpha: checked })}
+          />
+        </div>
+      </RailSection>
+
+      <div className="pt-2">
+        <RailReset onClick={onReset} />
       </div>
     </StudioRail>
-  );
-}
-
-function SwitchRow({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description?: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  const id = useId();
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer">
-        <span className="block text-[13px] font-medium text-ink">{label}</span>
-        {description ? (
-          <span className="mt-0.5 block text-[12px] leading-relaxed text-faint">{description}</span>
-        ) : null}
-      </label>
-      <Switch
-        id={id}
-        checked={checked}
-        onCheckedChange={onChange}
-        aria-label={label}
-        className="mt-0.5 shrink-0"
-      />
-    </div>
-  );
-}
-
-function DimensionField({
-  label,
-  max,
-  value,
-  onChange,
-}: {
-  label: string;
-  max: number;
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="block min-w-0">
-      <span className="block text-[12.5px] font-medium text-muted">{label}</span>
-      <span className="relative mt-1 block">
-        <input
-          type="number"
-          min={16}
-          max={max}
-          value={value}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="h-10 w-full rounded-[10px] border border-line bg-white pl-2.5 pr-8 text-[13px] font-medium tabular-nums text-ink outline-none transition-colors hover:border-[#cfc9bd] focus:border-ink"
-        />
-        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] text-faint">
-          px
-        </span>
-      </span>
-    </label>
   );
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { tools, type Tool } from "@/lib/registry/tools";
-import { Arrow, EASE, MaskLines, Rule, Sq, useMedia } from "./kit";
+import { Arrow, EASE, MaskLines, Rule, Sq, useMedia } from "@/components/site/kit";
 
 const free = tools.filter((tool) => tool.tier === "free");
 const credits = tools.filter((tool) => tool.tier === "credits");
@@ -53,18 +53,18 @@ export function Pricing() {
   const step = (by: number) => setIndex((value) => (value + by + PLANS.length) % PLANS.length);
 
   return (
-    <section id="pricing" aria-label="Pricing" className="relative scroll-mt-[var(--lp-nav)] pt-[clamp(72px,8vw,130px)]">
-      <div className="relative mx-[var(--lp-pad)] border-t border-[var(--lp-line)]">
+    <section id="pricing" aria-label="Pricing" className="relative scroll-mt-[var(--fb-nav)] pt-[clamp(72px,8vw,130px)]">
+      <div className="relative mx-[var(--fb-pad)] border-t border-[var(--fb-line)]">
         <Rule vertical className="bottom-0 left-0 top-0 hidden md:left-[18%] md:block" />
         <div className="grid md:grid-cols-[18%_minmax(0,1fr)]">
           <div className="flex items-center justify-between gap-6 py-7 md:flex-col md:items-start md:py-9">
-            <p className="lp-label flex items-center gap-3">
+            <p className="fb-label flex items-center gap-3">
               <Sq />
               Pricing //
             </p>
-            <p className="lp-wide text-[24px]">
+            <p className="fb-wide text-[24px]">
               0{index + 1}
-              <span className="ml-1.5 text-[13px] text-[var(--lp-muted)]">/ 0{PLANS.length}</span>
+              <span className="ml-1.5 text-[13px] text-[var(--fb-muted)]">/ 0{PLANS.length}</span>
             </p>
           </div>
 
@@ -79,14 +79,14 @@ export function Pricing() {
                   aria-selected={at === index}
                   onClick={() => setIndex(at)}
                   className={`relative pb-2.5 text-[15px] uppercase transition-colors ${
-                    at === index ? "" : "text-[var(--lp-muted)] hover:text-[var(--lp-ink)]"
+                    at === index ? "" : "text-[var(--fb-muted)] hover:text-[var(--fb-ink)]"
                   }`}
                 >
                   {item.name}
                   {at === index && (
                     <motion.span
-                      layoutId="lp-plan"
-                      className="absolute inset-x-0 bottom-0 h-[2px] bg-[var(--lp-coral)]"
+                      layoutId="fb-plan"
+                      className="absolute inset-x-0 bottom-0 h-[2px] bg-[var(--fb-coral)]"
                       transition={{ duration: 0.45, ease: EASE }}
                     />
                   )}
@@ -99,7 +99,7 @@ export function Pricing() {
                 <MaskLines
                   key={phone ? "phone" : "wide"}
                   as="h2"
-                  className="lp-wide text-[clamp(25px,3.5vw,58px)] !leading-[1.04]"
+                  className="fb-wide text-[clamp(25px,3.5vw,58px)] !leading-[1.04]"
                   lines={phone ? plan.phoneLines : plan.lines}
                 />
                 <ul className="mt-10 grid max-w-[1080px] gap-x-10 sm:grid-cols-2 xl:grid-cols-3">
@@ -110,14 +110,14 @@ export function Pricing() {
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
                       transition={{ duration: 0.4, delay: 0.2 + at * 0.03, ease: EASE }}
-                      className="border-t border-[var(--lp-line)]"
+                      className="border-t border-[var(--fb-line)]"
                     >
                       <Link
                         href={tool.path}
-                        className="flex items-baseline justify-between gap-4 py-3 text-[16px] transition-[padding,color] duration-300 hover:pl-2 hover:text-[var(--lp-coral)]"
+                        className="flex items-baseline justify-between gap-4 py-3 text-[16px] transition-[padding,color] duration-300 hover:pl-2 hover:text-[var(--fb-coral)]"
                       >
                         {tool.name}
-                        <span className="lp-label !text-[12px]">
+                        <span className="fb-label !text-[12px]">
                           {tool.status === "soon"
                             ? "Preview"
                             : tool.tier === "free"
@@ -133,7 +133,7 @@ export function Pricing() {
           </div>
         </div>
 
-        <div className="grid border-t border-[var(--lp-line)] md:grid-cols-[18%_minmax(0,1fr)_auto]">
+        <div className="grid border-t border-[var(--fb-line)] md:grid-cols-[18%_minmax(0,1fr)_auto]">
           <div className="grid grid-cols-2 max-md:order-last max-md:h-[64px]">
             {[-1, 1].map((by) => (
               <button
@@ -141,7 +141,7 @@ export function Pricing() {
                 type="button"
                 onClick={() => step(by)}
                 aria-label={by < 0 ? "Previous plan" : "Next plan"}
-                className="grid place-items-center border-r border-[var(--lp-line)] transition-colors hover:bg-[var(--lp-coral)] hover:text-white max-md:border-b"
+                className="grid place-items-center border-r border-[var(--fb-line)] transition-colors hover:bg-[var(--fb-coral)] hover:text-white max-md:border-b"
               >
                 <span className={by < 0 ? "rotate-180" : ""}>
                   <Arrow />
@@ -149,11 +149,11 @@ export function Pricing() {
               </button>
             ))}
           </div>
-          <div className="flex flex-wrap items-center gap-x-14 gap-y-5 bg-[var(--lp-panel)] px-6 py-8 md:px-9">
+          <div className="flex flex-wrap items-center gap-x-14 gap-y-5 bg-[var(--fb-panel)] px-6 py-8 md:px-9">
             {plan.stats.map((stat) => (
               <div key={`${plan.key}-${stat.label[0]}`} className="flex items-center gap-4">
-                <MaskLines immediate className="lp-wide text-[clamp(40px,3.6vw,58px)]" lines={[stat.value]} />
-                <p className="lp-label">
+                <MaskLines immediate className="fb-wide text-[clamp(40px,3.6vw,58px)]" lines={[stat.value]} />
+                <p className="fb-label">
                   {stat.label[0]}
                   <br />
                   {stat.label[1]}
@@ -163,7 +163,7 @@ export function Pricing() {
           </div>
           <Link
             href={plan.cta.href}
-            className="lp-btn lp-ear !h-auto min-h-[84px] !px-[clamp(32px,5vw,84px)]"
+            className="fb-btn fb-ear !h-auto min-h-[84px] !px-[clamp(32px,5vw,84px)]"
             style={{ ["--ear" as string]: "22px" }}
           >
             {plan.cta.label}

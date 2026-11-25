@@ -2,27 +2,30 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Reorder, motion } from "motion/react";
-import { ArrowDownUp, Download, Eye, FilePlus2, Layers3, Trash2, X } from "lucide-react";
+import { ArrowDownUp, Download, Eye, FilePlus2, Layers3, X } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import {
   ActionRow,
-  Chip,
   DownloadAction,
   Note,
   PrimaryAction,
+  ResultButton,
   ResultCard,
-  STAGE_LABEL,
   SecondaryAction,
+  StageBar,
   StartOverAction,
   StudioFrame,
   StudioStage,
+  ToolTabs,
+  ToolText,
 } from "@/components/tool/kit";
+import { DropOver } from "@/components/tool/viewer/DropOver";
+import { PdfBytesReader } from "@/components/tool/viewer/PdfReader";
 import { DropChip } from "@/components/tool/kit/Dropzone";
 import { PdfDropzone } from "../PdfDropzone";
 import { fileStem, formatBytes } from "../model";
 import { MergeCancelled, mergePdfs, type MergeOutcome } from "./merge-engine";
 import { MergeDocRow } from "./MergeDocRow";
-import { MergedPdfDialog } from "./MergedPdfDialog";
 import { MergeSettings } from "./MergeSettings";
 import {
   DEFAULT_MERGE_SETTINGS,
@@ -42,8 +45,10 @@ type MergeResult = {
   bytes: Uint8Array;
 };
 
-const TOOL_BUTTON =
-  "inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-40";
+const VIEWS = [
+  { value: "files", label: "Files" },
+  { value: "merged", label: "Merged PDF" },
+] as const;
 
 function plural(count: number, noun: string) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -57,7 +62,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const [runError, setRunError] = useState<string | null>(null);
   const [result, setResult] = useState<MergeResult | null>(null);
   const [ranSignature, setRanSignature] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [view, setView] = useState<"files" | "merged">("files");
 
   const resultRef = useRef<MergeResult | null>(null);
   const runIdRef = useRef(0);
@@ -119,6 +124,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   function clearAll() {
     queue.clear();
     revokeResult();
+    setView("files");
     setRanSignature(null);
     setRunError(null);
     setPhase("idle");
@@ -159,6 +165,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
       resultRef.current = next;
       setResult(next);
       setRanSignature(startedSignature);
+      setView("merged");
       setPhase("done");
       setProgress({ value: 1, label: "Done" });
     } catch (error) {
@@ -186,6 +193,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   const fileCount = queue.items.length;
   const fresh = result && !stale ? result : null;
+  const showMerged = Boolean(fresh) && view === "merged";
   const mergeLabel = queue.reading
     ? "Reading PDFs…"
     : readyCount === 0
@@ -206,7 +214,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   return (
     <>
       <StudioFrame id="merge-pdf" label="Merge PDF studio">
-        <StudioStage>
+        <StudioStage flush>
           <span
             aria-hidden
             className="hidden"
@@ -235,111 +243,98 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             />
           ) : (
             <div
-              className="flex min-h-0 flex-1 flex-col gap-3"
+              className="relative flex min-h-0 flex-1 flex-col"
               onDragOver={queue.onDragOver}
               onDragLeave={queue.onDragLeave}
               onDrop={queue.onDrop}
             >
+              <StageBar
+                end={
+                  showMerged ? null : (
+                    <>
+                      <ToolText
+                        onClick={() => queue.openPicker()}
+                        disabled={busy || fileCount >= MAX_MERGE_FILES}
+                        icon={<FilePlus2 size={14} aria-hidden />}
+                      >
+                        Add
+                      </ToolText>
+                      <ToolText
+                        onClick={() => queue.reverse()}
+                        disabled={busy || fileCount < 2}
+                        icon={<ArrowDownUp size={14} aria-hidden />}
+                      >
+                        Reverse
+                      </ToolText>
+                      <ToolText onClick={clearAll} disabled={busy}>
+                        Clear
+                      </ToolText>
+                    </>
+                  )
+                }
+              >
+                {fresh ? <ToolTabs label="Stage view" options={VIEWS} value={view} onChange={setView} /> : null}
+                <span className="fb-num pl-1 text-[13.5px] text-muted">
+                  {plural(fileCount, "file")} · {plural(queue.totalPages, "page")} · {formatBytes(queue.totalSize)}
+                </span>
+              </StageBar>
+
               {fresh ? (
-                <ResultCard
-                  title={`${fresh.name} is ready`}
-                  meta={`${plural(fresh.pageCount, "page")} · ${formatBytes(fresh.size)}`}
-                >
-                  <a
-                    href={fresh.url}
-                    download={fresh.name}
-                    className="inline-flex h-10 items-center gap-1.5 rounded-[12px] bg-success px-4 text-[13.5px] font-semibold text-white transition hover:brightness-110"
-                  >
-                    <Download size={15} aria-hidden />
+                <ResultCard title="Merged" meta={`${fresh.name} · ${plural(fresh.pageCount, "page")} · ${formatBytes(fresh.size)}`}>
+                  <ResultButton loud href={fresh.url} filename={fresh.name} icon={<Download size={16} aria-hidden />}>
                     Download
-                  </a>
+                  </ResultButton>
                 </ResultCard>
               ) : result ? (
-                <Note tone="warn" className="shrink-0">
+                <Note tone="warn" className="shrink-0 border-x-0 border-t-0">
                   The order or settings changed after the last merge. Merge again to update the file, or{" "}
-                  <a
-                    href={result.url}
-                    download={result.name}
-                    className="font-medium underline underline-offset-2"
-                  >
+                  <a href={result.url} download={result.name} className="font-semibold underline underline-offset-2">
                     download the earlier version
                   </a>
                   .
                 </Note>
               ) : null}
 
-              <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
-                <span className={STAGE_LABEL}>Drag to set the merge order</span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => queue.reverse()}
-                    disabled={busy || fileCount < 2}
-                    className={TOOL_BUTTON}
-                  >
-                    <ArrowDownUp size={13} aria-hidden />
-                    Reverse
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearAll}
-                    disabled={busy}
-                    data-variant="destructive"
-                    className={TOOL_BUTTON}
-                  >
-                    <Trash2 size={13} aria-hidden />
-                    Clear
-                  </button>
-                  <Chip>
-                    {plural(fileCount, "file")} · {plural(queue.totalPages, "page")} ·{" "}
-                    {formatBytes(queue.totalSize)}
-                  </Chip>
+              {showMerged && fresh ? (
+                <div className="flex min-h-[60svh] flex-1 flex-col lg:min-h-0">
+                  <PdfBytesReader bytes={fresh.bytes} title={fresh.name} />
                 </div>
-              </div>
-
-              <motion.div
-                layoutScroll
-                className={`studio-main min-h-0 flex-1 rounded-[16px] transition-shadow lg:-mx-1.5 lg:overflow-y-auto lg:overflow-x-hidden lg:px-1.5 ${
-                  queue.dragging ? "ring-2 ring-accent/50 ring-offset-4 ring-offset-paper" : ""
-                }`}
-              >
-                <Reorder.Group
-                  axis="y"
-                  values={queue.items}
-                  onReorder={queue.reorder}
-                  className="space-y-2"
+              ) : (
+                <motion.div
+                  layoutScroll
+                  className="studio-main min-h-0 flex-1 lg:overflow-y-auto lg:overflow-x-hidden"
                 >
-                  {queue.items.map((item, index) => (
-                    <MergeDocRow
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      total={fileCount}
-                      locked={busy}
-                      onRangeChange={queue.setRange}
-                      onRotationChange={queue.setRotation}
-                      onMove={queue.move}
-                      onRemove={queue.remove}
-                    />
-                  ))}
-                </Reorder.Group>
+                  <Reorder.Group axis="y" values={queue.items} onReorder={queue.reorder}>
+                    {queue.items.map((item, index) => (
+                      <MergeDocRow
+                        key={item.id}
+                        item={item}
+                        index={index}
+                        total={fileCount}
+                        locked={busy}
+                        onRangeChange={queue.setRange}
+                        onRotationChange={queue.setRotation}
+                        onMove={queue.move}
+                        onRemove={queue.remove}
+                      />
+                    ))}
+                  </Reorder.Group>
 
-                {fileCount < MAX_MERGE_FILES && (
-                  <button
-                    type="button"
-                    onClick={() => queue.openPicker()}
-                    disabled={busy}
-                    className={`mt-2 flex h-14 w-full items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-dashed text-[13.5px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 ${
-                      queue.dragging
-                        ? "border-accent bg-accent-soft text-accent-deep"
-                        : "border-[#d6d1c6] bg-white text-muted hover:border-[#b9b2a4] hover:text-ink"
-                    }`}
-                  >
-                    <FilePlus2 size={16} aria-hidden />
-                    {queue.dragging ? "Drop to add to the end" : "Add another PDF"}
-                  </button>
-                )}
-              </motion.div>
+                  {fileCount < MAX_MERGE_FILES && (
+                    <button
+                      type="button"
+                      onClick={() => queue.openPicker()}
+                      disabled={busy}
+                      className="fb-hatch flex h-[76px] w-full items-center justify-center gap-3 border-b border-line text-[13px] font-semibold uppercase transition-colors hover:bg-ink hover:text-white disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <FilePlus2 size={18} aria-hidden />
+                      Add another PDF
+                    </button>
+                  )}
+                </motion.div>
+              )}
+
+              {queue.dragging ? <DropOver label="Drop to add to the end" /> : null}
             </div>
           )}
 
@@ -355,7 +350,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           />
 
           {queue.errors.length > 0 && (
-            <Note tone="error" className="mt-3 shrink-0">
+            <Note tone="error" className="m-3 shrink-0">
               {queue.errors.map((message, index) => (
                 <span key={`${message}-${index}`} className="block">
                   {message}
@@ -371,11 +366,7 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
             </Note>
           )}
 
-          {runError && (
-            <Note tone="error" className="mt-3 shrink-0">
-              {runError}
-            </Note>
-          )}
+          {runError && <Note tone="error" className="m-3 shrink-0">{runError}</Note>}
         </StudioStage>
 
         <StudioRail
@@ -391,10 +382,10 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 />
                 <ActionRow>
                   <SecondaryAction
-                    onClick={() => setPreviewOpen(true)}
-                    icon={<Eye size={13} aria-hidden />}
+                    onClick={() => setView(showMerged ? "files" : "merged")}
+                    icon={showMerged ? <ArrowDownUp size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
                   >
-                    Preview
+                    {showMerged ? "Change order" : "Preview"}
                   </SecondaryAction>
                   <StartOverAction onClick={clearAll} />
                 </ActionRow>
@@ -432,15 +423,6 @@ export function MergePdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           />
         </StudioRail>
       </StudioFrame>
-
-      <MergedPdfDialog
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        bytes={result?.bytes ?? null}
-        url={result?.url ?? null}
-        name={result?.name ?? outputName}
-        pageCount={result?.pageCount ?? projectedPages}
-      />
     </>
   );
 }

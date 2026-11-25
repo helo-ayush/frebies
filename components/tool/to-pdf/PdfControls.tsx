@@ -1,14 +1,11 @@
 "use client";
 
 import { FileCog, Sparkles } from "lucide-react";
-import { Switch } from "@/components/arc/switch/switch";
 import { Field, Segmented } from "@/components/tool/kit";
-import {
-  RailSection,
-  RAIL_CARD_ACTIVE,
-  RAIL_CARD_IDLE,
-} from "@/components/tool/studio/RailSection";
+import { RailSection } from "@/components/tool/studio/RailSection";
 import { RailSlider } from "@/components/tool/studio/RailSlider";
+import { RailSwitch } from "@/components/tool/studio/RailSwitch";
+import { RailCards, RailEnds, RailHint, RailLabel, RailPick } from "@/components/tool/studio/RailControls";
 import {
   MARGINS,
   ORIENTATIONS,
@@ -24,10 +21,6 @@ import {
   type PdfFit,
   type PdfSettings,
 } from "./model";
-
-const SUB_LABEL = "block text-[13px] font-medium text-ink";
-const CHIP_ON = "border-ink bg-ink text-white";
-const CHIP_OFF = "border-line bg-white text-ink hover:border-[#cfc9bd]";
 
 const ORIENTATION_OPTIONS: { value: PageOrientation; label: string }[] = ORIENTATIONS.map((option) => ({
   value: option.id,
@@ -56,31 +49,6 @@ const QUALITY_PRESETS = [
   { label: "Crisp", value: 92 },
 ];
 
-/** Flat switch row: a label, an optional line of help, and the switch. */
-function ToggleRow({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description?: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <button type="button" onClick={() => onChange(!checked)} className="min-w-0 flex-1 text-left">
-        <span className="block text-[13px] font-medium text-ink">{label}</span>
-        {description ? (
-          <span className="mt-0.5 block text-[12px] leading-relaxed text-faint">{description}</span>
-        ) : null}
-      </button>
-      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} className="mt-0.5 shrink-0" />
-    </div>
-  );
-}
-
 export function PdfControls({
   settings,
   onPatch,
@@ -95,28 +63,20 @@ export function PdfControls({
   const fitsImage = settings.pageSize === "fit";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <Field label="Paper size" hint={size.detail}>
-        <div className="grid grid-cols-3 gap-2">
-          {PAGE_SIZES.map((option) => {
-            const selected = settings.pageSize === option.id;
-            return (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={selected}
-                title={option.detail}
-                onClick={() => onPatch({ pageSize: option.id as PageSizeId })}
-                className={`flex h-12 items-center gap-2 rounded-[11px] border px-2.5 text-left text-[13px] font-medium text-ink transition-colors ${
-                  selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
-                } ${option.id === "fit" ? "col-span-2" : ""}`}
-              >
-                <PaperMiniature id={option.id} active={selected} />
-                <span className="min-w-0 truncate">{option.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <RailCards
+          label="Paper size"
+          columns={3}
+          value={settings.pageSize}
+          options={PAGE_SIZES.map((option) => ({
+            value: option.id,
+            label: option.label,
+            title: option.detail,
+            icon: <PaperMiniature id={option.id} />,
+          }))}
+          onChange={(pageSize) => onPatch({ pageSize })}
+        />
       </Field>
 
       {!fitsImage && (
@@ -128,9 +88,7 @@ export function PdfControls({
             onChange={(orientation) => onPatch({ orientation })}
           />
           {settings.orientation === "auto" ? (
-            <p className="mt-2 text-[12.5px] leading-relaxed text-faint">
-              Wide images get a landscape page, tall ones a portrait page.
-            </p>
+            <RailHint>Wide images get a landscape page, tall ones a portrait page.</RailHint>
           ) : null}
         </Field>
       )}
@@ -157,42 +115,38 @@ export function PdfControls({
             value={settings.fit}
             onChange={(fit) => onPatch({ fit })}
           />
-          <p className="mt-2 text-[12.5px] leading-relaxed text-faint">
+          <RailHint>
             {settings.fit === "cover"
               ? "Fills the page and crops whatever hangs over the edge."
               : "Shows the whole image, with paper left around it."}
-          </p>
+          </RailHint>
         </Field>
       )}
 
       <Field label="Paper color">
-        <div className="grid grid-cols-3 gap-2">
-          {PDF_BACKGROUNDS.map((background) => {
-            const selected = settings.background === background.id;
-            return (
-              <button
-                key={background.id}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => onPatch({ background: background.id })}
-                className={`flex h-[58px] flex-col items-center justify-center gap-1.5 rounded-[11px] border text-[12.5px] font-medium text-ink transition-colors ${
-                  selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
-                }`}
-              >
+        <RailPick
+          label="Paper color"
+          columns={3}
+          value={settings.background}
+          options={PDF_BACKGROUNDS.map((background) => ({
+            value: background.id,
+            label: (
+              <>
                 <span
                   aria-hidden
-                  className="h-[18px] w-[18px] shrink-0 rounded-full border border-black/15"
+                  className="h-4 w-4 shrink-0 border border-black/25"
                   style={{ background: background.value }}
                 />
                 {background.label}
-              </button>
-            );
-          })}
-        </div>
+              </>
+            ),
+          }))}
+          onChange={(background) => onPatch({ background })}
+        />
       </Field>
 
       <div>
-        <ToggleRow
+        <RailSwitch
           label="Page numbers"
           description={`Prints “1 / ${pageCount || 1}” at the bottom of every page.`}
           checked={settings.pageNumbers}
@@ -209,7 +163,7 @@ export function PdfControls({
         )}
       </div>
 
-      <div className="border-t border-line-soft pt-4">
+      <div className="-mx-4 border-t border-line px-4 sm:-mx-5 sm:px-5">
         <RailSection
           icon={FileCog}
           title="File name & quality"
@@ -218,15 +172,15 @@ export function PdfControls({
         >
           <div className="space-y-5">
             <label className="block">
-              <span className={SUB_LABEL}>File name</span>
-              <span className="relative mt-2 block">
+              <RailLabel>File name</RailLabel>
+              <span className="relative block">
                 <input
                   type="text"
                   value={settings.filename}
                   maxLength={60}
                   onChange={(event) => onPatch({ filename: event.target.value })}
                   placeholder="images"
-                  className="h-11 w-full rounded-[10px] border border-line bg-white pl-3 pr-12 text-[14px] text-ink outline-none transition-colors hover:border-[#d8d3ca] focus:border-ink"
+                  className="h-11 w-full pl-3 pr-12 text-[15px]"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-faint">
                   .pdf
@@ -234,7 +188,7 @@ export function PdfControls({
               </span>
             </label>
 
-            <ToggleRow
+            <RailSwitch
               label="Black & white scan"
               description="Turns photos of contracts, receipts and notes into clean grayscale pages."
               checked={settings.grayscale}
@@ -242,10 +196,9 @@ export function PdfControls({
             />
 
             <div>
-              <div className="flex items-baseline justify-between gap-3">
-                <span className={SUB_LABEL}>Image quality</span>
-                <span className="text-[13px] font-semibold tabular-nums text-ink">{settings.quality}%</span>
-              </div>
+              <RailLabel className="!mb-1" value={`${settings.quality}%`}>
+                Image quality
+              </RailLabel>
               <RailSlider
                 label="PDF image quality"
                 value={settings.quality}
@@ -253,30 +206,16 @@ export function PdfControls({
                 max={100}
                 step={1}
                 onValueChange={(quality) => onPatch({ quality })}
-                className="mt-2"
+                className=""
               />
-              <div className="mt-1.5 flex justify-between text-[12px] text-faint">
-                <span>Smaller file</span>
-                <span>Sharper print</span>
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-1.5">
-                {QUALITY_PRESETS.map((preset) => {
-                  const selected = settings.quality === preset.value;
-                  return (
-                    <button
-                      key={preset.value}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => onPatch({ quality: preset.value })}
-                      className={`h-9 rounded-[9px] border text-[12.5px] font-medium transition-colors ${
-                        selected ? CHIP_ON : CHIP_OFF
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <RailEnds left="Smaller file" right="Sharper print" />
+              <RailPick
+                className="mt-3"
+                label="Quality presets"
+                value={settings.quality}
+                options={QUALITY_PRESETS}
+                onChange={(quality) => onPatch({ quality })}
+              />
             </div>
           </div>
         </RailSection>
@@ -285,10 +224,9 @@ export function PdfControls({
   );
 }
 
-function PaperMiniature({ id, active }: { id: PageSizeId; active: boolean }) {
-  if (id === "fit") {
-    return <Sparkles size={16} className={`shrink-0 ${active ? "text-ink" : "text-muted"}`} aria-hidden />;
-  }
+/** The sheet's own proportions, in whatever colour the cell gives it. */
+function PaperMiniature({ id }: { id: PageSizeId }) {
+  if (id === "fit") return <Sparkles size={17} aria-hidden />;
 
   const ratios: Record<string, number> = { a4: 210 / 297, letter: 8.5 / 11, a5: 148 / 210, legal: 8.5 / 14 };
   const ratio = ratios[id] ?? 0.707;
@@ -297,10 +235,7 @@ function PaperMiniature({ id, active }: { id: PageSizeId; active: boolean }) {
 
   return (
     <span aria-hidden className="grid h-6 w-5 shrink-0 place-items-center">
-      <span
-        className={`rounded-[2px] border ${active ? "border-ink bg-ink/10" : "border-[#c6c0b4] bg-white"}`}
-        style={{ width: `${width}px`, height: `${height}px` }}
-      />
+      <span className="border-[1.5px] border-current" style={{ width: `${width}px`, height: `${height}px` }} />
     </span>
   );
 }

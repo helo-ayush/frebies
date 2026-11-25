@@ -1,149 +1,22 @@
-/* Landing page only. Everything is scoped under .lp. */
-.lp {
-  --lp-bg: #e9e9e6;
-  --lp-panel: #f4f4f1;
-  --lp-tint: #dfe6e7;
-  --lp-line: rgba(24, 24, 27, 0.14);
-  --lp-line-strong: rgba(24, 24, 27, 0.32);
-  --lp-ink: #1d1c1f;
-  --lp-ink-2: #2a292d;
-  --lp-muted: #65646a;
-  --lp-coral: #f2552c;
-  /* The fill under white text: same hue, dark enough to read on. */
-  --lp-coral-deep: #d8431b;
-  --lp-nav: 72px;
-  --lp-pad: clamp(16px, 2.1vw, 34px);
+/* Landing page only. The shared look lives in app/site.css. */
+.fb-title { font-size: clamp(30px, 4.6vw, 76px); }
+.fb-sub { font-size: clamp(19px, 1.75vw, 29px); line-height: 1.14; letter-spacing: -0.02em; }
 
-  background: var(--lp-bg);
-  color: var(--lp-ink);
-  font-family: var(--font-host), system-ui, sans-serif;
-  font-size: 15px;
-  letter-spacing: -0.005em;
-}
-.lp ::selection { background: var(--lp-coral); color: #fff; }
-.lp :focus-visible { outline: 2px solid var(--lp-coral); outline-offset: 3px; }
-
-/* ---------- Type ---------- */
-.lp-wide {
-  font-family: var(--font-wide), var(--font-host), system-ui, sans-serif;
-  font-stretch: 136%;
-  font-weight: 620;
-  text-transform: uppercase;
-  letter-spacing: -0.028em;
-  line-height: 0.96;
-}
-.lp-wide.lowercase { text-transform: lowercase; }
-.lp-title { font-size: clamp(30px, 4.6vw, 76px); }
-.lp-sub { font-size: clamp(19px, 1.75vw, 29px); line-height: 1.14; letter-spacing: -0.02em; }
-.lp-label {
-  font-size: 13px;
-  line-height: 1.35;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  color: var(--lp-muted);
-}
-.lp-body { font-size: 15.5px; line-height: 1.5; color: #3d3c41; }
-
-/* Masked line: the child rises out of it. */
-.lp-mask { display: block; overflow: hidden; padding-bottom: 0.06em; margin-bottom: -0.06em; }
-
-/* ---------- Marks ---------- */
-.lp-sq { width: 12px; height: 12px; background: var(--lp-coral); }
-:where(.lp-sq) { display: block; flex: none; }
-
-/* Dog-ear: every cut corner on the page is the folded corner of a file. */
-.lp-ear { --ear: 16px; clip-path: polygon(0 0, calc(100% - var(--ear)) 0, 100% var(--ear), 100% 100%, 0 100%); }
-
-.lp-grid-bg {
-  background-image:
-    linear-gradient(var(--lp-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--lp-line) 1px, transparent 1px);
-}
-.lp-hatch {
-  background-image: repeating-linear-gradient(45deg, var(--lp-line) 0 1px, transparent 1px 9px);
-}
-
-/* ---------- Buttons ---------- */
-.lp-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  height: 46px;
-  padding: 0 24px;
-  background: var(--lp-ink);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0;
-  white-space: nowrap;
-  isolation: isolate;
-  overflow: hidden;
-}
-.lp-btn::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: var(--lp-coral);
-  transform: scaleX(0.03);
-  transform-origin: left;
-  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s;
-}
-.lp-btn:hover::before,
-.lp-btn:focus-visible::before,
-.lp-btn[data-lit="true"]::before { transform: scaleX(1); background: var(--lp-coral-deep); }
-
-.lp-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding-bottom: 7px;
-  font-size: 14px;
-  font-weight: 600;
-  text-transform: uppercase;
-  background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1px no-repeat;
-  transition: background-size 0.45s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s;
-}
-.lp-link:hover { background-size: 26px 1px; color: var(--lp-coral); }
-.lp-link svg { transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
-.lp-link:hover svg { transform: translateX(5px); }
-
-/* Two stacked copies of a label; hover rolls to the second. */
-.lp-roll { display: inline-block; position: relative; overflow: hidden; vertical-align: bottom; line-height: 1.3; }
-.lp-roll > span { display: block; transition: transform 0.42s cubic-bezier(0.65, 0, 0.2, 1); }
-.lp-roll > span + span { position: absolute; inset: 0; transform: translateY(105%); color: var(--lp-coral); }
-:where(a, button):hover > .lp-roll > span:first-child { transform: translateY(-105%); }
-:where(a, button):hover > .lp-roll > span + span { transform: none; }
-
-/* ---------- Moving parts ---------- */
-@keyframes lp-marquee { to { transform: translateX(-50%); } }
-.lp-marquee { animation: lp-marquee 46s linear infinite; }
-.lp-marquee-wrap:hover .lp-marquee { animation-play-state: paused; }
-
-.lp-stripes {
+.fb-stripes {
   background-color: #4b4a4e;
   background-image: repeating-linear-gradient(65deg, #2c2b2f 0 62px, transparent 62px 153.8px);
   background-size: 169.7px 100%;
 }
 
-@keyframes lp-spin {
+@keyframes fb-spin {
   from { transform: rotateX(-18deg) rotateY(0deg); }
   to { transform: rotateX(-18deg) rotateY(360deg); }
 }
-.lp-cube { transform-style: preserve-3d; animation: lp-spin 14s linear infinite; }
-.lp-cube > i { position: absolute; inset: 0; background: var(--lp-coral); border: 1.5px solid #fff; }
+.fb-cube { transform-style: preserve-3d; animation: fb-spin 14s linear infinite; }
+.fb-cube > i { position: absolute; inset: 0; background: var(--fb-coral); border: 1.5px solid #fff; }
 
-@keyframes lp-knob { 0%, 100% { left: 4%; } 45%, 55% { left: 62%; } }
-@keyframes lp-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-.lp-blink { animation: lp-blink 1.8s ease-in-out infinite; }
-
-.lp-plus svg { transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
-.lp details[open] .lp-plus { background: var(--lp-coral); color: #fff; }
-.lp details[open] .lp-plus svg { transform: rotate(45deg); }
+@keyframes fb-knob { 0%, 100% { left: 4%; } 45%, 55% { left: 62%; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .lp-marquee, .lp-cube, .lp-blink { animation: none; }
+  .fb-cube { animation: none; }
 }

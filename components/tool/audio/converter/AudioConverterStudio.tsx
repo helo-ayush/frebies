@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRightLeft, ChevronDown, Download, RefreshCw, Settings2, X } from "lucide-react";
-import { buttonClasses } from "@/components/ui/Button";
-import { Switch } from "@/components/arc/switch/switch";
+import { ArrowRightLeft, Download, RefreshCw, Settings2, X } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { RailSection } from "@/components/tool/studio/RailSection";
 import {
@@ -12,14 +10,19 @@ import {
   Field,
   Note,
   PrimaryAction,
+  QuickPick,
+  ResultButton,
   ResultCard,
-  STAGE_LABEL,
   SecondaryAction,
   Segmented,
   StartOverAction,
   StudioFrame,
   StudioStage,
+  ToolTabs,
 } from "@/components/tool/kit";
+import { RailHint, RailPick } from "@/components/tool/studio/RailControls";
+import { RailSwitch } from "@/components/tool/studio/RailSwitch";
+import { DropOver } from "@/components/tool/viewer/DropOver";
 import { DropChip } from "@/components/tool/kit/Dropzone";
 import { AudioDropzone } from "@/components/tool/audio/AudioDropzone";
 import { AudioFileMeta } from "@/components/tool/audio/AudioFileMeta";
@@ -91,16 +94,10 @@ const CHANNEL_OPTIONS: { value: ChannelMode; label: string }[] = [
   { value: "mono", label: "Mono" },
 ];
 
-const HELP_TEXT = "mt-2 text-[12.5px] leading-relaxed text-faint";
-const SUB_LABEL = "block text-[12.5px] font-medium text-muted";
-const INPUT_BOX =
-  "w-full rounded-[10px] border border-line bg-white text-[13px] text-ink outline-none transition-colors placeholder:text-faint hover:border-[#cfc9bd] focus:border-ink";
-
-function presetClass(active: boolean) {
-  return `h-10 rounded-[10px] border text-[13px] font-medium tabular-nums transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-    active ? "border-ink bg-ink text-white" : "border-line bg-white text-ink hover:border-[#cfc9bd]"
-  }`;
-}
+const LISTEN = [
+  { value: "after", label: "Converted" },
+  { value: "before", label: "Original" },
+] as const;
 
 export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
   const { item, error, dragging, inputRef, openPicker, onPick, onDragOver, onDragLeave, onDrop, clear } =
@@ -111,6 +108,7 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
   const [runError, setRunError] = useState<string | null>(null);
   const [result, setResult] = useState<ConversionOutcome | null>(null);
   const [stale, setStale] = useState(false);
+  const [listen, setListen] = useState<"after" | "before">("after");
 
   const resultRef = useRef<ConversionOutcome | null>(null);
   const runIdRef = useRef(0);
@@ -199,6 +197,7 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
       revokeResult();
       resultRef.current = outcome;
       setResult(outcome);
+      setListen("after");
       setPhase("done");
       setProgress({ value: 1, label: "Done" });
     } catch (conversionError) {
@@ -296,8 +295,8 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
   }
 
   return (
-    <StudioFrame id="audio-convert" label="Audio conversion studio" fill={false}>
-      <StudioStage className="lg:self-stretch">
+    <StudioFrame id="audio-convert" label="Audio conversion studio">
+      <StudioStage flush>
         <span
           aria-hidden
           className="hidden"
@@ -325,65 +324,56 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
             }
           />
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col">
-            {notices("mb-3")}
-
-            {result ? (
-              <div className="mb-4 shrink-0 space-y-2">
-                <ResultCard
-                  title={`Converted to ${result.format.toUpperCase()} · ${formatBytes(result.size)}`}
-                  meta={
-                    stale
-                      ? "Settings changed since. Convert again to apply them."
-                      : `${resultDelta === "—" ? "" : `${resultDelta} than the original · `}${settingsSummary(settings, vbrOn)}`
-                  }
-                >
-                  <button
-                    type="button"
-                    onClick={discardResult}
-                    aria-label="Discard converted file"
-                    title="Discard"
-                    className="grid h-10 w-10 place-items-center rounded-[12px] text-[#3f6b54] transition-colors hover:bg-white/70 hover:text-ink"
-                  >
-                    <X size={15} aria-hidden />
-                  </button>
-                  <a
-                    href={result.url}
-                    download={downloadName}
-                    aria-label={`Download ${result.format.toUpperCase()}`}
-                    className={buttonClasses("success", "md", "h-10 rounded-[12px] px-3 text-[13.5px] sm:px-4")}
-                  >
-                    <Download size={15} aria-hidden />
-                    <span className="max-sm:sr-only">Download</span>
-                  </a>
-                </ResultCard>
-                <AudioPlayer
-                  src={result.url}
-                  duration={result.duration}
-                  peaks={result.peaks}
-                  formatLabel={result.format.toUpperCase()}
-                  compact
-                />
-              </div>
-            ) : null}
-
-            {result ? <p className={`${STAGE_LABEL} mb-2 px-0.5`}>Original</p> : null}
-
-            <div className="flex flex-1 flex-col lg:max-h-[440px]">
-              <AudioPlayer
-                src={item.url}
-                duration={item.duration}
-                peaks={item.peaks}
-                formatLabel={result ? sourceFormat : undefined}
-              />
-            </div>
-
+          <div
+            className="relative flex min-h-0 flex-1 flex-col"
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
             <AudioFileMeta
               item={item}
               formatLabel={sourceFormat}
               onReplace={() => openPicker()}
               onRemove={startOver}
+            >
+              {result ? <ToolTabs label="Listen to" options={LISTEN} value={listen} onChange={setListen} /> : null}
+            </AudioFileMeta>
+
+            {notices("p-3")}
+
+            {result ? (
+              <ResultCard
+                title={`${result.format.toUpperCase()}, ${formatBytes(result.size)}`}
+                meta={
+                  stale
+                    ? "Settings changed since. Convert again to apply them."
+                    : `${resultDelta === "—" ? "" : `${resultDelta} than the original · `}${settingsSummary(settings, vbrOn)}`
+                }
+              >
+                <ResultButton onClick={discardResult} label="Discard converted file" icon={<X size={17} aria-hidden />} />
+                <ResultButton
+                  loud
+                  href={result.url}
+                  filename={downloadName}
+                  label={`Download ${result.format.toUpperCase()}`}
+                  icon={<Download size={16} aria-hidden />}
+                >
+                  Download
+                </ResultButton>
+              </ResultCard>
+            ) : null}
+
+            <AudioPlayer
+              src={result && listen === "after" ? result.url : item.url}
+              duration={result && listen === "after" ? result.duration : item.duration}
+              peaks={result && listen === "after" ? result.peaks : item.peaks}
+              formatLabel={result && listen === "after" ? `${result.format.toUpperCase()} converted` : `${sourceFormat} original`}
+              fileName={item.name}
+              keepPosition
+              className="min-h-[330px] lg:min-h-0"
             />
+
+            {dragging ? <DropOver label="Drop to replace" /> : null}
           </div>
         )}
 
@@ -397,12 +387,11 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
           onChange={onPick}
         />
 
-        {!item ? notices("mt-3") : null}
+        {!item ? notices("p-3") : null}
       </StudioStage>
 
       <StudioRail
         label="Audio conversion settings"
-        sticky
         action={
           showDownload && result ? (
             <>
@@ -425,6 +414,12 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
             </>
           ) : (
             <>
+              <QuickPick
+                label="Output format"
+                value={settings.format}
+                options={FORMAT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+                onChange={(format) => patch({ format })}
+              />
               <PrimaryAction
                 label={item ? `Convert to ${target}` : "Convert audio"}
                 busyLabel={busy ? stageLabel(progress.label) : "Reading audio…"}
@@ -452,11 +447,7 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
           )
         }
       >
-        <div className="space-y-6">
-          {estimateLine ? (
-            <p className="text-[12.5px] tabular-nums text-muted lg:hidden">{estimateLine}</p>
-          ) : null}
-
+        <div className="space-y-7 pb-7">
           <Field label="Format">
             <Segmented
               label="Output format"
@@ -464,7 +455,7 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
               value={settings.format}
               onChange={(format) => patch({ format })}
             />
-            <p className={HELP_TEXT}>{FORMAT_NOTES[settings.format]}</p>
+            <RailHint>{FORMAT_NOTES[settings.format]}</RailHint>
           </Field>
 
           {lossless ? (
@@ -475,37 +466,29 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
                 value={String(settings.bitDepth)}
                 onChange={(depth) => patch({ bitDepth: Number(depth) as BitDepth })}
               />
-              <p className={HELP_TEXT}>
+              <RailHint>
                 16-bit plays everywhere. Pick 24 or 32-bit if you will keep editing the file.
-              </p>
+              </RailHint>
             </Field>
           ) : (
             <Field label="Bitrate" hint={vbrOn ? "Variable" : `${settings.bitrate} kbps`}>
-              <div className="grid grid-cols-5 gap-1.5">
-                {BITRATES.map((bitrate) => {
-                  const selected = settings.bitrate === bitrate && !vbrOn;
-                  return (
-                    <button
-                      key={bitrate}
-                      type="button"
-                      disabled={vbrOn}
-                      aria-pressed={selected}
-                      aria-label={`${bitrate} kbps`}
-                      onClick={() => patch({ bitrate, vbr: false })}
-                      className={presetClass(selected)}
-                    >
-                      {bitrate}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className={HELP_TEXT}>
-                64–96 is fine for speech, 128–192 for music, 320 keeps the most detail.
-              </p>
+              <RailPick
+                label="Bitrate"
+                columns={5}
+                disabled={vbrOn}
+                value={vbrOn ? null : settings.bitrate}
+                options={BITRATES.map((bitrate) => ({
+                  value: bitrate,
+                  label: bitrate,
+                  ariaLabel: `${bitrate} kbps`,
+                }))}
+                onChange={(bitrate) => patch({ bitrate, vbr: false })}
+              />
+              <RailHint>64–96 is fine for speech, 128–192 for music, 320 keeps the most detail.</RailHint>
               {vbrAvailable ? (
-                <div className="mt-3.5">
-                  <AudioToggle
-                    title="Variable bitrate (VBR)"
+                <div className="mt-4">
+                  <RailSwitch
+                    label="Variable bitrate (VBR)"
                     description="Lets the encoder spend fewer bits on quiet or simple passages."
                     checked={settings.vbr}
                     onChange={(vbr) => patch({ vbr })}
@@ -515,36 +498,38 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
             </Field>
           )}
 
+          {!lossless ? (
+            <Note>
+              The first MP3, M4A or OGG conversion downloads the encoder once (about 32 MB). WAV needs no
+              download.
+            </Note>
+          ) : null}
+        </div>
+
+        <div className="-mx-4 border-t border-line px-4 sm:-mx-5 sm:px-5">
           <RailSection icon={Settings2} title="More options" aside={advancedSummary} defaultOpen={false}>
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className={SUB_LABEL}>Sample rate</span>
-                  <span className="relative mt-1.5 block">
-                    <select
-                      value={settings.sampleRate}
-                      onChange={(event) => patch({ sampleRate: Number(event.target.value) })}
-                      className={`${INPUT_BOX} h-11 appearance-none pl-3 pr-8`}
-                    >
-                      {SAMPLE_RATES.map((rate) => (
-                        <option key={rate.value} value={rate.value}>
-                          {rate.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={14}
-                      className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-faint"
-                      aria-hidden
-                    />
-                  </span>
+                  <span className="block text-[14px] font-medium">Sample rate</span>
+                  <select
+                    value={settings.sampleRate}
+                    onChange={(event) => patch({ sampleRate: Number(event.target.value) })}
+                    className="fb-input mt-2 cursor-pointer"
+                  >
+                    {SAMPLE_RATES.map((rate) => (
+                      <option key={rate.value} value={rate.value}>
+                        {rate.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <div>
-                  <span className={SUB_LABEL}>Channels</span>
+                  <span className="block text-[14px] font-medium">Channels</span>
                   <Segmented
                     label="Channels"
-                    className="mt-1.5"
+                    className="mt-2 [&>button]:h-[42px]"
                     options={CHANNEL_OPTIONS}
                     value={settings.channels}
                     onChange={(channels) => patch({ channels })}
@@ -552,20 +537,20 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
                 </div>
               </div>
 
-              <AudioToggle
-                title="Normalize volume"
+              <RailSwitch
+                label="Normalize volume"
                 description="Bring the loudest moment to a standard level."
                 checked={settings.normalize}
                 onChange={(normalize) => patch({ normalize })}
               />
-              <AudioToggle
-                title="Trim silence"
+              <RailSwitch
+                label="Trim silence"
                 description="Remove long gaps at the start and end."
                 checked={settings.trimSilence}
                 onChange={(trimSilence) => patch({ trimSilence })}
               />
-              <AudioToggle
-                title="Keep metadata"
+              <RailSwitch
+                label="Keep metadata"
                 description="Write a title and artist into the file where the format allows."
                 checked={settings.metadata}
                 onChange={(metadata) => patch({ metadata })}
@@ -574,53 +559,46 @@ export function AudioConverterStudio({ maxSizeMB = 50 }: { maxSizeMB?: number })
               {settings.metadata && (
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <span className={SUB_LABEL}>Title</span>
+                    <span className="block text-[14px] font-medium">Title</span>
                     <input
                       type="text"
                       value={settings.title}
                       onChange={(event) => patch({ title: event.target.value })}
                       placeholder="Untitled"
-                      className={`${INPUT_BOX} mt-1.5 h-10 px-3`}
+                      className="fb-input mt-2"
                     />
                   </label>
                   <label className="block">
-                    <span className={SUB_LABEL}>Artist</span>
+                    <span className="block text-[14px] font-medium">Artist</span>
                     <input
                       type="text"
                       value={settings.artist}
                       onChange={(event) => patch({ artist: event.target.value })}
-                      placeholder="—"
-                      className={`${INPUT_BOX} mt-1.5 h-10 px-3`}
+                      placeholder="Unknown"
+                      className="fb-input mt-2"
                     />
                   </label>
                 </div>
               )}
 
               <label className="block">
-                <span className={SUB_LABEL}>File name</span>
-                <span className="relative mt-1.5 block">
+                <span className="block text-[14px] font-medium">File name</span>
+                <span className="relative mt-2 block">
                   <input
                     type="text"
                     value={settings.outputName}
                     onChange={(event) => patch({ outputName: event.target.value })}
                     placeholder={item ? item.name.replace(/\.[^.]+$/, "") : "converted"}
                     spellCheck={false}
-                    className={`${INPUT_BOX} h-10 pl-3 pr-16`}
+                    className="fb-input !pr-16"
                   />
-                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md bg-card px-1.5 py-0.5 text-[12px] font-medium text-muted">
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-faint">
                     .{settings.format}
                   </span>
                 </span>
               </label>
             </div>
           </RailSection>
-
-          {!lossless ? (
-            <Note>
-              The first MP3, M4A or OGG conversion downloads the encoder once (about 32 MB). WAV needs
-              no download.
-            </Note>
-          ) : null}
         </div>
       </StudioRail>
     </StudioFrame>
@@ -648,26 +626,4 @@ function sizeDeltaLabel(sourceBytes: number, targetBytes: number): string {
   const delta = Math.round(((targetBytes - sourceBytes) / sourceBytes) * 100);
   if (delta <= 0) return `${Math.abs(delta)}% smaller`;
   return `${delta}% larger`;
-}
-
-function AudioToggle({
-  title,
-  description,
-  checked,
-  onChange,
-}: {
-  title: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <button type="button" onClick={() => onChange(!checked)} className="min-w-0 flex-1 text-left">
-        <span className="block text-[13px] font-medium text-ink">{title}</span>
-        <span className="mt-0.5 block text-[12px] leading-relaxed text-faint">{description}</span>
-      </button>
-      <Switch checked={checked} onCheckedChange={onChange} aria-label={title} className="mt-0.5 shrink-0" />
-    </div>
-  );
 }

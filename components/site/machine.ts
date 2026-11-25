@@ -21,7 +21,7 @@ export type Machine = {
 /** Canvas-ready font family for the landing's wide face (next/font hashes the name). */
 export function wideFamily(): string {
   if (typeof window === "undefined") return "sans-serif";
-  const host = document.querySelector(".lp") ?? document.body;
+  const host = document.querySelector("body") ?? document.body;
   return getComputedStyle(host).getPropertyValue("--font-wide").trim() || "sans-serif";
 }
 
@@ -219,7 +219,13 @@ export function buildMachine(): Machine {
     ctx.font = `600 expanded 62px ${family}`;
     ctx.fillStyle = "#8f8e93";
     ctx.fillText(from, 34, 88);
-    ctx.font = `800 expanded 92px ${family}`;
+    // Long words shrink to stay on the glass.
+    let size = 92;
+    ctx.font = `800 expanded ${size}px ${family}`;
+    while (size > 40 && ctx.measureText(to).width > 446) {
+      size -= 4;
+      ctx.font = `800 expanded ${size}px ${family}`;
+    }
     ctx.fillStyle = "#ff7a55";
     ctx.fillText(to, 34, 206);
     ctx.fillStyle = "#ff7a55";

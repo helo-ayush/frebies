@@ -8,6 +8,7 @@ import {
   type DragEvent,
 } from "react";
 import type { StudioImage } from "./types";
+import { useFileIntake } from "./useFileIntake";
 
 export const DEFAULT_IMAGE_TYPES = [
   "image/jpeg",
@@ -106,7 +107,8 @@ export function useImageQueue({
     const incoming = Array.from(fileList ?? []);
     if (incoming.length === 0) return;
 
-    const replaceId = replaceIdRef.current;
+    // One-image tools swap the image instead of refusing the new one.
+    const replaceId = replaceIdRef.current ?? (maxFiles === 1 ? (items[0]?.id ?? null) : null);
     replaceIdRef.current = null;
 
     let baseItems = items;
@@ -248,6 +250,11 @@ export function useImageQueue({
     });
   }
 
+  useFileIntake((files) => {
+    replaceIdRef.current = null;
+    acceptFiles(files);
+  }, setDragging);
+
   function onPick(event: ChangeEvent<HTMLInputElement>) {
     acceptFiles(event.target.files);
     event.target.value = "";
@@ -321,6 +328,7 @@ export function useImageQueue({
     dragging,
     setActiveId,
     inputRef,
+    acceptFiles,
     openPicker,
     onPick,
     onDragOver,

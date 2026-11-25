@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowLeft, MailCheck, ShieldCheck } from "lucide-react";
-import { motion } from "motion/react";
-import { GlossySubmitButton } from "./GlossySubmitButton";
+import { ShieldCheck } from "lucide-react";
+import { AuthSubmit } from "./AuthSubmit";
+import { useAuthStage } from "./AuthShell";
 
 const OTP_LENGTH = 6;
 
@@ -31,10 +31,26 @@ export function AuthCodeVerification({
   const [cooldown, setCooldown] = useState(30);
   const [resending, setResending] = useState(false);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+  const formRef = useRef<HTMLFormElement>(null);
+  const { show } = useAuthStage();
 
   useEffect(() => {
     inputsRef.current[0]?.focus();
   }, []);
+
+  // The machine reads the code back as it is typed.
+  useEffect(() => {
+    show(["CODE", code.padEnd(OTP_LENGTH, "·")]);
+  }, [code, show]);
+  useEffect(() => () => show(null), [show]);
+
+  // The sixth digit is the go-ahead: no button to reach for.
+  const sentFor = useRef("");
+  useEffect(() => {
+    if (code.length !== OTP_LENGTH || busy || sentFor.current === code) return;
+    sentFor.current = code;
+    formRef.current?.requestSubmit();
+  }, [code, busy]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -117,83 +133,61 @@ export function AuthCodeVerification({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="flex items-start gap-3 rounded-[14px] border border-white/80 bg-white/70 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_4px_14px_-8px_rgba(15,15,16,0.08)] backdrop-blur-md">
-        <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-[#fff5ea] to-[#ffe4cc] text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] ring-1 ring-accent/20">
-          <MailCheck size={15} aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[12.5px] font-medium text-ink">{title}</p>
-          <p className="mt-0.5 truncate text-[12px] text-muted">{email}</p>
+    <form ref={formRef} onSubmit={onSubmit} className="space-y-6">
+      <div className="flex items-stretch border border-line-strong bg-white">
+        <div className="min-w-0 flex-1 px-4 py-3">
+          <p className="text-[13px] text-muted">{title}</p>
+          <p className="mt-0.5 truncate text-[15.5px] font-semibold">{email}</p>
         </div>
         <button
           type="button"
           onClick={onChangeEmail}
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
+          className="shrink-0 border-l border-line-strong px-5 text-[13px] font-medium uppercase transition-colors hover:bg-ink hover:text-white"
         >
-          <ArrowLeft size={12} aria-hidden />
-          Edit
+          Change
         </button>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="block text-[12px] font-medium text-ink">6-digit verification code</span>
-          <span className="text-[11px] text-faint">Paste or type</span>
-        </div>
-
-        <div className="grid grid-cols-6 gap-2" role="group" aria-label="6-digit verification code">
-          {digits.map((digit, index) => (
-            <motion.div
-              key={index}
-              animate={digit ? { scale: [1, 1.04, 1] } : { scale: 1 }}
-              transition={{ duration: 0.16 }}
-            >
-              <input
-                ref={(el) => {
-                  inputsRef.current[index] = el;
-                }}
-                type="text"
-                inputMode="numeric"
-                autoComplete={index === 0 ? "one-time-code" : "off"}
-                aria-label={`Digit ${index + 1} of ${OTP_LENGTH}`}
-                maxLength={6}
-                value={digit}
-                onChange={(e) => setDigit(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={handlePaste}
-                className={`h-12 w-full rounded-[12px] border text-center font-mono text-[18px] font-semibold transition-all duration-150 outline-none ${
-                  digit
-                    ? "border-[#d8c4b4] bg-white text-ink shadow-[inset_0_1px_0_rgba(255,255,255,1),0_6px_16px_-8px_rgba(229,94,64,0.28)]"
-                    : "border-line/90 bg-white/75 text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] hover:-translate-y-0.5 hover:border-[#d8c4b4] hover:bg-white/95 hover:shadow-[0_8px_18px_-8px_rgba(15,15,16,0.16)]"
-                } focus:border-accent focus:bg-white focus:ring-2 focus:ring-accent/20`}
-              />
-            </motion.div>
-          ))}
-        </div>
+      <div role="group" aria-label="6-digit verification code" className="grid grid-cols-6">
+        {digits.map((digit, index) => (
+          <input
+            key={index}
+            ref={(el) => {
+              inputsRef.current[index] = el;
+            }}
+            type="text"
+            inputMode="numeric"
+            autoComplete={index === 0 ? "one-time-code" : "off"}
+            aria-label={`Digit ${index + 1} of ${OTP_LENGTH}`}
+            maxLength={6}
+            value={digit}
+            onChange={(e) => setDigit(index, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(index, e)}
+            onPaste={handlePaste}
+            className={`fb-wide -ml-px h-[68px] w-full border text-center !text-[28px] outline-none transition-colors first:ml-0 focus:relative focus:z-[1] focus:border-ink focus:shadow-[inset_0_-4px_0_#f2552c] focus-visible:outline-none ${
+              digit ? "border-line-strong bg-white" : "border-line-strong bg-canvas hover:bg-white"
+            }`}
+          />
+        ))}
       </div>
 
-      <GlossySubmitButton
+      <AuthSubmit
         label={submitLabel}
-        busyLabel="Verifying code…"
+        busyLabel="Checking the code…"
         busy={busy}
         disabled={code.length < OTP_LENGTH}
-        icon={<ShieldCheck size={15} aria-hidden />}
+        icon={<ShieldCheck size={19} aria-hidden />}
       />
 
-      <div className="flex items-center justify-between pt-0.5 text-[12px]">
-        <span className="text-muted">Didn&apos;t receive the email?</span>
+      <div className="flex items-center justify-between gap-4 text-[14px]">
+        <span className="text-muted">No email yet?</span>
         <button
           type="button"
           onClick={handleResend}
           disabled={cooldown > 0 || resending || busy}
-          className="font-medium text-ink transition-colors hover:text-accent disabled:cursor-not-allowed disabled:text-faint"
+          className="fb-num font-semibold underline decoration-line-strong underline-offset-4 transition-colors hover:text-accent-deep disabled:cursor-not-allowed disabled:text-faint disabled:no-underline"
         >
-          {resending
-            ? "Sending…"
-            : cooldown > 0
-              ? `Resend in ${cooldown}s`
-              : "Resend code"}
+          {resending ? "Sending…" : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
         </button>
       </div>
     </form>

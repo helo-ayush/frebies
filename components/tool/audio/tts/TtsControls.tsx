@@ -1,22 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import {
-  Check,
-  ChevronDown,
-  Loader2,
-  Mic2,
-  Play,
-  Plus,
-  RotateCcw,
-  Search,
-  Square,
-  Trash2,
-  X,
-} from "lucide-react";
-import { Field, Note, Segmented } from "@/components/tool/kit";
+import { Loader2, Mic2, Plus, Search, Trash2, X } from "lucide-react";
+import { Field, Note, Segmented, ToolIcon, ToolText } from "@/components/tool/kit";
 import { PaidSlider, PaidToggle } from "@/components/tool/paid/PaidControls";
-import { RAIL_CARD_ACTIVE, RAIL_CARD_IDLE } from "@/components/tool/studio/RailSection";
+import { RailCards, RailMark, RailReset } from "@/components/tool/studio/RailControls";
 import { buttonClasses } from "@/components/ui/Button";
 import {
   DEFAULT_TTS_SETTINGS,
@@ -41,9 +29,6 @@ import {
 export type SettingsTab = "voice" | "mood" | "output";
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
-
-const TEXT_LINK =
-  "inline-flex items-center gap-1.5 text-[12.5px] font-medium text-muted transition-colors hover:text-ink";
 
 /* ------------------------------------------------------------------ */
 /* Tab bar                                                             */
@@ -77,7 +62,7 @@ export function SettingsTabs({
       role="tablist"
       aria-label="Voice settings"
       onKeyDown={onKeyDown}
-      className="grid grid-cols-3 gap-1 rounded-[12px] bg-card p-1"
+      className="grid grid-cols-3 border border-line-strong bg-white"
     >
       {TAB_META.map((tab) => {
         const selected = value === tab.id;
@@ -91,13 +76,12 @@ export function SettingsTabs({
             aria-controls={`tts-panel-${tab.id}`}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(tab.id)}
-            className={`h-9 rounded-[9px] px-2 text-[13px] font-medium transition-colors ${
-              selected
-                ? "bg-white text-ink shadow-[0_1px_2px_rgba(15,15,16,0.12)]"
-                : "text-muted hover:text-ink"
+            className={`relative h-11 border-l border-line-strong px-2 text-[13.5px] font-semibold uppercase transition-colors first:border-l-0 ${
+              selected ? "bg-ink text-white" : "hover:bg-hover"
             }`}
           >
             {tab.label}
+            {selected ? <span aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] bg-accent" /> : null}
           </button>
         );
       })}
@@ -120,7 +104,7 @@ export function TabPanel({
       role="tabpanel"
       id={`tts-panel-${tab}`}
       aria-labelledby={`tts-tab-${tab}`}
-      className="space-y-6"
+      className="space-y-7"
     >
       {children}
     </div>
@@ -134,17 +118,11 @@ export function TabPanel({
 export function CueBar({ onInsertTag }: { onInsertTag: (tag: string) => void }) {
   return (
     <div role="group" aria-label="Insert an emotion cue" className="flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 text-[12.5px] font-medium text-muted">Add a cue</span>
+      <span className="mr-1.5 text-[13px] text-muted">Add a cue</span>
       {DRAMA_EXPRESSION_TAGS.map((item) => (
-        <button
-          key={item.tag}
-          type="button"
-          title={`Insert ${item.tag} at the cursor`}
-          onClick={() => onInsertTag(item.tag)}
-          className="inline-flex h-7 items-center rounded-full border border-line bg-white px-2.5 text-[12.5px] font-medium text-ink transition-colors hover:border-accent/50 hover:bg-accent-soft hover:text-accent-deep"
-        >
+        <ToolText key={item.tag} title={`Insert ${item.tag} at the cursor`} onClick={() => onInsertTag(item.tag)} className="!h-8 !px-2.5 !normal-case">
           {item.label}
-        </button>
+        </ToolText>
       ))}
     </div>
   );
@@ -185,33 +163,21 @@ function SampleButton({
         event.stopPropagation();
         onToggle();
       }}
-      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors ${
-        playing
-          ? "border-accent bg-accent text-white"
-          : "border-line bg-white text-ink hover:border-[#cfc9bd] hover:bg-hover"
-      }`}
+      data-playing={playing || undefined}
+      className="fb-play fb-play-sm h-8 w-8 shrink-0"
     >
       {loading ? (
-        <Loader2 size={13} className="animate-spin" aria-hidden />
+        <Loader2 size={14} className="animate-spin" aria-hidden />
       ) : playing ? (
-        <Square size={10} fill="currentColor" aria-hidden />
+        <svg aria-hidden width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+          <path d="M1 1h8v8H1z" />
+        </svg>
       ) : (
-        <Play size={12} fill="currentColor" className="translate-x-[0.5px]" aria-hidden />
+        <svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+          <path d="M3 .8 11 6l-8 5.2z" />
+        </svg>
       )}
     </button>
-  );
-}
-
-function SelectedMark({ selected }: { selected: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={`grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full border ${
-        selected ? "border-ink bg-ink text-white" : "border-[#d7d2c8] bg-white text-transparent"
-      }`}
-    >
-      <Check size={11} strokeWidth={3} />
-    </span>
   );
 }
 
@@ -332,8 +298,8 @@ export function VoicePanel({
           <div className="mb-2.5 space-y-2">
             <div className="relative">
               <Search
-                size={14}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+                size={16}
+                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint"
                 aria-hidden
               />
               <input
@@ -342,21 +308,21 @@ export function VoicePanel({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search by name, accent or tone"
                 aria-label="Search voices"
-                className="h-9 w-full rounded-[10px] border border-line bg-white pl-9 pr-8 text-[13px] text-ink placeholder:text-faint focus:border-ink focus:outline-none"
+                className="fb-input !pl-10 !pr-11"
               />
               {query && (
                 <button
                   type="button"
                   aria-label="Clear voice search"
                   onClick={() => setQuery("")}
-                  className="absolute right-1.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-faint transition-colors hover:bg-hover hover:text-ink"
+                  className="absolute right-0 top-0 grid h-11 w-11 place-items-center text-muted transition-colors hover:text-accent-deep"
                 >
-                  <X size={13} aria-hidden />
+                  <X size={16} aria-hidden />
                 </button>
               )}
             </div>
 
-            <div className="flex flex-wrap gap-1" role="group" aria-label="Filter voices by type">
+            <div className="flex overflow-x-auto" role="group" aria-label="Filter voices by type">
               {VOICE_CATEGORY_TABS.map((tab) => {
                 const selected = category === tab.id;
                 return (
@@ -365,8 +331,8 @@ export function VoicePanel({
                     type="button"
                     aria-pressed={selected}
                     onClick={() => setCategory(tab.id)}
-                    className={`h-7 rounded-full px-2.5 text-[12.5px] font-medium transition-colors ${
-                      selected ? "bg-ink text-white" : "text-muted hover:bg-hover hover:text-ink"
+                    className={`-ml-px h-9 flex-1 border px-2 text-[12.5px] font-medium transition-colors first:ml-0 ${
+                      selected ? "relative z-[1] border-ink bg-ink text-white" : "border-line-strong bg-white hover:bg-hover"
                     }`}
                   >
                     {tab.label}
@@ -378,12 +344,12 @@ export function VoicePanel({
         )}
 
         <div
-          className="studio-main max-h-[236px] divide-y divide-line-soft overflow-y-auto rounded-[12px] border border-line bg-white"
+          className="studio-main max-h-[clamp(236px,38vh,400px)] overflow-y-auto border border-line-strong bg-white"
           role="group"
           aria-label="Built-in voices"
         >
           {visibleVoices.length === 0 ? (
-            <p className="px-3 py-6 text-center text-[13px] text-faint">
+            <p className="px-4 py-8 text-center text-[14px] text-muted">
               No voices match &ldquo;{query.trim()}&rdquo;.
             </p>
           ) : (
@@ -396,8 +362,8 @@ export function VoicePanel({
               return (
                 <div
                   key={entry.id}
-                  className={`relative flex items-center gap-1 pl-2 transition-colors ${
-                    selected ? "bg-card" : "hover:bg-[#fbfaf8]"
+                  className={`relative flex items-center border-b border-line pl-3 transition-colors last:border-b-0 ${
+                    selected ? "bg-ink text-white" : "hover:bg-hover"
                   }`}
                 >
                   <SampleButton
@@ -414,19 +380,21 @@ export function VoicePanel({
                     aria-pressed={selected}
                     title={entry.hint}
                     onClick={() => onPickPreset(entry.id)}
-                    className="flex min-w-0 flex-1 items-center gap-2.5 py-2.5 pl-1.5 pr-3 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-3.5 pr-3 text-left"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13.5px] font-medium text-ink">{entry.name}</span>
-                      <span className="block truncate text-[12px] text-faint">{entry.descriptor}</span>
+                      <span className="block truncate text-[14.5px] font-semibold">{entry.name}</span>
+                      <span className={`block truncate text-[13px] ${selected ? "text-white/60" : "text-muted"}`}>
+                        {entry.descriptor}
+                      </span>
                     </span>
-                    <SelectedMark selected={selected} />
+                    <RailMark on={selected} />
                   </button>
 
                   {isPlaying && (
                     <span
                       aria-hidden
-                      className="pointer-events-none absolute bottom-0 left-0 h-[2px] bg-accent transition-[width] duration-200"
+                      className="pointer-events-none absolute bottom-0 left-0 h-[3px] bg-accent transition-[width] duration-200"
                       style={{ width: `${Math.max(4, sampleProgress * 100)}%` }}
                     />
                   )}
@@ -445,7 +413,7 @@ export function VoicePanel({
 
       <Field label="Your own voice" hint={savedClones.length ? `${savedClones.length} of 4 saved` : undefined}>
         {savedClones.length > 0 && (
-          <ul className="mb-2.5 divide-y divide-line-soft overflow-hidden rounded-[12px] border border-line bg-white">
+          <ul className="mb-2.5 border border-line-strong bg-white">
             {savedClones.map((entry) => {
               const selected = activeCloneId === entry.id;
               const cloneSampleKey = `clone:${entry.id}`;
@@ -454,8 +422,8 @@ export function VoicePanel({
               return (
                 <li
                   key={entry.id}
-                  className={`flex items-center gap-1 pl-2 pr-1.5 transition-colors ${
-                    selected ? "bg-card" : "hover:bg-[#fbfaf8]"
+                  className={`flex items-center border-b border-line pl-3 pr-2 transition-colors last:border-b-0 ${
+                    selected ? "bg-ink text-white" : "hover:bg-hover"
                   }`}
                 >
                   {entry.audioBase64 ? (
@@ -466,32 +434,31 @@ export function VoicePanel({
                       onToggle={() => toggleSample(cloneSampleKey, entry.audioBase64)}
                     />
                   ) : (
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-card text-muted">
-                      <Mic2 size={14} aria-hidden />
+                    <span className="grid h-8 w-8 shrink-0 place-items-center bg-canvas text-ink">
+                      <Mic2 size={15} aria-hidden />
                     </span>
                   )}
                   <button
                     type="button"
                     aria-pressed={selected}
                     onClick={() => onPickClone(entry.id)}
-                    className="flex min-w-0 flex-1 items-center gap-2.5 py-2.5 pl-1.5 pr-1.5 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-3.5 pr-3 text-left"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13.5px] font-medium text-ink">{entry.name}</span>
-                      <span className="block truncate text-[12px] text-faint">
+                      <span className="block truncate text-[14.5px] font-semibold">{entry.name}</span>
+                      <span className={`block truncate text-[13px] ${selected ? "text-white/60" : "text-muted"}`}>
                         Cloned{entry.durationLabel ? ` · ${entry.durationLabel} sample` : ""}
                       </span>
                     </span>
-                    <SelectedMark selected={selected} />
+                    <RailMark on={selected} />
                   </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete cloned voice ${entry.name}`}
+                  <ToolIcon
+                    label={`Delete cloned voice ${entry.name}`}
+                    slot="clone-remove"
                     onClick={() => onDeleteClone(entry.id)}
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint transition-colors hover:bg-danger-soft hover:text-danger"
                   >
-                    <Trash2 size={14} aria-hidden />
-                  </button>
+                    <Trash2 size={15} aria-hidden />
+                  </ToolIcon>
                 </li>
               );
             })}
@@ -502,9 +469,9 @@ export function VoicePanel({
           type="button"
           aria-expanded={clonerOpen}
           onClick={onToggleCloner}
-          className={buttonClasses("secondary", "md", "h-10 w-full rounded-[12px]")}
+          className={buttonClasses("secondary", "md", "!h-11 w-full !text-[13px]")}
         >
-          {clonerOpen ? <X size={14} aria-hidden /> : <Plus size={14} aria-hidden />}
+          {clonerOpen ? <X size={15} aria-hidden /> : <Plus size={15} aria-hidden />}
           {clonerOpen ? "Close voice cloner" : "Clone a voice"}
         </button>
 
@@ -512,25 +479,18 @@ export function VoicePanel({
       </Field>
 
       <Field label="Language">
-        <span className="relative block">
-          <select
-            value={settings.language}
-            aria-label="Language"
-            onChange={(e) => onPatch({ language: e.target.value as TtsLanguage })}
-            className="h-10 w-full appearance-none rounded-[12px] border border-line bg-white px-3 pr-9 text-[13px] text-ink outline-none transition-colors hover:border-[#cfc9bd] focus:border-ink"
-          >
-            {TTS_LANGUAGES.map((language) => (
-              <option key={language.value} value={language.value}>
-                {language.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            size={15}
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
-            aria-hidden
-          />
-        </span>
+        <select
+          value={settings.language}
+          aria-label="Language"
+          onChange={(e) => onPatch({ language: e.target.value as TtsLanguage })}
+          className="fb-input cursor-pointer"
+        >
+          {TTS_LANGUAGES.map((language) => (
+            <option key={language.value} value={language.value}>
+              {language.label}
+            </option>
+          ))}
+        </select>
       </Field>
     </>
   );
@@ -557,27 +517,16 @@ export function MoodPanel({
   return (
     <>
       <Field label="Speaking style">
-        <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Speaking style">
-          {TTS_STYLES.map((style) => {
-            const selected = settings.style === style.value;
-            return (
-              <button
-                key={style.value}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => onPatch({ style: style.value as TtsStyle })}
-                className={`rounded-[12px] border px-3 py-2.5 text-left transition-colors ${
-                  selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
-                }`}
-              >
-                <span className="block text-[13px] font-medium text-ink">{style.label}</span>
-                <span className="mt-0.5 block text-[12px] leading-snug text-faint">
-                  {STYLE_HINTS[style.value]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <RailCards
+          label="Speaking style"
+          value={settings.style}
+          options={TTS_STYLES.map((style) => ({
+            value: style.value as TtsStyle,
+            label: style.label,
+            note: STYLE_HINTS[style.value as TtsStyle],
+          }))}
+          onChange={(style) => onPatch({ style })}
+        />
       </Field>
 
       <PaidSlider
@@ -604,8 +553,8 @@ export function MoodPanel({
         right="Brighter"
       />
 
-      <button
-        type="button"
+      <RailReset
+        label="Reset style, speed and pitch"
         onClick={() =>
           onPatch({
             speed: DEFAULT_TTS_SETTINGS.speed,
@@ -613,11 +562,7 @@ export function MoodPanel({
             style: DEFAULT_TTS_SETTINGS.style,
           })
         }
-        className={TEXT_LINK}
-      >
-        <RotateCcw size={12} aria-hidden />
-        Reset style, speed and pitch
-      </button>
+      />
     </>
   );
 }

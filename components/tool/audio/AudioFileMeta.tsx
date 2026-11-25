@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { AudioLines } from "lucide-react";
 import { FileRow } from "@/components/tool/kit";
 import type { AudioItem } from "./useAudioFile";
@@ -11,11 +12,13 @@ export function AudioFileMeta({
   formatLabel,
   onReplace,
   onRemove,
+  children,
 }: {
   item: AudioItem;
   formatLabel?: string;
   onReplace: () => void;
   onRemove: () => void;
+  children?: ReactNode;
 }) {
   const details = [
     formatLabel,
@@ -29,12 +32,15 @@ export function AudioFileMeta({
 
   return (
     <FileRow
-      className="mt-2.5 shrink-0"
-      icon={<AudioLines size={16} aria-hidden />}
+      flush
+      className="shrink-0 border-b border-line"
+      icon={<AudioLines size={17} aria-hidden />}
       name={item.name}
       meta={details}
       onReplace={onReplace}
       onRemove={onRemove}
-    />
+    >
+      {children}
+    </FileRow>
   );
 }

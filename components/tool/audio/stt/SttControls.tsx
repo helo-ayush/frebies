@@ -1,9 +1,8 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
 import { Field, Segmented } from "@/components/tool/kit";
 import { PaidToggle } from "@/components/tool/paid/PaidControls";
-import { RAIL_CARD_ACTIVE, RAIL_CARD_IDLE } from "@/components/tool/studio/RailSection";
+import { RailCards, RailHint } from "@/components/tool/studio/RailControls";
 import {
   STT_FORMATS,
   STT_LANGUAGES,
@@ -30,27 +29,20 @@ export function SttControls({
   const subtitles = settings.format !== "txt";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <Field label="Spoken language">
-        <span className="relative block">
-          <select
-            aria-label="Spoken language"
-            value={settings.language}
-            onChange={(event) => onPatch({ language: event.target.value as SttLanguage })}
-            className="h-10 w-full appearance-none rounded-[10px] border border-line bg-white pl-3 pr-9 text-[13px] text-ink outline-none transition-colors hover:border-[#cfc9bd] focus:border-ink"
-          >
-            {STT_LANGUAGES.map((language) => (
-              <option key={language.value} value={language.value}>
-                {language.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            size={14}
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
-            aria-hidden
-          />
-        </span>
+        <select
+          aria-label="Spoken language"
+          value={settings.language}
+          onChange={(event) => onPatch({ language: event.target.value as SttLanguage })}
+          className="fb-input cursor-pointer"
+        >
+          {STT_LANGUAGES.map((language) => (
+            <option key={language.value} value={language.value}>
+              {language.label}
+            </option>
+          ))}
+        </select>
       </Field>
 
       <Field label="Accuracy">
@@ -60,38 +52,26 @@ export function SttControls({
           value={settings.model}
           onChange={(value) => onPatch({ model: value })}
         />
-        <p className="mt-2 text-[12px] leading-relaxed text-faint">{model?.hint}</p>
+        <RailHint>{model?.hint}</RailHint>
       </Field>
 
       <Field label="Output format">
-        <div className="grid grid-cols-3 gap-1.5">
-          {STT_FORMATS.map((format) => {
-            const selected = settings.format === format.value;
-            return (
-              <button
-                key={format.value}
-                type="button"
-                aria-pressed={selected}
-                onClick={() =>
-                  onPatch({
-                    format: format.value as SttFormat,
-                    timestamps: format.value === "txt" ? settings.timestamps : true,
-                  })
-                }
-                className={`rounded-[10px] border px-1.5 py-2.5 text-center transition-colors ${
-                  selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
-                }`}
-              >
-                <span className="block text-[13px] font-medium text-ink">{format.label}</span>
-                <span className="mt-0.5 block text-[12px] leading-snug text-faint">{format.hint}</span>
-              </button>
-            );
-          })}
-        </div>
+        <RailCards
+          label="Output format"
+          columns={3}
+          value={settings.format}
+          options={STT_FORMATS.map((format) => ({ value: format.value, label: format.label, note: format.hint }))}
+          onChange={(value) =>
+            onPatch({
+              format: value as SttFormat,
+              timestamps: value === "txt" ? settings.timestamps : true,
+            })
+          }
+        />
       </Field>
 
       <Field label="Transcript">
-        <div className="space-y-3.5">
+        <div className="space-y-4">
           <PaidToggle
             title="Timestamps"
             description={

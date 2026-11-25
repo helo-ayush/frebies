@@ -1,23 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, GitCompareArrows } from "lucide-react";
+import { FileText, GitCompareArrows, Loader2 } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
-import {
-  Chip,
-  Field,
-  FileRow,
-  Note,
-  STAGE_LABEL,
-  StudioFrame,
-  StudioStage,
-} from "@/components/tool/kit";
+import { Field, FileRow, Note, StudioFrame, StudioStage, ToolText } from "@/components/tool/kit";
 import { DropChip } from "@/components/tool/kit/Dropzone";
-import { CreditGate } from "@/components/tool/paid/CreditGate";
-import { NotConnectedNote, PaidRunCard } from "@/components/tool/paid/PaidRunCard";
+import { PreviewAction } from "@/components/tool/paid/PreviewAction";
 import { SelectRow, ToggleRow } from "../DocumentKit";
-import { PagePaper } from "../PagePreview";
 import { PdfDropzone } from "../PdfDropzone";
+import { usePdfDocument } from "../PdfPages";
+import { DropOver } from "@/components/tool/viewer/DropOver";
+import { PdfReader } from "@/components/tool/viewer/PdfReader";
 import { formatBytes } from "../model";
 import { usePdfQueue } from "../usePdfQueue";
 
@@ -32,8 +25,6 @@ const TONES = ["Keep original", "Professional", "Friendly", "Concise"];
 const LANGUAGES = ["Keep original", "English", "Hindi"];
 
 const SUGGESTIONS = ["Make it concise", "Fix the date", "Rewrite a clause"];
-
-const EDIT_COST = 3;
 
 export function AiEditorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const {
@@ -55,180 +46,158 @@ export function AiEditorStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const [prompt, setPrompt] = useState("");
   const [preserveLayout, setPreserveLayout] = useState(true);
   const [reviewFirst, setReviewFirst] = useState(true);
-  const [gateOpen, setGateOpen] = useState(false);
 
-  const pageCount = activeItem?.pages ?? 0;
+  const doc = usePdfDocument(activeItem?.file ?? null);
+  const pageCount = doc.pageCount || activeItem?.pages || 0;
   const pagesLabel = `${pageCount} page${pageCount === 1 ? "" : "s"}`;
 
   return (
-    <>
-      <StudioFrame id="ai-editor" label="AI PDF editor studio">
-        <StudioStage>
-          <span aria-hidden className="hidden" data-error={error} />
+    <StudioFrame id="ai-editor" label="AI PDF editor studio">
+      <StudioStage flush>
+        <span aria-hidden className="hidden" data-error={error} />
 
-          {!activeItem ? (
-            <PdfDropzone
-              title="Drop a PDF to edit"
-              description="Change a date, rewrite a clause or translate a page by describing it in plain words."
-              buttonLabel="Choose a PDF"
-              limits={`PDF · up to ${maxSizeMB} MB`}
-              note="The document stays in this browser."
-              onChoose={() => openPicker()}
-              dragging={dragging}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-              chips={
-                <>
-                  <DropChip>Plain-language edits</DropChip>
-                  <DropChip>Review before download</DropChip>
-                  <DropChip>Layout preserved</DropChip>
-                </>
-              }
+        {!activeItem ? (
+          <PdfDropzone
+            title="Drop a PDF to edit"
+            description="Change a date, rewrite a clause or translate a page by describing it in plain words."
+            buttonLabel="Choose a PDF"
+            limits={`PDF · up to ${maxSizeMB} MB`}
+            note="The document stays in this browser."
+            onChoose={() => openPicker()}
+            dragging={dragging}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            chips={
+              <>
+                <DropChip>Plain-language edits</DropChip>
+                <DropChip>Review before download</DropChip>
+                <DropChip>Layout preserved</DropChip>
+              </>
+            }
+          />
+        ) : (
+          <div
+            className="relative flex min-h-0 flex-1 flex-col"
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            <FileRow
+              flush
+              className="border-b border-line"
+              icon={<FileText size={17} aria-hidden />}
+              name={activeItem.name}
+              meta={`${formatBytes(activeItem.size)} · ${pagesLabel}`}
+              onReplace={() => openPicker(activeItem.id)}
+              onRemove={clear}
             />
-          ) : (
-            <div
-              className="flex min-h-0 flex-1 flex-col gap-3"
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
-                <span className={STAGE_LABEL}>Describe the change</span>
-                <Chip>{pagesLabel}</Chip>
-              </div>
 
-              <div className="studio-main grid min-h-[260px] flex-1 content-start gap-3 overflow-y-auto rounded-[16px] border border-line bg-[#f3f1ec] p-3 sm:p-4 md:grid-cols-[minmax(0,190px)_minmax(0,1fr)] md:content-stretch lg:min-h-0">
-                <div className="mx-auto hidden w-full max-w-[190px] md:block">
-                  <PagePaper index={1} weight={3} />
-                </div>
-
-                <div className="flex min-w-0 flex-col gap-3">
-                  <div className="rounded-[14px] border border-line bg-white transition-colors focus-within:border-ink">
-                    <label
-                      htmlFor="pdf-prompt"
-                      className="block px-3.5 pt-3 text-[13px] font-semibold text-ink"
-                    >
-                      What should change?
-                    </label>
-                    <textarea
-                      id="pdf-prompt"
-                      rows={4}
-                      value={prompt}
-                      onChange={(event) => setPrompt(event.target.value)}
-                      placeholder="For example: update the payment terms to 14 days and mention the late fee."
-                      className="mt-1 block w-full resize-none bg-transparent px-3.5 py-1.5 text-[14px] leading-relaxed text-ink outline-none placeholder:text-faint"
-                    />
-                    <div className="flex flex-wrap items-center gap-1.5 px-3.5 pb-3 pt-1">
-                      {SUGGESTIONS.map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          onClick={() => setPrompt(suggestion)}
-                          className="h-8 rounded-full border border-line bg-white px-3 text-[12.5px] font-medium text-muted transition-colors hover:border-[#cfc9bd] hover:text-ink"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex min-h-[150px] flex-1 flex-col items-center justify-center rounded-[12px] border border-dashed border-[#d6d1c6] bg-white/70 px-5 py-7 text-center">
-                    <span className="grid h-11 w-11 place-items-center rounded-full bg-card text-muted">
-                      <GitCompareArrows size={19} strokeWidth={1.6} aria-hidden />
+            <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+              <div className="flex min-h-[44svh] min-w-0 flex-col max-md:order-2 md:min-h-0">
+                {doc.pdf ? (
+                  <PdfReader pdf={doc.pdf} pageCount={doc.pageCount} firstPage={doc.firstPage} title={activeItem.name} />
+                ) : doc.error ? (
+                  <Note tone="error" className="m-3">
+                    {doc.error}
+                  </Note>
+                ) : (
+                  <p className="grid flex-1 place-items-center text-[14.5px] text-muted">
+                    <span className="flex items-center gap-2.5">
+                      <Loader2 size={17} className="animate-spin" aria-hidden />
+                      Opening the PDF…
                     </span>
-                    <p className="mt-3 text-[14px] font-semibold text-ink">
-                      The before and after will appear here
-                    </p>
-                    <p className="mt-1 max-w-[320px] text-[13px] leading-relaxed text-muted">
-                      Each change is shown next to the original text, and the edit is saved as a
-                      separate PDF.
-                    </p>
-                  </div>
-                </div>
+                  </p>
+                )}
               </div>
 
-              <FileRow
-                icon={<FileText size={16} aria-hidden />}
-                name={activeItem.name}
-                meta={`${formatBytes(activeItem.size)} · ${pagesLabel}`}
-                onReplace={() => openPicker(activeItem.id)}
-                onRemove={clear}
+              <div className="studio-main flex min-w-0 flex-col border-line bg-panel max-md:border-b md:overflow-y-auto md:border-l">
+                <div className="border-b border-line p-4 sm:p-5">
+                  <label htmlFor="pdf-prompt" className="fb-wide block text-[18px]">
+                    What should change?
+                  </label>
+                  <textarea
+                    id="pdf-prompt"
+                    rows={5}
+                    value={prompt}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    placeholder="For example: update the payment terms to 14 days and mention the late fee."
+                    className="fb-input mt-4 block resize-none"
+                  />
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {SUGGESTIONS.map((suggestion) => (
+                      <ToolText key={suggestion} onClick={() => setPrompt(suggestion)}>
+                        {suggestion}
+                      </ToolText>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center px-6 py-8 text-center">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center bg-ink text-white">
+                    <GitCompareArrows size={22} strokeWidth={1.6} aria-hidden />
+                  </span>
+                  <p className="fb-wide mt-5 max-w-[300px] text-[18px]">Before and after, here</p>
+                  <p className="mt-3 max-w-[320px] text-[14.5px] leading-relaxed text-muted">
+                    Each change is shown next to the original text, and the edit is saved as a separate PDF.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {dragging ? <DropOver label="Drop to replace" /> : null}
+          </div>
+        )}
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          tabIndex={-1}
+          aria-label="Choose a PDF"
+          className="sr-only"
+          onChange={onPick}
+        />
+
+        {error ? <Note tone="error" className="m-3 shrink-0">{error}</Note> : null}
+      </StudioStage>
+
+      <StudioRail
+        label="Edit settings"
+        action={<PreviewAction />}
+      >
+        <div className="space-y-7">
+          <Field label="Edit">
+            <div className="space-y-4">
+              <SelectRow label="Edit type" options={EDIT_TYPES} value={editType} onChange={setEditType} />
+              <SelectRow label="Tone" options={TONES} value={tone} onChange={setTone} />
+              <SelectRow
+                label="Output language"
+                options={LANGUAGES}
+                value={language}
+                onChange={setLanguage}
               />
             </div>
-          )}
+          </Field>
 
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            tabIndex={-1}
-            aria-label="Choose a PDF"
-            className="sr-only"
-            onChange={onPick}
-          />
-
-          {error ? (
-            <Note tone="error" className="mt-3 shrink-0">
-              {error}
-            </Note>
-          ) : null}
-        </StudioStage>
-
-        <StudioRail
-          label="Edit settings"
-          action={
-            <PaidRunCard
-              cost={EDIT_COST}
-              verb="review edits"
-              ready={Boolean(activeItem) && prompt.trim().length > 0}
-              onRun={() => setGateOpen(true)}
-              emptyLabel={activeItem ? "Describe the edit to continue" : "Add a PDF to edit"}
-            />
-          }
-        >
-          <div className="space-y-6">
-            <NotConnectedNote />
-
-            <Field label="Edit">
-              <div className="space-y-3.5">
-                <SelectRow label="Edit type" options={EDIT_TYPES} value={editType} onChange={setEditType} />
-                <SelectRow label="Tone" options={TONES} value={tone} onChange={setTone} />
-                <SelectRow
-                  label="Output language"
-                  options={LANGUAGES}
-                  value={language}
-                  onChange={setLanguage}
-                />
-              </div>
-            </Field>
-
-            <Field label="Review">
-              <div className="space-y-3.5">
-                <ToggleRow
-                  label="Preserve layout"
-                  description="Keep fonts, spacing and page structure where possible."
-                  checked={preserveLayout}
-                  onChange={setPreserveLayout}
-                />
-                <ToggleRow
-                  label="Review changes first"
-                  description="Show a before and after for approval before download."
-                  checked={reviewFirst}
-                  onChange={setReviewFirst}
-                />
-              </div>
-            </Field>
-          </div>
-        </StudioRail>
-      </StudioFrame>
-
-      <CreditGate
-        open={gateOpen}
-        onClose={() => setGateOpen(false)}
-        action="review edits"
-        cost={EDIT_COST}
-      />
-    </>
+          <Field label="Review">
+            <div className="space-y-4">
+              <ToggleRow
+                label="Preserve layout"
+                description="Keep fonts, spacing and page structure where possible."
+                checked={preserveLayout}
+                onChange={setPreserveLayout}
+              />
+              <ToggleRow
+                label="Review changes first"
+                description="Show a before and after for approval before download."
+                checked={reviewFirst}
+                onChange={setReviewFirst}
+              />
+            </div>
+          </Field>
+        </div>
+      </StudioRail>
+    </StudioFrame>
   );
 }

@@ -2,10 +2,12 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Loader2, Pause, Play, SlidersHorizontal, Upload, X } from "lucide-react";
+import { EngineRow } from "@/components/tool/paid/EngineRow";
+import { RailCards, RailHint, RailMark } from "@/components/tool/studio/RailControls";
 import type { SavedCustomVoice, VoiceId } from "@/components/tool/audio/tts/model";
 import { VOICES } from "@/components/tool/audio/tts/model";
 import { formatTime } from "@/components/tool/audio/format";
-import { Field, OptionCard, Segmented } from "@/components/tool/kit";
+import { Field, OptionCard, Segmented, ToolIcon, ToolText } from "@/components/tool/kit";
 import { PaidSlider, PaidToggle } from "@/components/tool/paid/PaidControls";
 import { RailSection } from "@/components/tool/studio/RailSection";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
@@ -37,15 +39,6 @@ export type DubControlsProps = {
   onSelectCustomVoice: (voiceId: string | null) => void;
   pool: PoolStatusSnapshot | null;
 };
-
-const SELECT_CLASS =
-  "mt-1 h-10 w-full rounded-[10px] border border-line bg-white px-2.5 text-[13px] font-medium text-ink outline-none transition-colors focus:border-ink focus-visible:ring-2 focus-visible:ring-accent/30";
-const TILE_BASE =
-  "rounded-[10px] border bg-white text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40";
-const TILE_ON = "border-ink shadow-[inset_0_0_0_1px_#0f0f10]";
-const TILE_OFF = "border-line hover:border-[#cfc9bd]";
-const HEAR_BUTTON =
-  "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 text-[12.5px] font-medium text-ink transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40";
 
 const CLONE_SOURCES = [
   { value: "file", label: "From this file" },
@@ -114,18 +107,18 @@ export function DubControls({
         className="sr-only"
       />
 
-      <div className="space-y-6">
+      <div className="space-y-7 pb-7">
         <Field label="Language" hint={targetMeta?.nativeName}>
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
             <div>
-              <label htmlFor="dub-source-lang" className="block text-[12.5px] text-muted">
+              <label htmlFor="dub-source-lang" className="block text-[13px] text-muted">
                 Spoken in
               </label>
               <select
                 id="dub-source-lang"
                 value={settings.sourceLanguage}
                 onChange={(e) => onChange({ sourceLanguage: e.target.value as DubLanguageCode })}
-                className={SELECT_CLASS}
+                className="fb-input mt-1.5 cursor-pointer !pl-3"
               >
                 {DUB_SOURCE_LANGUAGES.map((lang) => (
                   <option key={lang.code} value={lang.code}>
@@ -135,17 +128,17 @@ export function DubControls({
               </select>
             </div>
 
-            <ArrowRight size={15} className="mb-3 text-faint" aria-hidden />
+            <ArrowRight size={17} className="mb-[14px] text-accent-deep" aria-hidden />
 
             <div>
-              <label htmlFor="dub-target-lang" className="block text-[12.5px] text-muted">
+              <label htmlFor="dub-target-lang" className="block text-[13px] text-muted">
                 Dub into
               </label>
               <select
                 id="dub-target-lang"
                 value={settings.targetLanguage}
                 onChange={(e) => onChange({ targetLanguage: e.target.value as DubTargetLanguageCode })}
-                className={SELECT_CLASS}
+                className="fb-input mt-1.5 cursor-pointer !pl-3"
               >
                 {DUB_TARGET_LANGUAGES.map((lang) => (
                   <option key={lang.code} value={lang.code}>
@@ -158,7 +151,7 @@ export function DubControls({
         </Field>
 
         <Field label="Voice">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <OptionCard
               active={settings.voiceMode === "clone"}
               title="Match original speaker"
@@ -193,48 +186,41 @@ export function DubControls({
               <div className="mt-3">
                 {usingUpload ? (
                   customUploadLoading ? (
-                    <p className="flex items-center gap-2 text-[12.5px] text-muted" role="status">
-                      <Loader2 size={14} className="animate-spin text-accent" aria-hidden />
+                    <p className="flex items-center gap-2 text-[14px] text-muted" role="status">
+                      <Loader2 size={15} className="animate-spin text-accent-deep" aria-hidden />
                       Preparing your voice sample…
                     </p>
                   ) : customUploadRef ? (
                     <div>
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-[13px] font-medium text-ink">
-                            {customUploadFileName || "Voice sample"}
-                          </p>
-                          <p className="mt-0.5 text-[12px] text-faint">
+                          <p className="truncate text-[14px] font-semibold">{customUploadFileName || "Voice sample"}</p>
+                          <p className="fb-num mt-0.5 text-[13px] text-muted">
                             {customUploadRef.durationSeconds}s of clear speech
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <button
-                            type="button"
+                        <div className="flex shrink-0 [&>*]:-ml-px">
+                          <ToolText
                             onClick={() => toggleAudioPreview("custom-upload-ref", customUploadRef.previewUrl)}
-                            className={HEAR_BUTTON}
+                            icon={
+                              previewPlaying === "custom-upload-ref" ? (
+                                <Pause size={13} aria-hidden />
+                              ) : (
+                                <Play size={13} aria-hidden />
+                              )
+                            }
                           >
-                            {previewPlaying === "custom-upload-ref" ? (
-                              <Pause size={12} aria-hidden />
-                            ) : (
-                              <Play size={12} aria-hidden />
-                            )}
                             {previewPlaying === "custom-upload-ref" ? "Stop" : "Listen"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={onClearCustomVoiceUpload}
-                            aria-label="Remove voice sample"
-                            className="grid h-8 w-8 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-                          >
-                            <X size={14} aria-hidden />
-                          </button>
+                          </ToolText>
+                          <ToolIcon label="Remove voice sample" slot="sample-remove" onClick={onClearCustomVoiceUpload}>
+                            <X size={15} aria-hidden />
+                          </ToolIcon>
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => customAudioInputRef.current?.click()}
-                        className="mt-1.5 text-[12.5px] font-medium text-accent-deep hover:underline"
+                        className="mt-2 text-[13.5px] font-semibold text-accent-deep hover:underline"
                       >
                         Replace sample
                       </button>
@@ -244,46 +230,38 @@ export function DubControls({
                       <button
                         type="button"
                         onClick={() => customAudioInputRef.current?.click()}
-                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-dashed border-[#cfc9bd] bg-white text-[13px] font-medium text-ink transition-colors hover:border-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                        className="fb-hatch inline-flex h-12 w-full items-center justify-center gap-2.5 border border-dashed border-line-strong text-[13px] font-semibold uppercase transition-colors hover:border-ink hover:bg-ink hover:text-white"
                       >
                         <Upload size={14} aria-hidden />
                         Choose a voice sample
                       </button>
-                      <p className="mt-2 text-[12px] leading-snug text-faint">
-                        5 to 60 seconds of clear speech. WAV, MP3 or M4A.
-                      </p>
+                      <RailHint>5 to 60 seconds of clear speech. WAV, MP3 or M4A.</RailHint>
                     </div>
                   )
                 ) : speakerRef ? (
                   <div>
                     <div className="flex items-center justify-between gap-2">
-                      <p className="min-w-0 text-[13px] font-medium tabular-nums text-ink">
+                      <p className="fb-num min-w-0 text-[14px] font-semibold">
                         {formatTime(speakerRef.startSec, true)} – {formatTime(speakerRef.endSec, true)}
-                        <span className="ml-1.5 font-normal text-faint">
-                          {speakerRef.durationSeconds}s sample
-                        </span>
+                        <span className="ml-1.5 font-normal text-muted">{speakerRef.durationSeconds}s sample</span>
                       </p>
-                      <button
-                        type="button"
+                      <ToolText
                         onClick={() => toggleAudioPreview("clone-ref", speakerRef.previewUrl)}
-                        className={HEAR_BUTTON}
+                        icon={
+                          previewPlaying === "clone-ref" ? <Pause size={13} aria-hidden /> : <Play size={13} aria-hidden />
+                        }
                       >
-                        {previewPlaying === "clone-ref" ? (
-                          <Pause size={12} aria-hidden />
-                        ) : (
-                          <Play size={12} aria-hidden />
-                        )}
                         {previewPlaying === "clone-ref" ? "Stop" : "Listen"}
-                      </button>
+                      </ToolText>
                     </div>
                     {speakerRef.text && (
-                      <p className="mt-1.5 line-clamp-2 text-[12px] leading-snug text-faint">
+                      <p className="mt-2 line-clamp-2 text-[13px] leading-snug text-muted">
                         “{speakerRef.text}”
                       </p>
                     )}
                   </div>
                 ) : (
-                  <p className="text-[12px] leading-snug text-faint">
+                  <p className="text-[13px] leading-snug text-muted">
                     About 20 seconds of the clearest speech in your file becomes the voice sample.
                   </p>
                 )}
@@ -292,40 +270,51 @@ export function DubControls({
           )}
 
           {settings.voiceMode === "preset" && !activeCustomVoiceId && (
-            <div className="studio-rail mt-3 grid max-h-[212px] grid-cols-2 gap-1.5 overflow-y-auto pr-0.5">
+            <div className="studio-main mt-3 max-h-[clamp(212px,34vh,360px)] overflow-y-auto border border-line-strong bg-white">
               {VOICES.map((v) => {
                 const selected = settings.voiceId === v.id;
+                const previewKey = `preset-${v.id}`;
+                const hearing = previewPlaying === previewKey;
                 return (
-                  <button
+                  <div
                     key={v.id}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => onChange({ voiceId: v.id as VoiceId })}
-                    className={`flex items-center justify-between gap-1.5 px-2.5 py-2 ${TILE_BASE} ${
-                      selected ? TILE_ON : TILE_OFF
+                    className={`flex items-center border-b border-line pl-3 transition-colors last:border-b-0 ${
+                      selected ? "bg-ink text-white" : "hover:bg-hover"
                     }`}
                   >
-                    <span className="min-w-0">
-                      <span className="block truncate text-[13px] font-medium text-ink">{v.name}</span>
-                      <span className="block truncate text-[12px] text-faint">{v.descriptor}</span>
-                    </span>
-                    <span
-                      role="button"
-                      tabIndex={-1}
-                      aria-label={`Preview ${v.name}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleAudioPreview(`preset-${v.id}`, `/api/audio/tts/voices/${v.id}/sample`);
-                      }}
-                      className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-card text-ink transition-colors hover:bg-ink hover:text-white"
+                    <button
+                      type="button"
+                      data-sound="none"
+                      aria-label={hearing ? `Stop ${v.name}` : `Preview ${v.name}`}
+                      data-playing={hearing || undefined}
+                      onClick={() => toggleAudioPreview(previewKey, `/api/audio/tts/voices/${v.id}/sample`)}
+                      className="fb-play fb-play-sm h-8 w-8 shrink-0"
                     >
-                      {previewPlaying === `preset-${v.id}` ? (
-                        <Pause size={11} aria-hidden />
+                      {hearing ? (
+                        <svg aria-hidden width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                          <path d="M1 1h8v8H1z" />
+                        </svg>
                       ) : (
-                        <Play size={11} aria-hidden />
+                        <svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                          <path d="M3 .8 11 6l-8 5.2z" />
+                        </svg>
                       )}
-                    </span>
-                  </button>
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => onChange({ voiceId: v.id as VoiceId })}
+                      className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-3.5 pr-3 text-left"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14px] font-semibold">{v.name}</span>
+                        <span className={`block truncate text-[13px] ${selected ? "text-white/60" : "text-muted"}`}>
+                          {v.descriptor}
+                        </span>
+                      </span>
+                      <RailMark on={selected} />
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -333,7 +322,7 @@ export function DubControls({
 
           {savedCustomVoices.length > 0 && (
             <div className="mt-3">
-              <p className="text-[12.5px] text-muted">Your saved voices</p>
+              <p className="text-[13px] text-muted">Your saved voices</p>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {savedCustomVoices.map((cv) => {
                   const active = activeCustomVoiceId === cv.id;
@@ -351,10 +340,10 @@ export function DubControls({
                           onChange({ voiceMode: "clone", cloneSource: "saved_voice" });
                         }
                       }}
-                      className={`h-8 rounded-full border px-3 text-[12.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                      className={`h-9 border px-3 text-[13px] font-medium transition-colors ${
                         active
                           ? "border-ink bg-ink text-white"
-                          : "border-line bg-white text-muted hover:border-[#cfc9bd] hover:text-ink"
+                          : "border-line-strong bg-white hover:border-ink"
                       }`}
                     >
                       {cv.name}
@@ -367,26 +356,17 @@ export function DubControls({
         </Field>
 
         <Field label="Delivery">
-          <div className="grid grid-cols-2 gap-1.5">
-            {DUB_TONES.map((tone) => {
-              const active = settings.tone === tone.value;
-              return (
-                <button
-                  key={tone.value}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => onChange({ tone: tone.value as DubTone })}
-                  className={`px-2.5 py-2 ${TILE_BASE} ${active ? TILE_ON : TILE_OFF}`}
-                >
-                  <span className="block text-[13px] font-medium text-ink">{tone.label}</span>
-                  <span className="mt-0.5 block truncate text-[12px] text-faint">{tone.hint}</span>
-                </button>
-              );
-            })}
-          </div>
+          <RailCards
+            label="Delivery"
+            value={settings.tone}
+            options={DUB_TONES.map((tone) => ({ value: tone.value as DubTone, label: tone.label, note: tone.hint }))}
+            onChange={(tone) => onChange({ tone })}
+          />
         </Field>
 
-        <div className="border-t border-line-soft pt-4">
+      </div>
+
+      <div className="-mx-4 border-t border-line px-4 sm:-mx-5 sm:px-5">
           <RailSection
             icon={SlidersHorizontal}
             title="Sound mix and timing"
@@ -425,24 +405,16 @@ export function DubControls({
           </RailSection>
         </div>
 
-        <p role="status" className="flex items-center gap-2 text-[12.5px] text-muted">
-          <span
-            aria-hidden
-            className={`h-2 w-2 shrink-0 rounded-full ${
-              readyStudios > 0
-                ? "bg-success"
-                : bootingStudios > 0
-                  ? "animate-pulse bg-promo"
-                  : "bg-[#b9b4a8]"
-            }`}
-          />
-          {readyStudios > 0
+      <EngineRow
+        state={readyStudios > 0 ? "ready" : bootingStudios > 0 ? "booting" : "asleep"}
+        label={
+          readyStudios > 0
             ? "Voice server ready"
             : bootingStudios > 0
               ? "Voice server starting"
-              : "Voice server starts when you dub"}
-        </p>
-      </div>
+              : "Voice server starts when you dub"
+        }
+      />
     </StudioRail>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { Cpu, FileImage, RotateCcw, Wand2 } from "lucide-react";
+import { Cpu, FileImage, Wand2 } from "lucide-react";
 import { Field, OptionCard, Segmented } from "@/components/tool/kit";
 import { PaidSlider, PaidToggle } from "@/components/tool/paid/PaidControls";
 import { RailSection } from "@/components/tool/studio/RailSection";
+import { RailColors, RailHint, RailLabel, RailPick, RailReset } from "@/components/tool/studio/RailControls";
 import {
   DEFAULT_UPSCALE_SETTINGS,
   FREE_UPSCALE_MODELS,
@@ -23,15 +24,6 @@ import {
   type UpscaleTargetPreset,
   type UpscaleTier,
 } from "./model";
-
-const CHIP_BASE =
-  "rounded-[10px] border text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50";
-const CHIP_ON = "border-ink bg-ink text-white";
-const CHIP_OFF = "border-line bg-white text-ink hover:border-[#cfc9bd]";
-
-function chipClass(selected: boolean) {
-  return `${CHIP_BASE} ${selected ? CHIP_ON : CHIP_OFF}`;
-}
 
 const FACTOR_OPTIONS = [
   { value: "2", label: "2×" },
@@ -62,7 +54,11 @@ const CLEANUP_LABELS: Record<string, string> = {
   raw: "No clean-up",
 };
 
-const BACKDROP_SWATCHES = ["#ffffff", "#f7f7f5", "#111113"] as const;
+const BACKDROPS = [
+  { label: "White", value: "#ffffff" },
+  { label: "Paper", value: "#f7f7f5" },
+  { label: "Black", value: "#111113" },
+];
 
 function recommendedModelForProfile(profile: UpscaleContentProfile): UpscaleEngineModel {
   if (profile === "illustration") return "omnisr";
@@ -135,94 +131,81 @@ export function UpscalerControls({
     <fieldset
       disabled={disabled}
       aria-label="Upscaler settings"
-      className="m-0 min-w-0 space-y-6 border-0 p-0"
+      className="m-0 min-w-0 border-0 p-0"
     >
-      <Field label="Quality">
-        <div className="space-y-1.5">
-          <OptionCard
-            active={settings.tier === "free"}
-            title={
-              <span className="flex items-baseline justify-between gap-2">
-                <span>Fast</span>
-                <span className="text-[12px] font-normal tabular-nums text-faint">
-                  {creditsLabel(upscaleCredits("free", settings.factor))}
+      <div className="space-y-7 pb-7">
+        <Field label="Quality">
+          <div className="space-y-2">
+            <OptionCard
+              active={settings.tier === "free"}
+              title={
+                <span className="flex items-baseline justify-between gap-2">
+                  <span>Fast</span>
+                  <span className="fb-num text-[13px] font-normal opacity-65">
+                    {creditsLabel(upscaleCredits("free", settings.factor))}
+                  </span>
                 </span>
-              </span>
-            }
-            detail="Sharp, clean result in a few seconds."
-            onClick={() => selectTier("free")}
-            className="disabled:opacity-50"
-          />
-          <OptionCard
-            active={settings.tier === "pro"}
-            title={
-              <span className="flex items-baseline justify-between gap-2">
-                <span>Best detail</span>
-                <span className="text-[12px] font-normal tabular-nums text-faint">
-                  {creditsLabel(upscaleCredits("pro", settings.factor))}
+              }
+              detail="Sharp, clean result in a few seconds."
+              onClick={() => selectTier("free")}
+            />
+            <OptionCard
+              active={settings.tier === "pro"}
+              title={
+                <span className="flex items-baseline justify-between gap-2">
+                  <span>Best detail</span>
+                  <span className="fb-num text-[13px] font-normal opacity-65">
+                    {creditsLabel(upscaleCredits("pro", settings.factor))}
+                  </span>
                 </span>
-              </span>
-            }
-            detail="Rebuilds faces, skin and fine texture. Slower."
-            onClick={() => selectTier("pro")}
-            className="disabled:opacity-50"
-          />
-        </div>
-        {settings.tier === "pro" && !proUpscalerReady ? (
-          <p className="mt-2 text-[12px] leading-snug text-faint">
-            The first Best detail run needs a short warm-up.
-          </p>
-        ) : null}
-      </Field>
+              }
+              detail="Rebuilds faces, skin and fine texture. Slower."
+              onClick={() => selectTier("pro")}
+            />
+          </div>
+          {settings.tier === "pro" && !proUpscalerReady ? (
+            <RailHint>The first Best detail run needs a short warm-up.</RailHint>
+          ) : null}
+        </Field>
 
-      <Field
-        label="Scale"
-        hint={hasImage && targetDims.width ? `${targetDims.width} × ${targetDims.height}` : undefined}
-      >
-        <Segmented
+        <Field
           label="Scale"
-          options={FACTOR_OPTIONS}
-          value={String(settings.factor) as "2" | "4"}
-          onChange={(value) => onPatch({ factor: Number(value) as UpscaleFactor })}
-        />
-      </Field>
+          hint={hasImage && targetDims.width ? `${targetDims.width} × ${targetDims.height}` : undefined}
+        >
+          <Segmented
+            label="Scale"
+            options={FACTOR_OPTIONS}
+            value={String(settings.factor) as "2" | "4"}
+            onChange={(value) => onPatch({ factor: Number(value) as UpscaleFactor })}
+          />
+        </Field>
 
-      <Field label="Limit the longest side">
-        <Segmented
-          label="Limit the longest side"
-          options={UPSCALE_TARGET_PRESETS.map((preset) => ({
-            value: preset.value,
-            label: CAP_LABELS[preset.value],
-            title: preset.hint,
-          }))}
-          value={settings.targetPreset}
-          onChange={(targetPreset) => onPatch({ targetPreset })}
-        />
-      </Field>
+        <Field label="Limit the longest side">
+          <Segmented
+            label="Limit the longest side"
+            options={UPSCALE_TARGET_PRESETS.map((preset) => ({
+              value: preset.value,
+              label: CAP_LABELS[preset.value],
+              title: preset.hint,
+            }))}
+            value={settings.targetPreset}
+            onChange={(targetPreset) => onPatch({ targetPreset })}
+          />
+        </Field>
 
-      <Field label="Image type">
-        <div className="flex flex-wrap gap-1.5">
-          {UPSCALE_PROFILES.map((profile) => {
-            const selected = settings.profile === profile.value;
-            return (
-              <button
-                key={profile.value}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => selectProfile(profile.value)}
-                className={`h-9 px-3 ${chipClass(selected)}`}
-              >
-                {profile.label}
-              </button>
-            );
-          })}
-        </div>
-        {activeProfile ? (
-          <p className="mt-2 text-[12px] leading-snug text-faint">{activeProfile.hint}</p>
-        ) : null}
-      </Field>
+        <Field label="Image type">
+          <RailPick
+            label="Image type"
+            columns={3}
+            value={settings.profile}
+            options={UPSCALE_PROFILES.map((profile) => ({ value: profile.value, label: profile.label }))}
+            onChange={selectProfile}
+          />
+          {activeProfile ? <RailHint>{activeProfile.hint}</RailHint> : null}
+        </Field>
+      </div>
 
-      <div className="space-y-4 border-t border-line-soft pt-4">
+      <div className="-mx-4 border-t border-line px-4 sm:-mx-5 sm:px-5">
         <RailSection
           icon={Wand2}
           title="Clean-up"
@@ -230,29 +213,26 @@ export function UpscalerControls({
           defaultOpen={false}
         >
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-1.5">
-              {UPSCALE_ENHANCE_PRESETS.map((preset) => {
-                const selected = activeCleanup?.id === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() =>
-                      onPatch({
-                        denoise: preset.denoise,
-                        sharpen: preset.sharpen,
-                        colorFix: preset.colorFix,
-                        face: preset.face,
-                      })
-                    }
-                    className={`h-9 px-2.5 ${chipClass(selected)}`}
-                  >
-                    {CLEANUP_LABELS[preset.id] ?? preset.label}
-                  </button>
-                );
-              })}
-            </div>
+            <RailPick
+              label="Clean-up presets"
+              columns={2}
+              value={activeCleanup?.id}
+              options={UPSCALE_ENHANCE_PRESETS.map((preset) => ({
+                value: preset.id,
+                label: CLEANUP_LABELS[preset.id] ?? preset.label,
+              }))}
+              onChange={(id) => {
+                const preset = UPSCALE_ENHANCE_PRESETS.find((entry) => entry.id === id);
+                if (preset) {
+                  onPatch({
+                    denoise: preset.denoise,
+                    sharpen: preset.sharpen,
+                    colorFix: preset.colorFix,
+                    face: preset.face,
+                  });
+                }
+              }}
+            />
 
             <PaidSlider
               label="Noise removal"
@@ -288,7 +268,7 @@ export function UpscalerControls({
               onChange={(face) => onPatch({ face })}
             />
             <PaidToggle
-              title="Keep original colours"
+              title="Keep original colors"
               description="Holds skin tones and white balance steady."
               checked={settings.colorFix}
               disabled={disabled}
@@ -314,9 +294,7 @@ export function UpscalerControls({
                 value={settings.format}
                 onChange={(format: UpscaleFormat) => onPatch({ format })}
               />
-              {activeFormat ? (
-                <p className="mt-2 text-[12px] leading-snug text-faint">{activeFormat.hint}</p>
-              ) : null}
+              {activeFormat ? <RailHint>{activeFormat.hint}</RailHint> : null}
             </div>
 
             {settings.format !== "png" ? (
@@ -346,43 +324,19 @@ export function UpscalerControls({
 
             {settings.format === "jpg" || !settings.transparency ? (
               <div>
-                <div className="mb-2 flex items-baseline justify-between gap-3">
-                  <span className="text-[13px] font-medium text-ink">Background fill</span>
-                  <span className="text-[12px] tabular-nums text-faint">
-                    {settings.backgroundColor}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {BACKDROP_SWATCHES.map((hex) => {
-                    const selected = settings.backgroundColor.toLowerCase() === hex;
-                    return (
-                      <button
-                        key={hex}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => onPatch({ backgroundColor: hex })}
-                        className={`h-8 w-8 rounded-lg border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                          selected ? "border-ink ring-2 ring-ink ring-offset-1" : "border-line"
-                        }`}
-                        style={{ backgroundColor: hex }}
-                        aria-label={`Set background ${hex}`}
-                      />
-                    );
-                  })}
-                  <input
-                    type="color"
-                    value={settings.backgroundColor}
-                    onChange={(e) => onPatch({ backgroundColor: e.target.value })}
-                    className="h-8 w-11 cursor-pointer rounded-lg border border-line bg-white p-0.5"
-                    aria-label="Custom background colour"
-                  />
-                </div>
+                <RailLabel value={settings.backgroundColor}>Background fill</RailLabel>
+                <RailColors
+                  label="Background fill"
+                  presets={BACKDROPS}
+                  value={settings.backgroundColor}
+                  onChange={(backgroundColor) => onPatch({ backgroundColor })}
+                />
               </div>
             ) : null}
 
             <PaidToggle
               title="Keep photo details"
-              description="Camera data and the colour profile stay in the file."
+              description="Camera data and the color profile stay in the file."
               checked={settings.metadata}
               disabled={disabled}
               onChange={(metadata) => onPatch({ metadata })}
@@ -390,19 +344,14 @@ export function UpscalerControls({
           </div>
         </RailSection>
 
-        <RailSection
-          icon={Cpu}
-          title="Model"
-          aside={MODEL_BENEFITS[settings.engineModel]}
-          defaultOpen={false}
-        >
+        <RailSection icon={Cpu} title="Model" aside={MODEL_BENEFITS[settings.engineModel]} defaultOpen={false}>
           {settings.tier === "pro" ? (
-            <p className="text-[12.5px] leading-relaxed text-muted">
-              Best detail always runs on one model ({PRO_UPSCALE_MODEL.label}). Switch to Fast to
-              choose between models.
+            <p className="text-[13.5px] leading-relaxed text-muted">
+              Best detail always runs on one model ({PRO_UPSCALE_MODEL.label}). Switch to Fast to choose
+              between models.
             </p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {FREE_UPSCALE_MODELS.map((model) => (
                 <OptionCard
                   key={model.id}
@@ -417,22 +366,20 @@ export function UpscalerControls({
                   }
                 />
               ))}
-              <p className="pt-1 text-[12px] leading-snug text-faint">
+              <RailHint>
                 Picking an image type chooses a model for you. Now using {activeModel.label}.
-              </p>
+              </RailHint>
             </div>
           )}
         </RailSection>
       </div>
 
-      <button
-        type="button"
-        onClick={() => (onReset ? onReset() : onPatch({ ...DEFAULT_UPSCALE_SETTINGS }))}
-        className="inline-flex items-center gap-1.5 rounded-lg text-[12.5px] font-medium text-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-      >
-        <RotateCcw size={13} aria-hidden />
-        Reset to defaults
-      </button>
+      <div className="pt-2">
+        <RailReset
+          label="Reset to defaults"
+          onClick={() => (onReset ? onReset() : onPatch({ ...DEFAULT_UPSCALE_SETTINGS }))}
+        />
+      </div>
     </fieldset>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useFileIntake } from "@/components/tool/studio/useFileIntake";
 import { parseRanges } from "../model";
 import type { MergeSource } from "./merge-engine";
 import { MergeFileError, readPdfInfo } from "./merge-engine";
@@ -168,7 +169,8 @@ export function useMergeQueue({
       setItems((current) => [...current, ...placeholders]);
 
       const readIssues: string[] = [];
-      for (const placeholder of placeholders) {        let bytes: ArrayBuffer;
+      for (const placeholder of placeholders) {
+        let bytes: ArrayBuffer;
         try {
           bytes = await placeholder.file.arrayBuffer();
         } catch {
@@ -222,6 +224,8 @@ export function useMergeQueue({
     },
     [loadThumbnail, maxFiles, maxSizeMB, patchItem],
   );
+
+  useFileIntake((files) => void addFiles(files), setDragging);
 
   const setRange = useCallback((id: string, value: string) => {
     setItems((current) =>

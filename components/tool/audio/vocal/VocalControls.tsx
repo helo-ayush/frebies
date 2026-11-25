@@ -1,8 +1,9 @@
 "use client";
 
-import { RotateCcw, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Field, OptionCard, Segmented } from "@/components/tool/kit";
 import { PaidToggle } from "@/components/tool/paid/PaidControls";
+import { RailReset } from "@/components/tool/studio/RailControls";
 import { RailSection } from "@/components/tool/studio/RailSection";
 import {
   DEFAULT_VOCAL_SETTINGS,
@@ -69,8 +70,9 @@ export function VocalControls({
     // A disabled fieldset locks every control inside it while a track is uploading.
     <fieldset
       disabled={disabled}
-      className={`min-w-0 space-y-6 transition-opacity ${disabled ? "opacity-60" : ""}`}
+      className={`min-w-0 transition-opacity ${disabled ? "opacity-60" : ""}`}
     >
+      <div className="space-y-7 pb-7">
       <Field label="What you need" hint={STEM_HINT[settings.stems]}>
         <Segmented
           label="Stems to extract"
@@ -81,7 +83,7 @@ export function VocalControls({
       </Field>
 
       <Field label="Tuned for">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {VOCAL_ENGINE_MODELS.map((model) => {
             const copy = ENGINE_COPY[model.id];
             return (
@@ -118,8 +120,11 @@ export function VocalControls({
         ) : null}
       </Field>
 
+      </div>
+
+      <div className="-mx-4 border-t border-line px-4 sm:-mx-5 sm:px-5">
       <RailSection icon={SlidersHorizontal} title="Fine-tuning" defaultOpen={false}>
-        <div className="space-y-5">
+        <div className="space-y-6">
           <Field label="Sample rate" hint={SAMPLE_RATE_HINT[settings.sampleRate]}>
             <Segmented
               label="Sample rate"
@@ -170,14 +175,14 @@ export function VocalControls({
         </div>
       </RailSection>
 
-      <button
-        type="button"
-        onClick={() => (onReset ? onReset() : onPatch({ ...DEFAULT_VOCAL_SETTINGS }))}
-        className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-muted transition-colors hover:text-ink"
-      >
-        <RotateCcw size={12} aria-hidden />
-        Reset to defaults
-      </button>
+      </div>
+
+      <div className="pt-2">
+        <RailReset
+          label="Reset to defaults"
+          onClick={() => (onReset ? onReset() : onPatch({ ...DEFAULT_VOCAL_SETTINGS }))}
+        />
+      </div>
     </fieldset>
   );
 }

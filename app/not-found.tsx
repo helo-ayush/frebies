@@ -1,74 +1,53 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, FileQuestion, Image as ImageIcon, FileText, AudioLines } from "lucide-react";
 import { Wordmark } from "@/components/brand/Wordmark";
-import { EncryptedText } from "@/components/aceternity/encrypted-text";
-import { HoverBorderLink } from "@/components/aceternity/hover-border-gradient";
-import { Spotlight } from "@/components/aceternity/spotlight";
-import { SquigglyText } from "@/components/aceternity/squiggly-text";
-import { SiteProgressiveBlur } from "@/components/effects/SiteProgressiveBlur";
-import { buttonClasses } from "@/components/ui/Button";
-
-const destinations = [
-  { href: "/image", label: "Image tools", icon: ImageIcon },
-  { href: "/document", label: "Document tools", icon: FileText },
-  { href: "/audio", label: "Audio tools", icon: AudioLines },
-];
+import { IsoBlock } from "@/components/site/blocks";
+import { Arrow } from "@/components/site/kit";
+import { ToolSearch } from "@/components/site/ToolSearch";
+import { categories } from "@/lib/registry/tools";
 
 export default function NotFound() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-white px-5 py-6 text-ink">
-      <Spotlight fill="#ffd7a8" className="-top-[420px] left-1/2 z-0 -translate-x-1/2" />
-      <Wordmark href="/" />
-      <div className="mx-auto flex min-h-[calc(100vh-100px)] max-w-[920px] items-center justify-center py-12">
-        <div className="w-full text-center">
-          <div className="relative mx-auto h-36 w-52">
-            <span aria-hidden className="absolute left-1/2 top-1/2 h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_35%_30%,#fff0d8_0%,#f5b784_45%,#d97555_100%)] opacity-65" />
-            <span className="absolute left-1/2 top-1/2 grid h-20 w-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[20px] border border-line bg-white text-muted shadow-[0_12px_35px_rgba(15,15,16,0.08)]">
-              <FileQuestion size={32} strokeWidth={1.25} aria-hidden />
-            </span>
-          </div>
-          <p className="relative mt-4 text-micro font-medium uppercase tracking-[0.18em] text-faint">
-            <EncryptedText
-              text="404 · Wrong turn"
-              revealDelayMs={58}
-              encryptedClassName="text-accent/70"
-            />
-          </p>
-          <h1 className="mt-3 font-display text-[36px] font-semibold tracking-[-0.04em]">
-            <SquigglyText scale={[2, 3]} stepDuration={140}>
-              This file is not here.
-            </SquigglyText>
+    <main className="flex min-h-dvh flex-col bg-canvas text-ink">
+      <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-line px-[var(--fb-pad)]">
+        <Wordmark href="/" size={26} />
+        <Link href="/dashboard" className="fb-btn">
+          Open the tools
+        </Link>
+      </div>
+
+      <div className="grid flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(340px,38%)]">
+        <div className="flex flex-col justify-center px-[var(--fb-pad)] py-12">
+          <p className="text-[14px] uppercase text-muted">[404 // empty]</p>
+          <h1 className="fb-wide mt-5 text-[clamp(44px,7.4vw,132px)]">
+            Nothing
+            <br />
+            in this one.
           </h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted">
-            The page may have moved or the link may be incomplete. The toolbox is right where you left it.
+          <p className="mt-6 max-w-[440px] text-[16px] leading-[1.5] text-muted">
+            The page moved, or the link was cut short. Say what needs doing and you will land in the right tool.
           </p>
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
-            <HoverBorderLink
-              href="/dashboard"
-              containerClassName="rounded-full"
-              className="h-10 gap-2 rounded-full bg-ink px-4 text-ui text-white transition-colors hover:bg-neutral-800"
-            >
-              Open the toolbox <ArrowRight size={14} aria-hidden />
-            </HoverBorderLink>
-            <Link href="/" className={buttonClasses("secondary", "md", "h-10")}>
-              <ArrowLeft size={14} aria-hidden /> Back home
-            </Link>
-          </div>
-          <div className="mx-auto mt-12 grid max-w-[660px] gap-2 sm:grid-cols-3">
-            {destinations.map((destination) => {
-              const Icon = destination.icon;
-              return (
-                <Link key={destination.href} href={destination.href} className="group flex items-center gap-2.5 rounded-[11px] border border-line bg-white p-3 text-left hover:bg-rail">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-rail text-muted group-hover:bg-white"><Icon size={15} /></span>
-                  <span className="text-ui font-medium">{destination.label}</span>
-                  <ArrowRight size={12} className="ml-auto text-faint" />
-                </Link>
-              );
-            })}
-          </div>
+          <ToolSearch drop="down" label="Search the tools" className="mt-8 w-full max-w-[640px] border border-line-strong" />
+        </div>
+        <div className="fb-stage fb-corners relative grid min-h-[300px] place-items-center border-line max-lg:border-t lg:border-l">
+          <IsoBlock label={["404"]} open lift={92} className="h-[min(48vh,420px)] w-auto" />
         </div>
       </div>
-      <SiteProgressiveBlur />
+
+      <nav aria-label="Tool categories" className="grid shrink-0 border-t border-line sm:grid-cols-4">
+        {categories.map((category, index) => (
+          <Link
+            key={category.slug}
+            href={`/${category.slug}`}
+            className="group flex h-[72px] items-center justify-between border-line px-[var(--fb-pad)] transition-colors hover:bg-ink hover:text-white max-sm:border-b sm:border-l sm:px-6 sm:first:border-l-0"
+          >
+            <span className="fb-wide text-[19px]">{category.name}</span>
+            <span className="flex items-center gap-3 text-[13px] text-faint group-hover:text-white/60">
+              [0{index + 1}]
+              <Arrow />
+            </span>
+          </Link>
+        ))}
+      </nav>
     </main>
   );
 }

@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Download, RotateCcw, Scissors, X } from "lucide-react";
-import { buttonClasses } from "@/components/ui/Button";
-import { Switch } from "@/components/arc/switch/switch";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { RailSlider } from "@/components/tool/studio/RailSlider";
 import {
@@ -12,13 +10,19 @@ import {
   Field,
   Note,
   PrimaryAction,
+  QuickPick,
+  ResultButton,
   ResultCard,
   SecondaryAction,
   Segmented,
   StartOverAction,
   StudioFrame,
   StudioStage,
+  ToolText,
 } from "@/components/tool/kit";
+import { RailHint, RailLabel, RailPick } from "@/components/tool/studio/RailControls";
+import { RailSwitch } from "@/components/tool/studio/RailSwitch";
+import { DropOver } from "@/components/tool/viewer/DropOver";
 import { DropChip } from "@/components/tool/kit/Dropzone";
 import { AudioDropzone } from "@/components/tool/audio/AudioDropzone";
 import { AudioFileMeta } from "@/components/tool/audio/AudioFileMeta";
@@ -75,14 +79,6 @@ const FORMAT_OPTIONS = TRIM_FORMATS.map((format) => ({
   label: format.label,
   title: format.hint,
 }));
-
-const HELP_TEXT = "mt-2 text-[12.5px] leading-relaxed text-faint";
-
-function presetClass(active: boolean) {
-  return `h-10 rounded-[10px] border text-[13px] font-medium tabular-nums transition-colors ${
-    active ? "border-ink bg-ink text-white" : "border-line bg-white text-ink hover:border-[#cfc9bd]"
-  }`;
-}
 
 export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
   const { item, error, dragging, inputRef, openPicker, onPick, onDragOver, onDragLeave, onDrop, clear } =
@@ -313,7 +309,7 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
 
   return (
     <StudioFrame id="audio-trim" label="Audio trimming studio">
-      <StudioStage>
+      <StudioStage flush>
         <span
           aria-hidden
           className="hidden"
@@ -341,74 +337,76 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
             }
           />
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col [scrollbar-width:thin] lg:overflow-y-auto lg:overflow-x-hidden">
-            {notices("mb-3")}
+          <div
+            className="studio-main relative flex min-h-0 flex-1 flex-col lg:overflow-y-auto lg:overflow-x-hidden"
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            <AudioFileMeta
+              item={item}
+              formatLabel={sourceFormat}
+              onReplace={() => openPicker()}
+              onRemove={startOver}
+            >
+              <ToolText
+                onClick={resetSelection}
+                disabled={!item.duration}
+                icon={<RotateCcw size={14} aria-hidden />}
+                title="Put the two handles back"
+              >
+                Reset
+              </ToolText>
+            </AudioFileMeta>
+
+            {notices("p-3")}
 
             {result ? (
-              <div className="mb-4 shrink-0 space-y-2">
+              <>
                 <ResultCard
-                  title={`Trimmed to ${formatTime(result.duration, true)} · ${formatBytes(result.size)}`}
+                  title={`${formatTime(result.duration, true)}, ${formatBytes(result.size)}`}
                   meta={
                     stale
                       ? "Selection or settings changed. Trim again to update."
                       : `${trimSummary(result)}${resultDelta === "—" ? "" : ` · ${resultDelta} than the original`}`
                   }
                 >
-                  <button
-                    type="button"
-                    onClick={discardResult}
-                    aria-label="Discard trimmed file"
-                    title="Discard"
-                    className="grid h-10 w-10 place-items-center rounded-[12px] text-[#3f6b54] transition-colors hover:bg-white/70 hover:text-ink"
-                  >
-                    <X size={15} aria-hidden />
-                  </button>
-                  <a
+                  <ResultButton onClick={discardResult} label="Discard trimmed file" icon={<X size={17} aria-hidden />} />
+                  <ResultButton
+                    loud
                     href={result.url}
-                    download={downloadName}
-                    aria-label={`Download ${result.format.toUpperCase()}`}
-                    className={buttonClasses("success", "md", "h-10 rounded-[12px] px-3 text-[13.5px] sm:px-4")}
+                    filename={downloadName}
+                    label={`Download ${result.format.toUpperCase()}`}
+                    icon={<Download size={16} aria-hidden />}
                   >
-                    <Download size={15} aria-hidden />
-                    <span className="max-sm:sr-only">Download</span>
-                  </a>
+                    Download
+                  </ResultButton>
                 </ResultCard>
                 <AudioPlayer
                   src={result.url}
                   duration={result.duration}
                   peaks={result.peaks}
                   formatLabel={result.format.toUpperCase()}
+                  fileName="Trimmed audio"
                   compact
+                  tone="light"
+                  className="shrink-0 !border-x-0 !border-t-0"
                 />
-              </div>
+              </>
             ) : null}
-
-            <div className="mb-2 flex shrink-0 items-center justify-between gap-3 px-0.5">
-              <p className="min-w-0 text-[13px] leading-snug text-muted">
-                Drag the two handles to choose the part to keep.
-              </p>
-              <button
-                type="button"
-                onClick={resetSelection}
-                disabled={!item.duration}
-                aria-label="Reset selection"
-                className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink disabled:opacity-40"
-              >
-                <RotateCcw size={13} aria-hidden />
-                Reset
-              </button>
-            </div>
 
             <AudioPlayer
               src={item.url}
               duration={item.duration}
               peaks={item.peaks}
+              fileName={item.name}
               selection={selection ?? undefined}
               onSelectionChange={updateSelection}
               loopSelection
+              className="min-h-[300px] shrink-0 lg:shrink"
             />
 
-            <div className="mt-2.5 grid shrink-0 grid-cols-3 divide-x divide-line rounded-[14px] border border-line bg-white">
+            <div className="grid shrink-0 grid-cols-3 border-t border-line bg-panel">
               <TimeField
                 label="Start"
                 value={selection?.start ?? 0}
@@ -429,30 +427,20 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
                   if (selection) updateSelection({ ...selection, end: value });
                 }}
               />
-              <div className="min-w-0 px-2.5 py-2.5 sm:px-4 sm:py-3">
-                <p className="truncate px-1.5 text-[12.5px] font-medium text-muted">
+              <div className="min-w-0 border-l border-line px-3 py-3 sm:px-5 sm:py-4">
+                <p className="truncate text-[13px] uppercase text-muted">
                   Length
                   {item.duration ? (
-                    <span className="font-normal text-faint max-sm:hidden">
-                      {" "}
-                      of {formatTime(item.duration, true)}
-                    </span>
+                    <span className="text-faint max-sm:hidden"> of {formatTime(item.duration, true)}</span>
                   ) : null}
                 </p>
-                <p
-                  className="mt-0.5 flex h-9 items-center px-1.5 text-[19px] font-semibold tabular-nums tracking-[-0.01em] text-accent-deep sm:text-[24px]"
-                >
+                <p className="fb-wide fb-num mt-1 flex h-10 items-center text-[clamp(19px,2vw,28px)] text-accent-deep">
                   {formatTime(trimDuration, true)}
                 </p>
               </div>
             </div>
 
-            <AudioFileMeta
-              item={item}
-              formatLabel={sourceFormat}
-              onReplace={() => openPicker()}
-              onRemove={startOver}
-            />
+            {dragging ? <DropOver label="Drop to replace" /> : null}
           </div>
         )}
 
@@ -466,7 +454,7 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
           onChange={onPick}
         />
 
-        {!item ? notices("mt-3") : null}
+        {!item ? notices("p-3") : null}
       </StudioStage>
 
       <StudioRail
@@ -493,6 +481,12 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
             </>
           ) : (
             <>
+              <QuickPick
+                label="Output format"
+                value={settings.format}
+                options={FORMAT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+                onChange={(format) => patch({ format })}
+              />
               <PrimaryAction
                 label={
                   item && selection
@@ -524,11 +518,7 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
           )
         }
       >
-        <div className="space-y-6">
-          {estimateLine ? (
-            <p className="text-[12.5px] tabular-nums text-muted lg:hidden">{estimateLine}</p>
-          ) : null}
-
+        <div className="space-y-7">
           <Field label="Format">
             <Segmented
               label="Output format"
@@ -536,34 +526,28 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
               value={settings.format}
               onChange={(format) => patch({ format })}
             />
-            <p className={HELP_TEXT}>{FORMAT_NOTES[settings.format]}</p>
+            <RailHint>{FORMAT_NOTES[settings.format]}</RailHint>
           </Field>
 
           {!lossless ? (
             <Field label="Bitrate" hint={`${settings.bitrate} kbps`}>
-              <div className="grid grid-cols-3 gap-1.5">
-                {TRIM_BITRATES.map((bitrate) => {
-                  const selected = settings.bitrate === bitrate;
-                  return (
-                    <button
-                      key={bitrate}
-                      type="button"
-                      aria-pressed={selected}
-                      aria-label={`${bitrate} kbps`}
-                      onClick={() => patch({ bitrate })}
-                      className={presetClass(selected)}
-                    >
-                      {bitrate}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className={HELP_TEXT}>128 is fine for speech, 192 for music, 320 keeps the most detail.</p>
+              <RailPick
+                label="Bitrate"
+                columns={3}
+                value={settings.bitrate}
+                options={TRIM_BITRATES.map((bitrate) => ({
+                  value: bitrate,
+                  label: bitrate,
+                  ariaLabel: `${bitrate} kbps`,
+                }))}
+                onChange={(bitrate) => patch({ bitrate })}
+              />
+              <RailHint>128 is fine for speech, 192 for music, 320 keeps the most detail.</RailHint>
             </Field>
           ) : null}
 
           <Field label="Fades">
-            <div className="space-y-3.5">
+            <div className="space-y-3">
               <FadeSlider label="Fade in" value={settings.fadeIn} onChange={(fadeIn) => patch({ fadeIn })} />
               <FadeSlider
                 label="Fade out"
@@ -573,8 +557,8 @@ export function AudioTrimmerStudio({ maxSizeMB = 50 }: { maxSizeMB?: number }) {
             </div>
           </Field>
 
-          <AudioToggle
-            title="Keep metadata"
+          <RailSwitch
+            label="Keep metadata"
             description="Save the file name as the track title."
             checked={settings.metadata}
             onChange={(metadata) => patch({ metadata })}
@@ -611,28 +595,6 @@ function sizeDeltaLabel(sourceBytes: number, targetBytes: number): string {
   return `${delta}% larger`;
 }
 
-function AudioToggle({
-  title,
-  description,
-  checked,
-  onChange,
-}: {
-  title: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <button type="button" onClick={() => onChange(!checked)} className="min-w-0 flex-1 text-left">
-        <span className="block text-[13px] font-medium text-ink">{title}</span>
-        <span className="mt-0.5 block text-[12px] leading-relaxed text-faint">{description}</span>
-      </button>
-      <Switch checked={checked} onCheckedChange={onChange} aria-label={title} className="mt-0.5 shrink-0" />
-    </div>
-  );
-}
-
 /** One editable time in the selection readout under the waveform. */
 function TimeField({
   label,
@@ -667,8 +629,8 @@ function TimeField({
   }
 
   return (
-    <label className="block min-w-0 px-2.5 py-2.5 sm:px-4 sm:py-3">
-      <span className="block px-1.5 text-[12.5px] font-medium text-muted">{label}</span>
+    <label className="block min-w-0 border-l border-line px-3 py-3 first:border-l-0 sm:px-5 sm:py-4">
+      <span className="block text-[13px] uppercase text-muted">{label}</span>
       <input
         type="text"
         inputMode="decimal"
@@ -682,7 +644,7 @@ function TimeField({
           }
         }}
         aria-label={`${label} time`}
-        className="mt-0.5 h-9 w-full min-w-0 rounded-[8px] border border-transparent bg-transparent px-1.5 text-[19px] font-semibold tabular-nums tracking-[-0.01em] text-ink outline-none transition-colors hover:border-line hover:bg-card focus:border-ink focus:bg-white disabled:opacity-45 sm:text-[24px]"
+        className="fb-wide fb-num mt-1 h-10 w-full min-w-0 border-b-2 border-line-strong bg-transparent !text-[clamp(19px,2vw,28px)] outline-none transition-colors hover:border-ink focus:border-accent focus-visible:outline-none disabled:opacity-45"
       />
     </label>
   );
@@ -699,19 +661,10 @@ function FadeSlider({
 }) {
   return (
     <div>
-      <div className="flex items-center justify-between text-[12.5px]">
-        <span className="font-medium text-muted">{label}</span>
-        <span className="tabular-nums text-faint">{value.toFixed(1)} s</span>
-      </div>
-      <RailSlider
-        label={label}
-        value={value}
-        min={0}
-        max={3}
-        step={0.1}
-        onValueChange={onChange}
-        className="mt-1"
-      />
+      <RailLabel className="!mb-0" value={`${value.toFixed(1)} s`}>
+        {label}
+      </RailLabel>
+      <RailSlider label={label} value={value} min={0} max={3} step={0.1} onValueChange={onChange} className="" />
     </div>
   );
 }

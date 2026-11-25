@@ -4,27 +4,35 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileText, ImageDown, Loader2, Pencil } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import { RailSlider } from "@/components/tool/studio/RailSlider";
+import { RailCards, RailEnds } from "@/components/tool/studio/RailControls";
 import {
   ActionRow,
-  Chip,
   DownloadAction,
   Field,
   FileRow,
   Note,
   PrimaryAction,
+  QuickPick,
+  ResultButton,
   ResultCard,
-  STAGE_LABEL,
   SecondaryAction,
   Segmented,
+  StageBar,
   StartOverAction,
   StudioFrame,
   StudioStage,
+  ToolIcon,
+  ToolTabs,
+  ToolText,
 } from "@/components/tool/kit";
+import { DropOver } from "@/components/tool/viewer/DropOver";
+import { ImageLightbox } from "@/components/tool/viewer/Lightbox";
+import { PdfLightbox, PdfReader } from "@/components/tool/viewer/PdfReader";
 import { DropChip } from "@/components/tool/kit/Dropzone";
 import { downloadAllAsZip, downloadBlob } from "@/lib/image/encode";
 import { TextRow, ToggleRow } from "../DocumentKit";
 import { PdfDropzone } from "../PdfDropzone";
-import { PdfPageGrid, usePdfDocument } from "../PdfPages";
+import { PdfPageGrid, usePdfDocument, type PageSize } from "../PdfPages";
 import { fileStem, formatBytes, pagesOf, parseRanges, rangeLabel } from "../model";
 import { usePdfQueue } from "../usePdfQueue";
 import {
@@ -45,6 +53,17 @@ const RESOLUTIONS = [
   { value: "150", label: "Standard", detail: "150 DPI" },
   { value: "300", label: "Print", detail: "300 DPI" },
 ] as const;
+
+const VIEWS = [
+  { value: "pages", label: "Pages" },
+  { value: "read", label: "Read" },
+] as const;
+
+const SIZES: { value: PageSize; label: string; title: string }[] = [
+  { value: "s", label: "S", title: "Small pages" },
+  { value: "m", label: "M", title: "Medium pages" },
+  { value: "l", label: "L", title: "Large pages" },
+];
 
 const BACKGROUNDS: { value: string; label: string }[] = [
   { value: "#ffffff", label: "White" },
@@ -86,6 +105,10 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const [progress, setProgress] = useState(0);
   const [images, setImages] = useState<PageImage[] | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [view, setView] = useState<"pages" | "read">("pages");
+  const [size, setSize] = useState<PageSize>("m");
+  const [readPage, setReadPage] = useState<number | null>(null);
+  const [shown, setShown] = useState<number | null>(null);
   const imagesRef = useRef<PageImage[] | null>(null);
   const runRef = useRef(0);
 
@@ -138,6 +161,18 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     setPages([...next].sort((a, b) => a - b));
   }
 
+  function pickRange(from: number, to: number) {
+    const next = new Set(selectedRef.current);
+    for (let page = from; page <= to; page += 1) next.add(page);
+    setPages([...next].sort((a, b) => a - b));
+  }
+
+  function chooseFormat(value: PageImageFormat) {
+    setFormat(value);
+    if (value === "JPG" && background === "transparent") setBackground("#ffffff");
+    touch();
+  }
+
   async function handleConvert() {
     if (!doc.pdf || selectedPages.length === 0) return;
     const run = (runRef.current += 1);
@@ -188,7 +223,7 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   return (
     <StudioFrame id="pdf-to-jpg" label="PDF to image studio">
-      <StudioStage>
+      <StudioStage flush>
         {!activeItem ? (
           <PdfDropzone
             title="Drop a PDF to turn into images"
@@ -210,100 +245,122 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           />
         ) : (
           <div
-            className="flex min-h-0 flex-1 flex-col gap-3"
+            className="relative flex min-h-0 flex-1 flex-col"
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
           >
-            {images ? (
-              <ResultCard
-                title={`${images.length} ${format} image${images.length === 1 ? "" : "s"} ready`}
-                meta={`${formatBytes(totalBytes)} · ${images[0]?.width} × ${images[0]?.height} px`}
-              >
-                <button
-                  type="button"
-                  onClick={downloadAll}
-                  className="inline-flex h-10 items-center gap-1.5 rounded-[12px] bg-success px-4 text-[13.5px] font-semibold text-white transition hover:brightness-110"
-                >
-                  <Download size={15} aria-hidden />
-                  {images.length === 1 ? "Download" : "Download ZIP"}
-                </button>
-              </ResultCard>
-            ) : null}
-
-            <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
-              <span className={STAGE_LABEL}>{images ? "Your images" : "Click pages to include or skip them"}</span>
-              <div className="flex items-center gap-1.5">
-                {!images && pageCount > 0 ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setPages(pagesOf(pageCount))}
-                      className="h-7 rounded-lg px-2 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                    >
-                      Select all
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPages([])}
-                      className="h-7 rounded-lg px-2 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                    >
-                      Clear
-                    </button>
-                  </>
-                ) : null}
-                <Chip>
-                  {images ? `${images.length} files` : `${count} of ${pageCount} pages`}
-                </Chip>
-              </div>
-            </div>
-
-            <div className="studio-main min-h-[260px] flex-1 overflow-y-auto rounded-[16px] border border-line bg-[#f3f1ec] p-3 sm:p-4 lg:min-h-0">
-              {images ? (
-                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                  {images.map((image) => (
-                    <li key={image.name} className="group animate-kit-rise">
-                      <div className="checkerboard relative overflow-hidden rounded-[8px] border border-[#dedad2] shadow-[0_6px_16px_-10px_rgba(15,15,16,0.25)]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={image.url} alt={`Page ${image.page}`} className="block h-auto w-full" />
-                        <button
-                          type="button"
-                          onClick={() => downloadBlob(image.blob, image.name)}
-                          aria-label={`Download ${image.name}`}
-                          className="absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full bg-ink text-white opacity-90 shadow-pop transition hover:scale-105 hover:opacity-100"
-                        >
-                          <Download size={15} aria-hidden />
-                        </button>
-                      </div>
-                      <p className="mt-1.5 truncate text-[12px] font-medium text-ink">{image.name}</p>
-                      <p className="text-[12px] tabular-nums text-faint">{formatBytes(image.blob.size)}</p>
-                    </li>
-                  ))}
-                </ul>
-              ) : doc.pdf ? (
-                <PdfPageGrid
-                  pdf={doc.pdf}
-                  pageCount={pageCount}
-                  selected={selected}
-                  onToggle={busy ? undefined : togglePage}
-                />
-              ) : doc.loading ? (
-                <div className="grid h-full min-h-[220px] place-items-center text-[13px] text-muted">
-                  <span className="flex items-center gap-2">
-                    <Loader2 size={15} className="animate-spin" aria-hidden />
-                    Reading pages…
-                  </span>
-                </div>
-              ) : null}
-            </div>
-
             <FileRow
-              icon={<FileText size={16} aria-hidden />}
+              flush
+              className="border-b border-line"
+              icon={<FileText size={17} aria-hidden />}
               name={activeItem.name}
               meta={`${formatBytes(activeItem.size)}${pageCount ? ` · ${pageCount} pages` : ""}`}
               onReplace={() => openPicker(activeItem.id)}
               onRemove={reset}
             />
+
+            {images ? (
+              <ResultCard
+                title={`${images.length} ${format} image${images.length === 1 ? "" : "s"}`}
+                meta={`${formatBytes(totalBytes)} · ${images[0]?.width} × ${images[0]?.height} px`}
+              >
+                <ResultButton loud onClick={downloadAll} icon={<Download size={16} aria-hidden />}>
+                  {images.length === 1 ? "Download" : "Download ZIP"}
+                </ResultButton>
+              </ResultCard>
+            ) : (
+              <StageBar
+                end={
+                  view === "pages" ? (
+                    <>
+                      {pageCount > 0 ? (
+                        <>
+                          <ToolText onClick={() => setPages(pagesOf(pageCount))}>All</ToolText>
+                          <ToolText onClick={() => setPages([])}>None</ToolText>
+                        </>
+                      ) : null}
+                      <span className="max-sm:hidden">
+                        <ToolTabs label="Page size" options={SIZES} value={size} onChange={setSize} />
+                      </span>
+                    </>
+                  ) : null
+                }
+              >
+                <ToolTabs label="Stage view" options={VIEWS} value={view} onChange={setView} />
+                <span className="fb-num pl-1 text-[13.5px] text-muted">
+                  {count} of {pageCount} pages
+                </span>
+              </StageBar>
+            )}
+
+            {images ? (
+              <div className="studio-main min-h-[280px] flex-1 overflow-y-auto lg:min-h-0">
+                <ul className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3 sm:gap-4 sm:p-4 xl:grid-cols-4">
+                  {images.map((image, index) => (
+                    <li key={image.name} className="group flex flex-col border border-line bg-panel hover:border-ink">
+                      <button
+                        type="button"
+                        onClick={() => setShown(index)}
+                        aria-label={`Open ${image.name}`}
+                        data-slot="viewer-open"
+                        className="fb-checker relative block flex-1 overflow-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={image.url} alt={`Page ${image.page}`} className="block h-auto w-full" />
+                        <span className="fb-num absolute bottom-0 left-0 bg-ink px-2 py-[5px] text-[12px] font-semibold leading-none text-white">
+                          {image.page}
+                        </span>
+                      </button>
+                      <div className="flex items-center gap-2 border-t border-line pl-3">
+                        <span className="min-w-0 flex-1 py-2">
+                          <span className="block truncate text-[13.5px] font-semibold">{image.name}</span>
+                          <span className="fb-num block text-[12.5px] text-muted">{formatBytes(image.blob.size)}</span>
+                        </span>
+                        <ToolIcon
+                          label={`Download ${image.name}`}
+                          onClick={() => downloadBlob(image.blob, image.name)}
+                          className="!h-full !min-h-[52px] !w-12 !border-y-0 !border-r-0"
+                        >
+                          <Download size={16} aria-hidden />
+                        </ToolIcon>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : view === "read" && doc.pdf ? (
+              <PdfReader
+                pdf={doc.pdf}
+                pageCount={pageCount}
+                firstPage={doc.firstPage}
+                title={activeItem.name}
+                className="max-lg:min-h-[60svh]"
+              />
+            ) : (
+              <div className="studio-main min-h-[280px] flex-1 overflow-y-auto p-4 lg:min-h-0">
+                {doc.pdf ? (
+                  <PdfPageGrid
+                    pdf={doc.pdf}
+                    pageCount={pageCount}
+                    size={size}
+                    selected={selected}
+                    onToggle={busy ? undefined : togglePage}
+                    onRange={busy ? undefined : pickRange}
+                    onOpen={setReadPage}
+                  />
+                ) : doc.loading ? (
+                  <div className="grid h-full min-h-[220px] place-items-center text-[14.5px] text-muted">
+                    <span className="flex items-center gap-2.5">
+                      <Loader2 size={17} className="animate-spin" aria-hidden />
+                      Reading pages…
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {dragging ? <DropOver label="Drop to replace" /> : null}
           </div>
         )}
 
@@ -317,11 +374,43 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           onChange={onPick}
         />
 
-        {error ? (
-          <Note tone="error" className="mt-3 shrink-0">
-            {error}
-          </Note>
-        ) : null}
+        {error ? <Note tone="error" className="m-3 shrink-0">{error}</Note> : null}
+
+        <PdfLightbox
+          open={readPage !== null && Boolean(doc.pdf)}
+          onClose={() => setReadPage(null)}
+          pdf={readPage !== null ? doc.pdf : null}
+          pageCount={pageCount}
+          firstPage={doc.firstPage}
+          page={readPage ?? 1}
+          title={activeItem?.name ?? "PDF"}
+          meta={pageCount ? `${pageCount} pages` : undefined}
+        />
+        <ImageLightbox
+          images={(images ?? []).map((image) => ({
+            id: image.name,
+            name: image.name,
+            src: image.url,
+            width: image.width,
+            height: image.height,
+            note: formatBytes(image.blob.size),
+          }))}
+          index={images ? shown : null}
+          onIndex={setShown}
+          onClose={() => setShown(null)}
+          actions={(image) => {
+            const source = images?.find((entry) => entry.name === image.id);
+            return source ? (
+              <ResultButton
+                loud
+                onClick={() => downloadBlob(source.blob, source.name)}
+                icon={<Download size={16} aria-hidden />}
+              >
+                Download
+              </ResultButton>
+            ) : null;
+          }}
+        />
       </StudioStage>
 
       <StudioRail
@@ -336,12 +425,19 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               />
               <ActionRow>
                 <SecondaryAction onClick={touch} icon={<Pencil size={13} aria-hidden />}>
-                  Change settings
+                  Adjust
                 </SecondaryAction>
                 <StartOverAction onClick={reset} label="New PDF" />
               </ActionRow>
             </>
           ) : (
+            <>
+            <QuickPick
+              label="Image format"
+              value={format}
+              options={FORMATS.map((entry) => ({ value: entry.value, label: entry.label }))}
+              onChange={chooseFormat}
+            />
             <PrimaryAction
               label={
                 !activeItem
@@ -358,48 +454,35 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
               onClick={handleConvert}
               hint={activeItem ? "Free · runs in your browser · no watermark" : "Add a PDF to get started"}
             />
+            </>
           )
         }
       >
-        <div className="space-y-6">
+        <div className="space-y-7">
           <Field label="Image format" hint={FORMATS.find((entry) => entry.value === format)?.title}>
             <Segmented
               label="Image format"
               options={FORMATS}
               value={format}
-              onChange={(value) => {
-                setFormat(value);
-                if (value === "JPG" && background === "transparent") setBackground("#ffffff");
-                touch();
-              }}
+              onChange={chooseFormat}
             />
           </Field>
 
           <Field label="Resolution" hint={pixels ? `${pixels.width} × ${pixels.height} px` : undefined}>
-            <div className="grid grid-cols-3 gap-1.5">
-              {RESOLUTIONS.map((option) => {
-                const active = dpi === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => {
-                      setDpi(option.value);
-                      touch();
-                    }}
-                    className={`rounded-[10px] border px-1 py-2.5 text-center transition-colors ${
-                      active
-                        ? "border-ink bg-white shadow-[inset_0_0_0_1px_#0f0f10]"
-                        : "border-line bg-white hover:border-[#cfc9bd]"
-                    }`}
-                  >
-                    <span className="block text-[13px] font-medium text-ink">{option.label}</span>
-                    <span className="mt-0.5 block text-[12px] text-faint">{option.detail}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <RailCards
+              label="Resolution"
+              columns={3}
+              value={dpi}
+              options={RESOLUTIONS.map((option) => ({
+                value: option.value as string,
+                label: option.label,
+                note: option.detail,
+              }))}
+              onChange={(value) => {
+                setDpi(value);
+                touch();
+              }}
+            />
           </Field>
 
           <Field label="Quality" hint={lossy ? `${quality}%` : "Lossless"}>
@@ -413,12 +496,9 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
                 setQuality(next);
                 touch();
               }}
-              className="mt-1"
+              className=""
             />
-            <div className="mt-1 flex justify-between text-[12px] text-faint">
-              <span>Smaller file</span>
-              <span>More detail</span>
-            </div>
+            <RailEnds left="Smaller file" right="More detail" />
           </Field>
 
           <Field label="Pages" hint={pageCount ? `${count} of ${pageCount}` : undefined}>
@@ -448,7 +528,7 @@ export function PdfToJpgStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           </Field>
 
           <Field label="Output">
-            <div className="space-y-3.5">
+            <div className="space-y-4">
               <TextRow
                 label="File name"
                 value={filename}

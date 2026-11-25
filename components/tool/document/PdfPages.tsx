@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { Check, Maximize2 } from "lucide-react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { createRenderQueue, type RenderQueue } from "@/components/tool/viewer/render-queue";
 import { openPdfDocument, renderPdfPage } from "./merge/pdf-thumbnail";
 
 export type PdfDocumentState = {
@@ -81,61 +82,54 @@ export function usePdfDocument(file: File | null): PdfDocumentState {
   return state;
 }
 
-/** Runs pdf.js renders one after another so a long document never floods the worker. */
-function createRenderQueue() {
-  let chain: Promise<unknown> = Promise.resolve();
-  return function enqueue<T>(job: () => Promise<T>): Promise<T> {
-    const run = chain.then(job, job);
-    chain = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    return run;
-  };
-}
-
-type Enqueue = ReturnType<typeof createRenderQueue>;
-
+/** One tone per output file, in the site's own colours. */
 const TAG_TONES = [
   "bg-ink text-white",
+  "bg-accent-deep text-white",
+  "bg-faint text-white",
+  "bg-[#8f2a10] text-white",
+  "bg-line-strong text-ink",
   "bg-accent text-white",
-  "bg-[#2f6fb5] text-white",
-  "bg-success text-white",
-  "bg-[#8a5cc2] text-white",
-  "bg-[#b0781f] text-white",
 ];
+
+export type PageSize = "s" | "m" | "l";
+const PAGE_MIN: Record<PageSize, number> = { s: 96, m: 138, l: 214 };
 
 function PageThumb({
   pdf,
   page,
   cache,
   enqueue,
+  renderWidth,
   selected,
   dimmed,
   onToggle,
+  onOpen,
   tag,
   tagTone = 0,
 }: {
   pdf: PDFDocumentProxy;
   page: number;
-  cache: Map<number, string>;
-  enqueue: Enqueue;
+  cache: Map<string, string>;
+  enqueue: RenderQueue;
+  renderWidth: number;
   selected?: boolean;
   dimmed?: boolean;
-  onToggle?: () => void;
+  onToggle?: (event: MouseEvent) => void;
+  onOpen?: () => void;
   tag?: string;
   tagTone?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [src, setSrc] = useState<string | null>(() => cache.get(page) ?? null);
+  const key = `${page}:${renderWidth}`;
+  const [src, setSrc] = useState<string | null>(() => cache.get(key) ?? null);
 
   useEffect(() => {
-    const cached = cache.get(page);
+    const cached = cache.get(key);
     if (cached) {
       setSrc(cached);
       return;
     }
-    setSrc(null);
     const node = ref.current;
     if (!node) return;
 
@@ -144,10 +138,10 @@ function PageThumb({
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return;
         observer.disconnect();
-        enqueue(async () => (cancelled ? null : renderPdfPage(pdf, page, 220)))
+        enqueue(async () => (cancelled ? null : renderPdfPage(pdf, page, renderWidth)))
           .then((thumb) => {
             if (!thumb || cancelled) return;
-            cache.set(page, thumb.dataUrl);
+            cache.set(key, thumb.dataUrl);
             setSrc(thumb.dataUrl);
           })
           .catch(() => undefined);
@@ -160,97 +154,112 @@ function PageThumb({
       cancelled = true;
       observer.disconnect();
     };
-  }, [pdf, page, cache, enqueue]);
+  }, [pdf, page, cache, enqueue, key, renderWidth]);
 
   const selectable = Boolean(onToggle);
 
-  const body = (
-    <>
-      <div
-        ref={ref}
-        className={`relative overflow-hidden rounded-[8px] border bg-white transition-[border-color,box-shadow,opacity] ${
-          selected
-            ? "border-ink shadow-[0_0_0_2px_#0f0f10,0_10px_22px_-12px_rgba(15,15,16,0.4)]"
-            : "border-[#dedad2] shadow-[0_6px_16px_-10px_rgba(15,15,16,0.25)] group-hover:border-[#bdb6a8]"
-        } ${dimmed ? "opacity-45" : ""}`}
-        style={{ aspectRatio: "1 / 1.34" }}
-      >
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt="" draggable={false} className="h-full w-full object-contain" />
-        ) : (
-          <div className="h-full w-full animate-pulse bg-[linear-gradient(180deg,#f4f2ed,#ebe8e1)]" />
-        )}
+  const sheet = (
+    <div
+      ref={ref}
+      className={`relative overflow-hidden bg-white transition-[box-shadow,opacity] ${
+        selected
+          ? "shadow-[0_0_0_3px_#1d1c1f]"
+          : "shadow-[0_0_0_1px_rgba(24,24,27,0.22)] group-hover:shadow-[0_0_0_2px_#1d1c1f]"
+      } ${dimmed ? "opacity-40" : ""}`}
+      style={{ aspectRatio: "1 / 1.34" }}
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" draggable={false} className="h-full w-full object-contain" />
+      ) : (
+        <div className="fb-hatch h-full w-full" />
+      )}
 
-        {tag ? (
-          <span
-            className={`absolute left-1.5 top-1.5 rounded-full px-2 py-[3px] text-[12px] font-semibold leading-none ${
-              TAG_TONES[tagTone % TAG_TONES.length]
-            }`}
-          >
-            {tag}
-          </span>
-        ) : null}
-
-        {selectable ? (
-          <span
-            aria-hidden
-            className={`absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full border transition-colors ${
-              selected ? "border-ink bg-ink text-white" : "border-[#cfcabf] bg-white/95 text-transparent"
-            }`}
-          >
-            <Check size={12} strokeWidth={3} />
-          </span>
-        ) : null}
-      </div>
       <span
-        className={`mt-1.5 block text-center text-[12px] tabular-nums ${
-          selected ? "font-semibold text-ink" : "text-faint"
+        className={`fb-num absolute bottom-0 left-0 px-2 py-[5px] text-[12px] font-semibold leading-none ${
+          tag ? TAG_TONES[tagTone % TAG_TONES.length] : selected ? "bg-ink text-white" : "bg-white text-ink"
         }`}
       >
-        {page}
+        {tag ? `${page} / ${tag}` : page}
       </span>
-    </>
+
+      {selectable ? (
+        <span
+          aria-hidden
+          className={`absolute right-0 top-0 grid h-7 w-7 place-items-center border-b border-l transition-colors ${
+            selected
+              ? "border-accent-deep bg-accent-deep text-white"
+              : "border-line-strong bg-white text-transparent group-hover:text-faint"
+          }`}
+        >
+          <Check size={14} strokeWidth={3} />
+        </span>
+      ) : null}
+    </div>
   );
 
-  if (!selectable) return <div className="group">{body}</div>;
-
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={selected}
-      aria-label={`Page ${page}`}
-      className="group block w-full rounded-[10px] text-left outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-    >
-      {body}
-    </button>
+    <div className="group relative">
+      {selectable ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-pressed={selected}
+          aria-label={`Page ${page}`}
+          className="block w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-canvas"
+        >
+          {sheet}
+        </button>
+      ) : (
+        sheet
+      )}
+      {onOpen ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`Read page ${page}`}
+          title="Read this page"
+          data-slot="viewer-open"
+          className="absolute bottom-0 right-0 grid h-8 w-8 place-items-center bg-ink text-white opacity-0 transition hover:bg-accent-deep focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+        >
+          <Maximize2 size={14} aria-hidden />
+        </button>
+      ) : null}
+    </div>
   );
 }
 
 /**
  * Real page thumbnails for an open PDF, rendered lazily as they scroll into
- * view. Pass `selected` + `onToggle` for a pickable grid, or `tagOf` to label
- * each page with the output file it lands in.
+ * view. Pass `selected` + `onToggle` for a pickable grid (Shift-click picks a
+ * run of pages when `onRange` is set), or `tagOf` to label each page with the
+ * output file it lands in.
  */
 export function PdfPageGrid({
   pdf,
   pageCount,
   selected,
   onToggle,
+  onRange,
+  onOpen,
   tagOf,
+  size = "m",
   className = "",
 }: {
   pdf: PDFDocumentProxy;
   pageCount: number;
   selected?: Set<number>;
   onToggle?: (page: number) => void;
+  onRange?: (from: number, to: number) => void;
+  onOpen?: (page: number) => void;
   tagOf?: (page: number) => { label: string; tone: number } | null;
+  size?: PageSize;
   className?: string;
 }) {
   // One cache and one render queue per open document.
-  const cache = useMemo(() => new Map<number, string>(), [pdf]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cache = useMemo(() => new Map<string, string>(), [pdf]); // eslint-disable-line react-hooks/exhaustive-deps
   const enqueue = useMemo(() => createRenderQueue(), [pdf]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lastRef = useRef<number | null>(null);
 
   const pages = useMemo(
     () => Array.from({ length: pageCount }, (_, index) => index + 1),
@@ -259,7 +268,8 @@ export function PdfPageGrid({
 
   return (
     <div
-      className={`grid grid-cols-3 gap-x-3 gap-y-3.5 sm:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 ${className}`}
+      className={`grid gap-4 ${className}`}
+      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(min(${PAGE_MIN[size]}px, 29vw), 1fr))` }}
     >
       {pages.map((page) => {
         const tag = tagOf?.(page) ?? null;
@@ -270,9 +280,23 @@ export function PdfPageGrid({
             page={page}
             cache={cache}
             enqueue={enqueue}
+            renderWidth={size === "l" ? 380 : 240}
             selected={selected ? selected.has(page) : undefined}
             dimmed={tagOf ? tag === null : false}
-            onToggle={onToggle ? () => onToggle(page) : undefined}
+            onToggle={
+              onToggle
+                ? (event) => {
+                    const last = lastRef.current;
+                    lastRef.current = page;
+                    if (event.shiftKey && onRange && last && last !== page) {
+                      onRange(Math.min(last, page), Math.max(last, page));
+                    } else {
+                      onToggle(page);
+                    }
+                  }
+                : undefined
+            }
+            onOpen={onOpen ? () => onOpen(page) : undefined}
             tag={tag?.label}
             tagTone={tag?.tone}
           />

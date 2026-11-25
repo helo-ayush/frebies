@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, Loader2, Mic, Square, Trash2, Upload, Volume2, X } from "lucide-react";
-import { Note } from "@/components/tool/kit";
+import { Check, Loader2, Mic, Square, Trash2, Upload, X } from "lucide-react";
+import { AudioPlayer } from "@/components/tool/audio/AudioPlayer";
+import { Note, ToolIcon, ToolText } from "@/components/tool/kit";
 import { buttonClasses } from "@/components/ui/Button";
 import type { SavedCustomVoice } from "./model";
 import {
@@ -23,9 +24,6 @@ export type VoiceClonePanelProps = {
   showSavedList?: boolean;
 };
 
-const INPUT_CLASS =
-  "h-10 w-full rounded-[12px] border border-line bg-white px-3 text-[13px] text-ink placeholder:text-faint outline-none transition-colors hover:border-[#cfc9bd] focus:border-ink";
-
 function cleanFilenameToVoiceName(filename: string): string {
   const stem = filename.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
   if (!stem) return "Uploaded voice";
@@ -42,6 +40,7 @@ export function VoiceClonePanel({
   onClose,
   showSavedList = true,
 }: VoiceClonePanelProps) {
+  const panelRef = useRef<HTMLElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -74,6 +73,11 @@ export function VoiceClonePanel({
       streamRef.current = null;
     }
   };
+
+  // The panel opens under the button, often past the end of the rail.
+  useEffect(() => {
+    if (open) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [open]);
 
   useEffect(() => {
     return () => {
@@ -225,27 +229,26 @@ export function VoiceClonePanel({
   };
 
   return (
-    <section aria-label="Voice cloning" className="mt-4 space-y-3 border-t border-line-soft pt-4">
+    <section ref={panelRef} aria-label="Voice cloning" className="mt-4 scroll-mb-[150px] scroll-mt-[76px] space-y-4 border border-line-strong bg-canvas p-4 lg:scroll-mb-4 lg:scroll-mt-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="text-[13px] font-semibold text-ink">Clone a voice</h3>
-          <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">
+          <h3 className="fb-wide text-[17px]">Clone a voice</h3>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
             Record or upload 5 to {MAX_CLONE_SECONDS} seconds of clear speech. Longer clips are
             trimmed.
           </p>
         </div>
 
-        <button
-          type="button"
+        <ToolIcon
+          label="Close voice cloner"
+          slot="cloner-close"
           onClick={() => {
             if (recording) stopRecording();
             onClose();
           }}
-          aria-label="Close voice cloner"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink"
         >
-          <X size={15} aria-hidden />
-        </button>
+          <X size={16} aria-hidden />
+        </ToolIcon>
       </div>
 
       {/* Saved voices, only when the parent does not already list them */}
@@ -260,10 +263,10 @@ export function VoiceClonePanel({
               return (
                 <div
                   key={entry.id}
-                  className={`inline-flex items-center gap-1 rounded-full border py-1 pl-3 pr-1 text-[12.5px] transition-colors ${
+                  className={`inline-flex items-center gap-1 border py-1 pl-3 pr-1 text-[13px] transition-colors ${
                     selected
                       ? "border-ink bg-ink text-white"
-                      : "border-line bg-white text-ink hover:border-[#cfc9bd]"
+                      : "border-line-strong bg-white hover:border-ink"
                   }`}
                 >
                   <button
@@ -284,7 +287,7 @@ export function VoiceClonePanel({
                     type="button"
                     aria-label={`Delete ${entry.name}`}
                     onClick={() => onDeleteVoice(entry.id)}
-                    className={`grid h-6 w-6 place-items-center rounded-full transition-colors ${
+                    className={`grid h-6 w-6 place-items-center transition-colors ${
                       selected
                         ? "text-white/75 hover:bg-white/15 hover:text-white"
                         : "text-faint hover:bg-danger-soft hover:text-danger"
@@ -312,8 +315,8 @@ export function VoiceClonePanel({
             setDragActive(false);
             handleFilePicked(e.dataTransfer.files?.[0]);
           }}
-          className={`rounded-[12px] border border-dashed p-3 transition-colors ${
-            dragActive ? "border-accent bg-accent-soft" : "border-[#d6d1c6] bg-white"
+          className={`border border-dashed p-3 transition-colors ${
+            dragActive ? "border-accent bg-accent-soft" : "border-line-strong bg-white"
           }`}
         >
           <input
@@ -335,7 +338,7 @@ export function VoiceClonePanel({
                 type="button"
                 disabled={processing}
                 onClick={startRecording}
-                className={buttonClasses("primary", "md", "h-10 px-2")}
+                className={buttonClasses("primary", "md", "!h-12 px-2")}
               >
                 <Mic size={14} aria-hidden />
                 Record
@@ -344,7 +347,7 @@ export function VoiceClonePanel({
               <button
                 type="button"
                 onClick={stopRecording}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-danger px-2 text-[13px] font-medium tabular-nums text-white transition hover:brightness-110"
+                className="inline-flex h-12 items-center justify-center gap-2 bg-accent-deep px-2 text-[13.5px] font-semibold uppercase tabular-nums text-white transition-colors hover:bg-ink"
               >
                 <Square size={11} className="fill-current" aria-hidden />
                 Stop · {recordSeconds}s
@@ -355,7 +358,7 @@ export function VoiceClonePanel({
               type="button"
               disabled={recording || processing}
               onClick={() => fileInputRef.current?.click()}
-              className={buttonClasses("secondary", "md", "h-10 px-2")}
+              className={buttonClasses("secondary", "md", "!h-12 px-2")}
             >
               <Upload size={14} aria-hidden />
               Upload
@@ -364,8 +367,8 @@ export function VoiceClonePanel({
 
           <p
             role="status"
-            className={`mt-2.5 flex items-center justify-center gap-1.5 text-center text-[12.5px] leading-snug ${
-              recording ? "font-medium text-danger" : "text-faint"
+            className={`mt-3 flex items-center justify-center gap-1.5 text-center text-[13px] leading-snug ${
+              recording ? "font-medium text-accent-deep" : "text-muted"
             }`}
           >
             {processing ? (
@@ -386,30 +389,29 @@ export function VoiceClonePanel({
       {draftAudioBase64 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <p className="flex items-center gap-2 text-[13px] font-medium text-ink">
-              <Volume2 size={14} className="text-muted" aria-hidden />
+            <p className="text-[14.5px] font-semibold">
               Sample ready
               {draftDurationSeconds !== undefined && (
-                <span className="font-normal tabular-nums text-faint">
-                  {draftDurationSeconds.toFixed(1)}s
-                </span>
+                <span className="fb-num font-normal text-faint"> {draftDurationSeconds.toFixed(1)} s</span>
               )}
             </p>
-            <button
-              type="button"
-              onClick={resetDraft}
-              className="text-[12.5px] font-medium text-muted transition-colors hover:text-ink"
-            >
-              Replace clip
-            </button>
+            <ToolText onClick={resetDraft}>Replace</ToolText>
           </div>
 
           {previewUrl && (
-            <audio controls preload="metadata" src={previewUrl} className="h-10 w-full" />
+            <AudioPlayer
+              src={previewUrl}
+              duration={draftDurationSeconds ?? 1}
+              peaks={[]}
+              fileName="Voice sample"
+              compact
+              tone="light"
+              className="bg-white"
+            />
           )}
 
           <div>
-            <label htmlFor={nameId} className="mb-1.5 block text-[13px] font-medium text-ink">
+            <label htmlFor={nameId} className="mb-2 block text-[14px] font-medium">
               Voice name
             </label>
             <input
@@ -419,12 +421,12 @@ export function VoiceClonePanel({
               onChange={(e) => setVoiceName(e.target.value)}
               maxLength={40}
               placeholder="e.g. Narrator, Founder, Alex"
-              className={INPUT_CLASS}
+              className="fb-input"
             />
           </div>
 
           <div>
-            <label htmlFor={transcriptId} className="mb-1.5 block text-[13px] font-medium text-ink">
+            <label htmlFor={transcriptId} className="mb-2 block text-[14px] font-medium">
               What the sample says <span className="font-normal text-faint">(optional)</span>
             </label>
             <input
@@ -434,7 +436,7 @@ export function VoiceClonePanel({
               onChange={(e) => setTranscript(e.target.value)}
               maxLength={500}
               placeholder="Typing the words improves the match"
-              className={INPUT_CLASS}
+              className="fb-input"
             />
           </div>
 
@@ -442,14 +444,14 @@ export function VoiceClonePanel({
             <button
               type="button"
               onClick={resetDraft}
-              className={buttonClasses("secondary", "md", "h-10 px-2")}
+              className={buttonClasses("secondary", "md", "!h-12 px-2")}
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className={buttonClasses("primary", "md", "h-10 px-2")}
+              className={buttonClasses("primary", "md", "!h-12 px-2")}
             >
               <Check size={14} aria-hidden />
               Save and use

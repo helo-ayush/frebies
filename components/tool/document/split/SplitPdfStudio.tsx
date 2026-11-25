@@ -1,29 +1,35 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileText, Loader2, Scissors } from "lucide-react";
+import { Download, Eye, FileText, Loader2, Scissors } from "lucide-react";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
 import {
   ActionRow,
-  Chip,
   DownloadAction,
   Field,
   FileRow,
   Note,
   OptionCard,
   PrimaryAction,
+  ResultButton,
   ResultCard,
-  STAGE_LABEL,
   SecondaryAction,
+  StageBar,
   StartOverAction,
   StudioFrame,
   StudioStage,
+  ToolIcon,
+  ToolTabs,
+  ToolText,
 } from "@/components/tool/kit";
+import { RailPick } from "@/components/tool/studio/RailControls";
+import { PdfLightbox, PdfReader } from "@/components/tool/viewer/PdfReader";
 import { DropChip } from "@/components/tool/kit/Dropzone";
 import { downloadAllAsZip, downloadBlob } from "@/lib/image/encode";
 import { TextRow, ToggleRow } from "../DocumentKit";
 import { PdfDropzone } from "../PdfDropzone";
-import { PdfPageGrid, usePdfDocument } from "../PdfPages";
+import { DropOver } from "@/components/tool/viewer/DropOver";
+import { PdfPageGrid, usePdfDocument, type PageSize } from "../PdfPages";
 import { fileStem, formatBytes, pagesOf, parseRanges, rangeLabel } from "../model";
 import { usePdfQueue } from "../usePdfQueue";
 import { SplitError, splitPdf, type SplitOutput } from "./split-engine";
@@ -37,6 +43,17 @@ const MODES: { id: SplitMode; title: string; detail: string }[] = [
 ];
 
 const CHUNK_PRESETS = [1, 2, 5, 10];
+
+const VIEWS = [
+  { value: "pages", label: "Pages" },
+  { value: "read", label: "Read" },
+] as const;
+
+const SIZES: { value: PageSize; label: string; title: string }[] = [
+  { value: "s", label: "S", title: "Small pages" },
+  { value: "m", label: "M", title: "Medium pages" },
+  { value: "l", label: "L", title: "Large pages" },
+];
 
 function safeName(value: string) {
   return value.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "-").trim().slice(0, 90) || "document";
@@ -75,6 +92,10 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
   const [progress, setProgress] = useState(0);
   const [outputs, setOutputs] = useState<SplitOutput[] | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [view, setView] = useState<"pages" | "read">("pages");
+  const [size, setSize] = useState<PageSize>("m");
+  const [readPage, setReadPage] = useState<number | null>(null);
+  const [openOutput, setOpenOutput] = useState<SplitOutput | null>(null);
 
   // A new document starts with nothing picked, so the choice is always deliberate.
   useEffect(() => {
@@ -82,6 +103,7 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     setRanges("");
     setOutputs(null);
     setRunError(null);
+    setView("pages");
   }, [activeItem?.id]);
 
   const selectedRef = useRef(selected);
@@ -144,6 +166,12 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
     setPages([...next].sort((a, b) => a - b));
   }
 
+  function pickRange(from: number, to: number) {
+    const next = new Set(selectedRef.current);
+    for (let page = from; page <= to; page += 1) next.add(page);
+    setPages([...next].sort((a, b) => a - b));
+  }
+
   function applyRanges(value: string) {
     setRanges(value);
     setSelected(new Set(parseRanges(value, pageCount)));
@@ -200,7 +228,7 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
   return (
     <StudioFrame id="split-pdf" label="Split PDF studio">
-      <StudioStage>
+      <StudioStage flush>
         {!activeItem ? (
           <PdfDropzone
             title="Drop a PDF to split"
@@ -222,122 +250,136 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           />
         ) : (
           <div
-            className="flex min-h-0 flex-1 flex-col gap-3"
+            className="relative flex min-h-0 flex-1 flex-col"
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
           >
-            {outputs ? (
-              <ResultCard
-                title={
-                  outputs.length === 1 ? `${outputs[0].name} is ready` : `${outputs.length} PDFs are ready`
-                }
-                meta={`${formatBytes(totalBytes)} · made on your device`}
-              >
-                <button
-                  type="button"
-                  onClick={downloadAll}
-                  className="inline-flex h-10 items-center gap-1.5 rounded-[12px] bg-success px-4 text-[13.5px] font-semibold text-white transition hover:brightness-110"
-                >
-                  <Download size={15} aria-hidden />
-                  {outputs.length === 1 ? "Download" : "Download ZIP"}
-                </button>
-              </ResultCard>
-            ) : null}
-
-            <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
-              <span className={STAGE_LABEL}>
-                {mode === "extract" ? "Click pages to pick them" : "How the pages will be split"}
-              </span>
-              <div className="flex items-center gap-1.5">
-                {mode === "extract" && pageCount > 0 ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setPages(pagesOf(pageCount))}
-                      className="h-7 rounded-lg px-2 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                    >
-                      Select all
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPages([])}
-                      className="h-7 rounded-lg px-2 text-[12.5px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
-                    >
-                      Clear
-                    </button>
-                  </>
-                ) : null}
-                <Chip>
-                  {mode === "extract"
-                    ? `${selectedPages.length} of ${pageCount} pages`
-                    : `${pageCount} pages → ${groups.length} files`}
-                </Chip>
-              </div>
-            </div>
-
-            <div className="studio-main min-h-[260px] flex-1 overflow-y-auto rounded-[16px] border border-line bg-[#f3f1ec] p-3 sm:p-4 lg:min-h-0">
-              {doc.pdf ? (
-                <PdfPageGrid
-                  pdf={doc.pdf}
-                  pageCount={pageCount}
-                  selected={mode === "extract" ? selected : undefined}
-                  onToggle={mode === "extract" && !busy ? togglePage : undefined}
-                  tagOf={
-                    mode === "extract"
-                      ? undefined
-                      : (page) => {
-                          const index = groupOfPage.get(page);
-                          if (index === undefined) return null;
-                          return {
-                            label: mode === "parity" ? (page % 2 === 1 ? "Odd" : "Even") : `File ${index + 1}`,
-                            tone: index,
-                          };
-                        }
-                  }
-                />
-              ) : doc.loading ? (
-                <div className="grid h-full min-h-[220px] place-items-center text-[13px] text-muted">
-                  <span className="flex items-center gap-2">
-                    <Loader2 size={15} className="animate-spin" aria-hidden />
-                    Reading pages…
-                  </span>
-                </div>
-              ) : null}
-            </div>
-
-            {outputs && outputs.length > 1 ? (
-              <ul className="studio-main max-h-[168px] shrink-0 space-y-1.5 overflow-y-auto">
-                {outputs.map((output) => (
-                  <li
-                    key={output.name}
-                    className="flex items-center gap-2.5 rounded-[12px] border border-line bg-white px-3 py-2"
-                  >
-                    <FileText size={15} className="shrink-0 text-muted" aria-hidden />
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{output.name}</span>
-                    <span className="shrink-0 text-[12px] tabular-nums text-faint">
-                      {output.pages.length} {output.pages.length === 1 ? "page" : "pages"} · {formatBytes(output.bytes.length)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => downloadBlob(pdfBlob(output.bytes), output.name)}
-                      aria-label={`Download ${output.name}`}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-ink"
-                    >
-                      <Download size={14} aria-hidden />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
             <FileRow
-              icon={<FileText size={16} aria-hidden />}
+              flush
+              className="border-b border-line"
+              icon={<FileText size={17} aria-hidden />}
               name={activeItem.name}
               meta={`${formatBytes(activeItem.size)}${pageCount ? ` · ${pageCount} pages` : ""}`}
               onReplace={() => openPicker(activeItem.id)}
               onRemove={reset}
             />
+
+            {outputs ? (
+              <ResultCard
+                title={outputs.length === 1 ? "PDF ready" : `${outputs.length} PDFs ready`}
+                meta={`${outputs.length === 1 ? `${outputs[0].name} · ` : ""}${formatBytes(totalBytes)} · made on your device`}
+              >
+                {outputs.length === 1 ? (
+                  <ResultButton onClick={() => setOpenOutput(outputs[0])} icon={<Eye size={16} aria-hidden />}>
+                    Read
+                  </ResultButton>
+                ) : null}
+                <ResultButton loud onClick={downloadAll} icon={<Download size={16} aria-hidden />}>
+                  {outputs.length === 1 ? "Download" : "Download ZIP"}
+                </ResultButton>
+              </ResultCard>
+            ) : null}
+
+            {outputs && outputs.length > 1 ? (
+              <ul className="studio-main max-h-[156px] shrink-0 overflow-y-auto border-b border-line bg-panel">
+                {outputs.map((output, index) => (
+                  <li
+                    key={output.name}
+                    className="flex h-[52px] items-center gap-3 border-b border-line pl-3.5 pr-2 last:border-b-0"
+                  >
+                    <span className="fb-num text-[13px] text-faint">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium">{output.name}</span>
+                    <span className="fb-num shrink-0 text-[13px] text-muted max-sm:hidden">
+                      {output.pages.length} {output.pages.length === 1 ? "page" : "pages"} · {formatBytes(output.bytes.length)}
+                    </span>
+                    <span className="flex [&>*]:-ml-px">
+                      <ToolIcon label={`Read ${output.name}`} slot="viewer-open" onClick={() => setOpenOutput(output)}>
+                        <Eye size={15} aria-hidden />
+                      </ToolIcon>
+                      <ToolIcon
+                        label={`Download ${output.name}`}
+                        onClick={() => downloadBlob(pdfBlob(output.bytes), output.name)}
+                      >
+                        <Download size={15} aria-hidden />
+                      </ToolIcon>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <StageBar
+              end={
+                view === "pages" ? (
+                  <>
+                    {mode === "extract" && pageCount > 0 ? (
+                      <>
+                        <ToolText onClick={() => setPages(pagesOf(pageCount))}>All</ToolText>
+                        <ToolText onClick={() => setPages([])}>None</ToolText>
+                      </>
+                    ) : null}
+                    <span className="max-sm:hidden">
+                      <ToolTabs label="Page size" options={SIZES} value={size} onChange={setSize} />
+                    </span>
+                  </>
+                ) : null
+              }
+            >
+              <ToolTabs label="Stage view" options={VIEWS} value={view} onChange={setView} />
+              <span className="fb-num pl-1 text-[13.5px] text-muted">
+                {mode === "extract"
+                  ? selectedPages.length === 0
+                    ? "Click pages to pick them"
+                    : `${selectedPages.length} of ${pageCount} picked`
+                  : `${pageCount} pages → ${groups.length} files`}
+              </span>
+            </StageBar>
+
+            {view === "read" && doc.pdf ? (
+              <PdfReader
+                pdf={doc.pdf}
+                pageCount={pageCount}
+                firstPage={doc.firstPage}
+                title={activeItem.name}
+                className="max-lg:min-h-[60svh]"
+              />
+            ) : (
+              <div className="studio-main min-h-[280px] flex-1 overflow-y-auto p-4 lg:min-h-0">
+                {doc.pdf ? (
+                  <PdfPageGrid
+                    pdf={doc.pdf}
+                    pageCount={pageCount}
+                    size={size}
+                    selected={mode === "extract" ? selected : undefined}
+                    onToggle={mode === "extract" && !busy ? togglePage : undefined}
+                    onRange={mode === "extract" && !busy ? pickRange : undefined}
+                    onOpen={setReadPage}
+                    tagOf={
+                      mode === "extract"
+                        ? undefined
+                        : (page) => {
+                            const index = groupOfPage.get(page);
+                            if (index === undefined) return null;
+                            return {
+                              label: mode === "parity" ? (page % 2 === 1 ? "Odd" : "Even") : `File ${index + 1}`,
+                              tone: index,
+                            };
+                          }
+                    }
+                  />
+                ) : doc.loading ? (
+                  <div className="grid h-full min-h-[220px] place-items-center text-[14.5px] text-muted">
+                    <span className="flex items-center gap-2.5">
+                      <Loader2 size={17} className="animate-spin" aria-hidden />
+                      Reading pages…
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {dragging ? <DropOver label="Drop to replace" /> : null}
           </div>
         )}
 
@@ -351,11 +393,36 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           onChange={onPick}
         />
 
-        {error ? (
-          <Note tone="error" className="mt-3 shrink-0">
-            {error}
-          </Note>
-        ) : null}
+        {error ? <Note tone="error" className="m-3 shrink-0">{error}</Note> : null}
+
+        <PdfLightbox
+          open={readPage !== null && Boolean(doc.pdf)}
+          onClose={() => setReadPage(null)}
+          pdf={readPage !== null ? doc.pdf : null}
+          pageCount={pageCount}
+          firstPage={doc.firstPage}
+          page={readPage ?? 1}
+          title={activeItem?.name ?? "PDF"}
+          meta={pageCount ? `${pageCount} pages` : undefined}
+        />
+        <PdfLightbox
+          open={openOutput !== null}
+          onClose={() => setOpenOutput(null)}
+          bytes={openOutput?.bytes ?? null}
+          title={openOutput?.name ?? "PDF"}
+          meta={openOutput ? `${openOutput.pages.length} pages · ${formatBytes(openOutput.bytes.length)}` : undefined}
+          actions={
+            openOutput ? (
+              <ResultButton
+                loud
+                onClick={() => downloadBlob(pdfBlob(openOutput.bytes), openOutput.name)}
+                icon={<Download size={16} aria-hidden />}
+              >
+                Download
+              </ResultButton>
+            ) : null
+          }
+        />
       </StudioStage>
 
       <StudioRail
@@ -389,9 +456,9 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           )
         }
       >
-        <div className="space-y-6">
+        <div className="space-y-7">
           <Field label="Split mode">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {MODES.map((option) => (
                 <OptionCard
                   key={option.id}
@@ -409,7 +476,7 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
           {mode === "extract" && (
             <Field label="Pages" hint={pageCount ? `of ${pageCount}` : undefined}>
-              <div className="space-y-3.5">
+              <div className="space-y-4">
                 <TextRow
                   label="Page ranges"
                   value={ranges}
@@ -432,29 +499,16 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
 
           {mode === "every" && (
             <Field label="Pages per file" hint={pageCount ? `${groups.length} files` : undefined}>
-              <div className="grid grid-cols-4 gap-1.5">
-                {CHUNK_PRESETS.map((preset) => {
-                  const active = everyCount === preset;
-                  return (
-                    <button
-                      key={preset}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => {
-                        setEvery(String(preset));
-                        touch();
-                      }}
-                      className={`h-10 rounded-[10px] border text-[13px] font-medium tabular-nums transition-colors ${
-                        active
-                          ? "border-ink bg-ink text-white"
-                          : "border-line bg-white text-ink hover:border-[#cfc9bd]"
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  );
-                })}
-              </div>
+              <RailPick
+                label="Pages per file"
+                columns={4}
+                value={everyCount}
+                options={CHUNK_PRESETS.map((preset) => ({ value: preset, label: preset }))}
+                onChange={(preset) => {
+                  setEvery(String(preset));
+                  touch();
+                }}
+              />
               <div className="mt-3">
                 <TextRow
                   label="Custom"
@@ -478,7 +532,7 @@ export function SplitPdfStudio({ maxSizeMB = 25 }: { maxSizeMB?: number }) {
           )}
 
           <Field label="Output">
-            <div className="space-y-3.5">
+            <div className="space-y-4">
               <TextRow
                 label="File name"
                 value={filename}

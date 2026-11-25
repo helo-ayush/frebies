@@ -10,16 +10,11 @@ import {
   Loader2,
   X,
 } from "lucide-react";
+import { ToolIcon, ToolText, Segmented } from "@/components/tool/kit";
 import { formatBytes, pagesOf, parseRanges, rangeLabel } from "../model";
 import type { MergeQueueItem } from "./useMergeQueue";
 
 const ROTATIONS = [0, 90, 180, 270];
-
-const ICON_BUTTON =
-  "grid h-8 w-8 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-30";
-const QUICK_BUTTON =
-  "h-9 shrink-0 rounded-[9px] border border-line bg-white px-2.5 text-[12.5px] font-medium text-muted transition-colors hover:border-[#cfc9bd] hover:text-ink disabled:pointer-events-none disabled:opacity-40";
-const OPTION_LABEL = "text-[12.5px] font-medium text-muted";
 
 export function MergeDocRow({
   item,
@@ -67,10 +62,10 @@ export function MergeDocRow({
       value={item}
       dragListener={false}
       dragControls={controls}
-      whileDrag={{ scale: 1.012 }}
-      className="relative list-none rounded-[14px] border border-line bg-white"
+      whileDrag={{ scale: 1.01, zIndex: 5 }}
+      className="relative list-none border-b border-line bg-panel"
     >
-      <div className="flex items-center gap-2 p-2.5 sm:gap-3 sm:p-3">
+      <div className="flex items-stretch">
         <button
           type="button"
           aria-label={`Drag ${item.name} to reorder`}
@@ -78,104 +73,85 @@ export function MergeDocRow({
           onPointerDown={(event) => {
             if (!locked) controls.start(event);
           }}
-          className="grid h-10 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-[#b3ad9f] transition-colors hover:text-ink active:cursor-grabbing disabled:pointer-events-none disabled:opacity-40"
+          className="flex w-[52px] shrink-0 cursor-grab touch-none flex-col items-center justify-center gap-2 border-r border-line transition-colors hover:bg-ink hover:text-white active:cursor-grabbing disabled:pointer-events-none disabled:opacity-40"
         >
+          <span className="fb-num text-[13px] font-semibold">{String(index + 1).padStart(2, "0")}</span>
           <GripVertical size={16} aria-hidden />
         </button>
 
-        <span className="relative block h-[62px] w-[46px] shrink-0 overflow-hidden rounded-[6px] border border-line bg-card sm:h-[74px] sm:w-[54px]">
-          {item.thumbnail ? (
-            <img
-              src={item.thumbnail.dataUrl}
-              alt=""
-              draggable={false}
-              className="h-full w-full object-contain"
-            />
-          ) : (
-            <span className="grid h-full w-full place-items-center text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
-              PDF
-            </span>
-          )}
-          {reading || item.thumbnailState === "loading" ? (
-            <span className="absolute inset-0 grid place-items-center bg-white/60">
-              <Loader2 size={14} className="animate-spin text-accent" aria-hidden />
-            </span>
-          ) : null}
-          <span className="absolute left-1 top-1 grid h-5 min-w-5 place-items-center rounded-full bg-ink px-1 text-[11px] font-semibold tabular-nums text-white">
-            {index + 1}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 py-3 pl-3 pr-3 sm:pl-4">
+          <span className="relative block h-[84px] w-[62px] shrink-0 overflow-hidden bg-white shadow-[0_0_0_1px_rgba(24,24,27,0.2),4px_4px_0_rgba(24,24,27,0.08)]">
+            {item.thumbnail ? (
+              <img src={item.thumbnail.dataUrl} alt="" draggable={false} className="h-full w-full object-contain" />
+            ) : (
+              <span className="fb-hatch grid h-full w-full place-items-center text-[12px] font-semibold text-faint">PDF</span>
+            )}
+            {reading || item.thumbnailState === "loading" ? (
+              <span className="absolute inset-0 grid place-items-center bg-white/70">
+                <Loader2 size={16} className="animate-spin text-accent-deep" aria-hidden />
+              </span>
+            ) : null}
           </span>
-        </span>
 
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13.5px] font-medium text-ink">{item.name}</p>
-          <p className="mt-0.5 truncate text-[12.5px] tabular-nums text-faint">{summary}</p>
-          {!reading && !allSelected ? (
-            <p className="mt-0.5 truncate text-[12.5px] tabular-nums text-accent-deep">
-              Pages {rangeLabel(item.pages)}
-            </p>
-          ) : null}
-        </div>
+          <div className="min-w-[130px] flex-1">
+            <p className="truncate text-[15px] font-semibold">{item.name}</p>
+            <p className="fb-num mt-1 truncate text-[13.5px] text-muted">{summary}</p>
+            {!reading && !allSelected ? (
+              <p className="fb-num mt-1 truncate text-[13.5px] font-medium text-accent-deep">
+                Pages {rangeLabel(item.pages)}
+              </p>
+            ) : null}
+          </div>
 
-        <div className="grid shrink-0 grid-cols-2 gap-0.5 sm:flex sm:items-center">
-          <button
-            type="button"
-            onClick={() => onMove(item.id, -1)}
-            disabled={locked || reading || index === 0}
-            aria-label={`Move ${item.name} earlier`}
-            className={ICON_BUTTON}
-          >
-            <ArrowUp size={15} aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={() => onMove(item.id, 1)}
-            disabled={locked || reading || index === total - 1}
-            aria-label={`Move ${item.name} later`}
-            className={ICON_BUTTON}
-          >
-            <ArrowDown size={15} aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={() => setExpanded((open) => !open)}
-            disabled={reading || locked}
-            aria-expanded={expanded}
-            data-slot="row-trigger"
-            aria-label={expanded ? `Hide options for ${item.name}` : `Show options for ${item.name}`}
-            title="Pages and rotation"
-            className={ICON_BUTTON}
-          >
-            <ChevronDown
-              size={16}
-              className={`transition-transform ${expanded ? "rotate-180" : ""}`}
-              aria-hidden
-            />
-          </button>
-          <button
-            type="button"
-            onClick={() => onRemove(item.id)}
-            disabled={locked}
-            aria-label={`Remove ${item.name}`}
-            data-slot="doc-remove"
-            className={ICON_BUTTON}
-          >
-            <X size={16} aria-hidden />
-          </button>
+          <div className="flex shrink-0 [&>*]:-ml-px">
+            <ToolIcon
+              label={`Move ${item.name} earlier`}
+              onClick={() => onMove(item.id, -1)}
+              disabled={locked || reading || index === 0}
+            >
+              <ArrowUp size={15} aria-hidden />
+            </ToolIcon>
+            <ToolIcon
+              label={`Move ${item.name} later`}
+              onClick={() => onMove(item.id, 1)}
+              disabled={locked || reading || index === total - 1}
+            >
+              <ArrowDown size={15} aria-hidden />
+            </ToolIcon>
+            <button
+              type="button"
+              onClick={() => setExpanded((open) => !open)}
+              disabled={reading || locked}
+              aria-expanded={expanded}
+              data-slot="row-trigger"
+              aria-label={expanded ? `Hide options for ${item.name}` : `Show options for ${item.name}`}
+              title="Pages and rotation"
+              className={`inline-flex h-9 items-center gap-1.5 border px-2.5 text-[12.5px] font-medium uppercase transition-colors disabled:pointer-events-none disabled:opacity-35 ${
+                expanded ? "relative z-[1] border-ink bg-ink text-white" : "border-line-strong bg-panel hover:bg-hover"
+              }`}
+            >
+              <span className="max-sm:sr-only">Pages</span>
+              <ChevronDown size={15} className={`transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden />
+            </button>
+            <ToolIcon label={`Remove ${item.name}`} slot="doc-remove" onClick={() => onRemove(item.id)} disabled={locked}>
+              <X size={16} aria-hidden />
+            </ToolIcon>
+          </div>
         </div>
       </div>
 
       {expanded && !reading && (
-        <div className="grid gap-4 border-t border-line-soft px-3 pb-3.5 pt-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+        <div className="grid gap-x-6 gap-y-4 border-t border-line bg-canvas px-4 py-4 sm:grid-cols-[minmax(0,1fr)_240px] sm:pl-[68px]">
           <div>
             <div className="flex items-baseline justify-between gap-2">
-              <label htmlFor={`range-${item.id}`} className={OPTION_LABEL}>
+              <label htmlFor={`range-${item.id}`} className="text-[14px] font-medium">
                 Pages to keep
               </label>
-              <span className="text-[12px] tabular-nums text-faint">
+              <span className="fb-num text-[13px] text-faint">
                 {item.pages.length} of {item.pageCount}
               </span>
             </div>
-            <div className="mt-1.5 flex items-center gap-1.5">
+            <div className="mt-2 flex items-stretch [&>*]:-ml-px">
               <input
                 id={`range-${item.id}`}
                 value={item.range}
@@ -185,76 +161,43 @@ export function MergeDocRow({
                 spellCheck={false}
                 inputMode="text"
                 aria-describedby={`range-hint-${item.id}`}
-                className={`h-9 min-w-0 flex-1 rounded-[9px] border bg-white px-2.5 text-[13px] tabular-nums text-ink outline-none transition-colors placeholder:text-faint ${
-                  rangeInvalid
-                    ? "border-danger/50 focus:border-danger"
-                    : "border-line hover:border-[#cfc9bd] focus:border-ink"
-                }`}
+                className={`fb-input fb-num !h-9 min-w-0 flex-1 ${rangeInvalid ? "!border-danger" : ""}`}
               />
-              <button
-                type="button"
+              <ToolText
                 disabled={locked}
-                onClick={() =>
-                  onRangeChange(item.id, item.pageCount === 1 ? "1" : `1-${item.pageCount}`)
-                }
-                className={QUICK_BUTTON}
+                onClick={() => onRangeChange(item.id, item.pageCount === 1 ? "1" : `1-${item.pageCount}`)}
               >
                 All
-              </button>
-              <button
-                type="button"
-                disabled={locked || item.pageCount < 2}
-                onClick={() => onRangeChange(item.id, odds)}
-                className={QUICK_BUTTON}
-              >
+              </ToolText>
+              <ToolText disabled={locked || item.pageCount < 2} onClick={() => onRangeChange(item.id, odds)}>
                 Odd
-              </button>
-              <button
-                type="button"
+              </ToolText>
+              <ToolText
                 disabled={locked || !evens || item.pageCount < 2}
                 onClick={() => onRangeChange(item.id, evens)}
-                className={QUICK_BUTTON}
               >
                 Even
-              </button>
+              </ToolText>
             </div>
             <p
               id={`range-hint-${item.id}`}
-              className={`mt-1.5 text-[12px] leading-relaxed ${rangeInvalid ? "text-danger" : "text-faint"}`}
+              className={`mt-2 text-[13px] ${rangeInvalid ? "text-danger" : "text-muted"}`}
             >
-              {rangeInvalid
-                ? "Enter page numbers like 1-3, 6."
-                : "Ranges and single pages, separated by commas."}
+              {rangeInvalid ? "Enter page numbers like 1-3, 6." : "Ranges and single pages, separated by commas."}
             </p>
           </div>
 
           <div>
-            <span className={OPTION_LABEL}>Rotate pages</span>
-            <div
-              role="group"
-              aria-label={`Rotate pages of ${item.name}`}
-              className="mt-1.5 grid grid-cols-4 gap-1 rounded-[11px] bg-card p-1"
-            >
-              {ROTATIONS.map((angle) => (
-                <button
-                  key={angle}
-                  type="button"
-                  disabled={locked}
-                  aria-pressed={item.rotation === angle}
-                  onClick={() => onRotationChange(item.id, angle)}
-                  className={`h-7 rounded-[8px] text-[12.5px] font-medium tabular-nums transition-colors disabled:opacity-40 ${
-                    item.rotation === angle
-                      ? "bg-white text-ink shadow-[0_1px_2px_rgba(15,15,16,0.12)]"
-                      : "text-muted hover:text-ink"
-                  }`}
-                >
-                  {angle}°
-                </button>
-              ))}
-            </div>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-faint">
-              Added to each page&apos;s own rotation.
-            </p>
+            <span className="text-[14px] font-medium">Rotate pages</span>
+            <Segmented
+              label={`Rotate pages of ${item.name}`}
+              className="mt-2 [&>button]:h-[34px]"
+              disabled={locked}
+              options={ROTATIONS.map((angle) => ({ value: String(angle), label: `${angle}°` }))}
+              value={String(item.rotation)}
+              onChange={(angle) => onRotationChange(item.id, Number(angle))}
+            />
+            <p className="mt-2 text-[13px] text-muted">Added to each page&apos;s own rotation.</p>
           </div>
         </div>
       )}

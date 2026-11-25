@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
   AudioLines,
-  ChevronLeft,
   ChevronRight,
   Download,
   Loader2,
@@ -19,17 +18,32 @@ import { AudioPlayer } from "@/components/tool/audio/AudioPlayer";
 import { formatBytes, formatTime } from "@/components/tool/audio/format";
 import { GenerationExpiryBadge } from "@/components/tool/GenerationRetentionBadge";
 import {
-  Chip,
+  ActionRow,
+  DownloadAction,
   Note,
   PrimaryAction,
+  ResultButton,
   ResultCard,
   STUDIO_GRID,
+  STUDIO_HEIGHT,
+  StageBar,
+  SecondaryAction,
+  StageFoot,
   StudioFrame,
   StudioStage,
+  ToolIcon,
+  ToolText,
 } from "@/components/tool/kit";
+import {
+  HistoryButton,
+  HistoryEmpty,
+  HistoryList,
+  HistoryPager,
+  HistoryRow,
+  HistorySection,
+} from "@/components/tool/kit/History";
 import { CreditGate } from "@/components/tool/paid/CreditGate";
 import { StudioRail } from "@/components/tool/studio/StudioRail";
-import { buttonClasses } from "@/components/ui/Button";
 import type { PoolStatusSnapshot, TtsJobSnapshot } from "@/lib/audio/tts-manager";
 import type { GenerationStorageStats } from "@/lib/storage/generation-store";
 import {
@@ -108,40 +122,33 @@ function friendlyJobError(raw: string | null | undefined): string {
 function jobStatusTag(job: TtsJobSnapshot): { label: string; className: string } | null {
   switch (job.status) {
     case "waiting_for_server":
-      return { label: "Warming up", className: "bg-[#fdf9f2] text-[#77603f]" };
+      return { label: "Warming up", className: "border-ink text-ink" };
     case "queued":
       return {
         label: job.queuePosition ? `Queued #${job.queuePosition}` : "Queued",
-        className: "bg-card text-muted",
+        className: "border-line-strong text-muted",
       };
     case "synthesizing":
       return {
         label: job.chunksTotal > 1 ? `Creating ${job.chunksDone}/${job.chunksTotal}` : "Creating",
-        className: "bg-accent-soft text-accent-deep",
+        className: "border-accent text-accent-deep",
       };
     case "processing_audio":
       return {
         label: `Saving ${job.format.toUpperCase()}`,
-        className: "bg-accent-soft text-accent-deep",
+        className: "border-accent text-accent-deep",
       };
     case "completed":
       return null;
     case "failed":
-      return { label: "Failed", className: "bg-danger-soft text-danger" };
+      return { label: "Failed", className: "border-danger text-danger" };
   }
 }
 
 const DRAFT_SCRIPT_STORAGE_KEY = "frebies.tts.draftScript.v1";
 
 /** Both left-hand blocks (script, history) share the column beside the sticky rail. */
-const LEFT_COLUMN = "lg:col-start-1 lg:-mr-px lg:self-stretch lg:border-r lg:border-line";
-/**
- * ResultCard keeps its buttons on one unshrinkable row. This lets the title keep
- * a readable width and the buttons wrap, so nothing is cut off on a phone.
- */
-const RESULT_CARD_FIT = "[&>div:nth-child(2)]:basis-[150px] [&>div:last-child]:max-w-full";
-const QUIET_LINK =
-  "font-medium text-muted underline decoration-[#cfc9bd] underline-offset-4 transition-colors hover:text-ink hover:decoration-ink";
+const LEFT_COLUMN = "lg:col-start-1 lg:self-stretch";
 
 export function TextToSpeechStudio() {
   const { isLoaded, isSignedIn, user } = useAuthSession();
@@ -149,6 +156,8 @@ export function TextToSpeechStudio() {
 
   const [text, setText] = useState("");
   const [gateOpen, setGateOpen] = useState(false);
+  /** The job started from exactly this script and these settings. */
+  const [lastRun, setLastRun] = useState<{ id: string; key: string } | null>(null);
   const [settings, setSettings] = useState<TtsSettings>(DEFAULT_TTS_SETTINGS);
   const [savedClones, setSavedClones] = useState<SavedCustomVoice[]>([]);
   const [activeCloneId, setActiveCloneId] = useState<string | null>(null);
@@ -467,8 +476,13 @@ export function TextToSpeechStudio() {
     });
   };
 
+  const runKey = JSON.stringify([trimmed, settings, customVoice?.name ?? null]);
+  const lastJob = lastRun && lastRun.key === runKey ? (jobs.find((job) => job.id === lastRun.id) ?? null) : null;
+  const runningJob = lastJob && ACTIVE_STATUSES.has(lastJob.status) ? lastJob : null;
+  const finishedJob = lastJob && lastJob.status === "completed" && lastJob.downloadUrl ? lastJob : null;
+
   const handleGenerate = async () => {
-    if (!isLoaded) return;
+    if (!isLoaded || runningJob) return;
     if (!isSignedIn) {
       setGateOpen(true);
       return;
@@ -520,6 +534,7 @@ export function TextToSpeechStudio() {
       }
 
       setCurrentPage(1);
+      setLastRun({ id: data.job.id, key: runKey });
       const nextJobs = [data.job, ...jobs.filter((j) => j.id !== data.job!.id)];
       if (data.pool) {
         applySync(data.pool, nextJobs, data.storage);
@@ -633,24 +648,28 @@ export function TextToSpeechStudio() {
         {/* ============================================================ */}
         {/* 1 · Script                                                    */}
         {/* ============================================================ */}
-        <StudioStage className={`gap-3 lg:row-start-1 ${LEFT_COLUMN}`}>
+        <StudioStage flush className={`lg:row-start-1 ${LEFT_COLUMN} ${STUDIO_HEIGHT}`}>
           {/* Scroll target: the newest clip and any error show up right here. */}
-          <div ref={resultsRef} aria-hidden className="-mb-3 h-0 scroll-mt-24" />
+          <div ref={resultsRef} aria-hidden className="h-0 scroll-mt-24" />
 
           {pool && !pool.configured && (
-            <Note tone="error">
+            <Note tone="error" className="m-3 shrink-0">
               Voice generation is temporarily unavailable. Please try again shortly.
             </Note>
           )}
 
           {pool && pool.configured && queueing && (
-            <Note tone="warn">
-              The voice engine is starting up ({formatElapsedClock(displayBootElapsedMs)}). Queue
-              your script now and it will start on its own.
+            <Note tone="warn" className="m-3 shrink-0">
+              The voice engine is starting up ({formatElapsedClock(displayBootElapsedMs)}). Queue your
+              script now and it will start on its own.
             </Note>
           )}
 
-          {submitError && <Note tone="error">{submitError}</Note>}
+          {submitError && (
+            <Note tone="error" className="m-3 shrink-0">
+              {submitError}
+            </Note>
+          )}
 
           {latestJob && (
             <LatestJob
@@ -665,13 +684,46 @@ export function TextToSpeechStudio() {
             />
           )}
 
-          <div
-            className={`flex flex-col overflow-hidden rounded-[16px] border bg-white transition-[border-color,box-shadow] focus-within:shadow-[0_0_0_4px_rgba(15,15,16,0.05)] ${
-              overLimit
-                ? "border-danger focus-within:border-danger"
-                : "border-line focus-within:border-ink/40"
-            }`}
+          <StageBar
+            end={
+              !hasText ? (
+                <ToolText
+                  onClick={() => {
+                    setText(SAMPLE_SCRIPT);
+                    setSubmitError(null);
+                  }}
+                >
+                  Try a sample
+                </ToolText>
+              ) : (
+                <ToolText
+                  onClick={() => {
+                    setText("");
+                    setSubmitError(null);
+                  }}
+                >
+                  Clear
+                </ToolText>
+              )
+            }
           >
+            <span className="fb-num flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[13.5px] text-muted">
+              <span className={overLimit ? "font-semibold text-danger" : "font-semibold text-ink"}>
+                {charCount.toLocaleString()} / {TTS_MAX_CHARS.toLocaleString()}
+              </span>
+              {wordCount > 0 ? (
+                <span>
+                  {wordCount.toLocaleString()} {wordCount === 1 ? "word" : "words"}, about {formatTime(estSeconds)} of
+                  audio
+                </span>
+              ) : (
+                <span className="max-sm:hidden">characters</span>
+              )}
+            </span>
+          </StageBar>
+
+          <div className={`relative flex min-h-[260px] flex-1 flex-col lg:min-h-0 ${overLimit ? "bg-danger-soft" : "bg-panel"}`}>
+            <span aria-hidden className="absolute inset-y-0 left-0 w-[5px] bg-accent" />
             <textarea
               id="tts-script-input"
               ref={textareaRef}
@@ -682,78 +734,40 @@ export function TextToSpeechStudio() {
               rows={8}
               aria-label="Script to turn into speech"
               aria-invalid={overLimit || undefined}
-              className="block min-h-[220px] w-full resize-y bg-transparent px-4 py-4 text-[16px] leading-[1.65] text-ink placeholder:text-faint focus:outline-none sm:px-5 sm:py-5 lg:h-[min(calc(100dvh_-_440px),520px)] lg:min-h-[260px]"
+              className="studio-main block w-full flex-1 resize-none bg-transparent px-6 py-6 text-[clamp(17px,1.35vw,21px)] leading-[1.6] outline-none placeholder:text-[#85848a] focus-visible:outline-none sm:px-9 sm:py-8"
             />
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-t border-line-soft px-4 py-2.5 text-[12.5px] text-faint sm:px-5">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">
-                <span className={overLimit ? "font-semibold text-danger" : ""}>
-                  {charCount.toLocaleString()} / {TTS_MAX_CHARS.toLocaleString()} characters
-                </span>
-                {wordCount > 0 && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span>
-                      {wordCount.toLocaleString()} {wordCount === 1 ? "word" : "words"}
-                    </span>
-                    <span aria-hidden>·</span>
-                    <span>about {formatTime(estSeconds)} of audio</span>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="hidden text-faint lg:inline">Ctrl + Enter to generate</span>
-                {!hasText ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setText(SAMPLE_SCRIPT);
-                      setSubmitError(null);
-                    }}
-                    className={QUIET_LINK}
-                  >
-                    Try a sample
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setText("");
-                      setSubmitError(null);
-                    }}
-                    className={QUIET_LINK}
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
+            <span className="pointer-events-none absolute bottom-3 right-4 hidden text-[12.5px] text-faint lg:block">
+              Ctrl + Enter to generate
+            </span>
           </div>
 
           {overLimit && (
-            <Note tone="error">
+            <Note tone="error" className="shrink-0 border-x-0">
               Keep your script under {TTS_MAX_CHARS.toLocaleString()} characters.
             </Note>
           )}
 
-          <CueBar onInsertTag={insertExpressionTag} />
+          <StageFoot className="px-4 py-3 sm:px-5">
+            <CueBar onInsertTag={insertExpressionTag} />
+          </StageFoot>
 
           {/* Phones: the settings sit below the script, so offer a jump to them. */}
           <button
             type="button"
             onClick={() => openSettings("voice")}
-            className="flex items-center gap-2.5 rounded-[12px] border border-line bg-white px-3 py-2.5 text-left transition-colors hover:border-[#cfc9bd] lg:hidden"
+            className="flex min-h-[64px] shrink-0 items-center gap-3 border-t border-line bg-panel px-4 py-3 text-left transition-colors hover:bg-ink hover:text-white lg:hidden"
           >
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-medium text-ink">
-                Voice: {voiceLabel}
+              <span className="block truncate text-[15px] font-semibold">
+                {voiceLabel}
                 {customVoice ? " (cloned)" : ""}
               </span>
-              <span className="block truncate text-[12px] text-faint">
+              <span className="block truncate text-[13px] opacity-65">
                 {langLabel} · {styleLabel} · {settings.speed.toFixed(2)}× · {settings.format.toUpperCase()}
               </span>
             </span>
-            <span className="shrink-0 text-[12.5px] font-medium text-muted">Change</span>
-            <ChevronRight size={15} className="shrink-0 text-faint" aria-hidden />
+            <span className="shrink-0 text-[12.5px] font-medium uppercase">Change</span>
+            <ChevronRight size={16} className="shrink-0" aria-hidden />
           </button>
         </StudioStage>
 
@@ -765,38 +779,75 @@ export function TextToSpeechStudio() {
           label="Voice and output settings"
           className="lg:col-start-2 lg:row-span-2 lg:row-start-1"
           action={
-            <PrimaryAction
-              label={signedOut ? "Sign in to generate" : queueing ? "Queue speech" : "Generate speech"}
-              busyLabel="Starting…"
-              icon={
-                signedOut ? <Lock size={15} aria-hidden /> : <AudioLines size={16} aria-hidden />
-              }
-              busy={submitting}
-              disabled={!isLoaded || (isSignedIn && !hasText) || overLimit}
-              onClick={handleGenerate}
-              hint={
-                overLimit ? (
-                  <span className="text-danger">
-                    {(charCount - TTS_MAX_CHARS).toLocaleString()} characters over the limit
-                  </span>
-                ) : hasText ? (
-                  <>
-                    <span>{voiceLabel}</span>
-                    <span aria-hidden>·</span>
-                    <span className="tabular-nums">{charCount.toLocaleString()} characters</span>
-                    <span aria-hidden>·</span>
-                    <span className="tabular-nums">
-                      {credits} {credits === 1 ? "credit" : "credits"}
+            finishedJob ? (
+              <>
+                <DownloadAction
+                  label={`Download ${finishedJob.format.toUpperCase()}`}
+                  href={finishedJob.downloadUrl ?? undefined}
+                  filename={finishedJob.fileName}
+                  hint={[
+                    finishedJob.voiceName,
+                    finishedJob.durationSeconds ? formatTime(finishedJob.durationSeconds) : null,
+                    finishedJob.byteLength ? formatBytes(finishedJob.byteLength) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                />
+                <ActionRow>
+                  <SecondaryAction
+                    onClick={handleGenerate}
+                    disabled={submitting}
+                    icon={<AudioLines size={15} aria-hidden />}
+                    title={`Say it again for ${credits} ${credits === 1 ? "credit" : "credits"}`}
+                  >
+                    Another take
+                  </SecondaryAction>
+                  <SecondaryAction
+                    onClick={() => {
+                      setText("");
+                      setSubmitError(null);
+                    }}
+                    icon={<RotateCcw size={14} aria-hidden />}
+                  >
+                    New script
+                  </SecondaryAction>
+                </ActionRow>
+              </>
+            ) : (
+              <PrimaryAction
+                label={signedOut ? "Sign in to generate" : queueing ? "Queue speech" : "Generate speech"}
+                busyLabel={runningJob ? "Speaking…" : "Starting…"}
+                progress={runningJob ? runningJob.progress / 100 : undefined}
+                icon={
+                  signedOut ? <Lock size={18} aria-hidden /> : <AudioLines size={19} aria-hidden />
+                }
+                busy={submitting || Boolean(runningJob)}
+                disabled={!isLoaded || (isSignedIn && !hasText) || overLimit}
+                onClick={handleGenerate}
+                hint={
+                  overLimit ? (
+                    <span className="text-danger">
+                      {(charCount - TTS_MAX_CHARS).toLocaleString()} characters over the limit
                     </span>
-                  </>
-                ) : (
-                  `${TTS_CREDITS_PER_1K} credit per 1,000 characters`
-                )
-              }
-            />
+                  ) : hasText ? (
+                    <>
+                      <span>{voiceLabel}</span>
+                      <span aria-hidden>·</span>
+                      <span className="tabular-nums">{charCount.toLocaleString()} characters</span>
+                      <span aria-hidden>·</span>
+                      <span className="tabular-nums">
+                        {credits} {credits === 1 ? "credit" : "credits"}
+                      </span>
+                    </>
+                  ) : (
+                    `${TTS_CREDITS_PER_1K} credit per 1,000 characters`
+                  )
+                }
+              />
+            )
           }
         >
-          <div id="tts-settings-panel" className="scroll-mt-20 space-y-5">
+          <div id="tts-settings-panel" className="scroll-mt-20 space-y-6">
             <SettingsTabs value={activeTab} onChange={setActiveTab} />
 
             <TabPanel tab="voice" active={activeTab}>
@@ -847,205 +898,128 @@ export function TextToSpeechStudio() {
         {/* ============================================================ */}
         {/* 3 · Everything generated so far                               */}
         {/* ============================================================ */}
-        <StudioStage className={`border-t border-line lg:row-start-2 ${LEFT_COLUMN}`}>
-          <section aria-label="Your generated audio">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <h2 className="flex items-center gap-2 text-[15px] font-semibold text-ink">
-                Your audio
-                {jobs.length > 0 && <Chip>{jobs.length}</Chip>}
-              </h2>
-              <p className="text-[12.5px] text-faint">
-                Kept for {ttlHours} hours. Older clips can be cleared sooner if space runs out.
-              </p>
-            </div>
-
+        <div className={`min-w-0 border-t border-line lg:row-start-2 ${LEFT_COLUMN}`}>
+          <HistorySection
+            title="Your audio"
+            label="Your generated audio"
+            count={jobs.length}
+            note={`Kept for ${ttlHours} hours. Older clips can be cleared sooner if space runs out.`}
+            pager={totalPages > 1 ? <HistoryPager page={safePage} pages={totalPages} onPage={setCurrentPage} /> : null}
+          >
             {jobsLoading && jobs.length === 0 && isSignedIn ? (
-              <div className="mt-4 space-y-4" aria-busy="true" aria-label="Loading audio history">
-                {[0, 1].map((skeletonIdx) => (
-                  <div key={skeletonIdx} className="animate-pulse space-y-2.5">
-                    <div className="h-3.5 w-3/5 rounded-full bg-[#ebe8e1]" />
-                    <div className="h-3 w-1/3 rounded-full bg-[#f0ede7]" />
-                    <div className="h-[104px] rounded-[14px] bg-white" />
-                  </div>
-                ))}
-              </div>
+              <HistoryEmpty>
+                <Loader2 size={16} className="animate-spin" aria-hidden />
+                Loading your audio…
+              </HistoryEmpty>
             ) : jobs.length === 0 ? (
               signedOut ? (
-                <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
-                  Sign in to generate speech. Your clips and cloned voices stay private to your
-                  account.{" "}
-                  <button
-                    type="button"
-                    onClick={() => setGateOpen(true)}
-                    className="font-medium text-ink underline decoration-[#cfc9bd] underline-offset-4 transition-colors hover:decoration-ink"
-                  >
-                    Sign in or create a free account
-                  </button>
-                </p>
+                <HistoryEmpty>
+                  <span>
+                    Sign in to generate speech. Your clips and cloned voices stay private to your account.{" "}
+                    <button
+                      type="button"
+                      onClick={() => setGateOpen(true)}
+                      className="font-semibold text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:text-accent-deep"
+                    >
+                      Sign in or create a free account
+                    </button>
+                  </span>
+                </HistoryEmpty>
               ) : (
-                <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
-                  Nothing generated yet. Clips you make appear here with a player and a download
-                  button.
-                </p>
+                <HistoryEmpty>
+                  Nothing generated yet. Clips you make appear here with a player and a download button.
+                </HistoryEmpty>
               )
             ) : (
-              <>
-                <ul className="mt-1 divide-y divide-line">
-                  {visibleJobs.map((job) => {
-                    const tag = jobStatusTag(job);
-                    const isActive = ACTIVE_STATUSES.has(job.status);
-                    const canDelete =
-                      job.status !== "synthesizing" && job.status !== "processing_audio";
-                    const liveJobElapsed = isActive ? job.elapsedMs + driftMs : job.elapsedMs;
-                    const format = job.format.toUpperCase();
+              <HistoryList>
+                {visibleJobs.map((job) => {
+                  const tag = jobStatusTag(job);
+                  const isActive = ACTIVE_STATUSES.has(job.status);
+                  const canDelete = job.status !== "synthesizing" && job.status !== "processing_audio";
+                  const liveJobElapsed = isActive ? job.elapsedMs + driftMs : job.elapsedMs;
+                  const format = job.format.toUpperCase();
+                  const facts = [
+                    job.voiceName,
+                    format,
+                    job.status === "completed" && job.durationSeconds ? formatTime(job.durationSeconds, true) : null,
+                    job.status === "completed" && job.byteLength ? formatBytes(job.byteLength) : null,
+                    isActive ? formatElapsedClock(liveJobElapsed) : null,
+                  ].filter(Boolean);
 
-                    return (
-                      <li key={job.id} className="py-4 last:pb-1">
-                        <div className="flex items-start gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="line-clamp-2 text-[14px] font-medium leading-snug text-ink">
-                              {job.textPreview}
-                            </p>
-                            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted">
-                              {tag && (
-                                <span
-                                  className={`inline-flex h-6 items-center rounded-full px-2 text-[12px] font-medium tabular-nums ${tag.className}`}
-                                >
-                                  {tag.label}
-                                </span>
-                              )}
-                              <span>{job.voiceName}</span>
-                              <span aria-hidden>·</span>
-                              <span>{format}</span>
-                              {job.status === "completed" && job.durationSeconds ? (
-                                <>
-                                  <span aria-hidden>·</span>
-                                  <span className="tabular-nums">
-                                    {formatTime(job.durationSeconds, true)}
-                                  </span>
-                                </>
-                              ) : null}
-                              {job.status === "completed" && job.byteLength ? (
-                                <>
-                                  <span aria-hidden>·</span>
-                                  <span className="tabular-nums">{formatBytes(job.byteLength)}</span>
-                                </>
-                              ) : null}
-                              {isActive && (
-                                <>
-                                  <span aria-hidden>·</span>
-                                  <span className="tabular-nums">
-                                    {formatElapsedClock(liveJobElapsed)}
-                                  </span>
-                                </>
-                              )}
-                              {!isActive && job.expiresAt && (
-                                <GenerationExpiryBadge expiresAt={job.expiresAt} nowMs={nowMs} />
-                              )}
-                            </div>
-                          </div>
-
-                          {canDelete && (
-                            <button
-                              type="button"
-                              aria-label="Remove audio item"
-                              title="Remove"
+                  return (
+                    <HistoryRow
+                      key={job.id}
+                      title={job.textPreview}
+                      badge={
+                        <>
+                          {tag ? (
+                            <span
+                              className={`fb-num inline-flex h-6 items-center border px-2 text-[12px] font-medium ${tag.className}`}
+                            >
+                              {tag.label}
+                            </span>
+                          ) : null}
+                          {!isActive && job.expiresAt ? (
+                            <GenerationExpiryBadge expiresAt={job.expiresAt} nowMs={nowMs} />
+                          ) : null}
+                        </>
+                      }
+                      meta={facts.join(" · ")}
+                      progress={isActive ? job.progress : undefined}
+                      progressLabel={friendlyJobStage(job)}
+                      actions={
+                        <>
+                          {job.status === "completed" && job.downloadUrl ? (
+                            <HistoryButton
+                              loud
+                              href={job.downloadUrl}
+                              filename={job.fileName}
+                              icon={<Download size={14} aria-hidden />}
+                            >
+                              {format}
+                            </HistoryButton>
+                          ) : null}
+                          {canDelete ? (
+                            <ToolIcon
+                              label="Remove audio item"
+                              slot="history-remove"
                               disabled={deletingId === job.id}
                               onClick={() => handleDeleteJob(job.id)}
-                              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-ink disabled:opacity-40"
                             >
                               <Trash2 size={15} aria-hidden />
-                            </button>
-                          )}
+                            </ToolIcon>
+                          ) : null}
+                        </>
+                      }
+                    >
+                      {job.status === "completed" && job.audioUrl ? (
+                        <div className="px-4 pb-4 sm:px-6">
+                          <AudioPlayer
+                            src={job.audioUrl}
+                            duration={Math.max(1, job.durationSeconds ?? 1)}
+                            peaks={job.peaks}
+                            fileName={job.fileName}
+                            compact
+                            tone="light"
+                          />
                         </div>
-
-                        {isActive && (
-                          <div className="mt-3">
-                            <Progress
-                              value={job.progress}
-                              max={100}
-                              label={friendlyJobStage(job)}
-                              showValue
-                            />
-                          </div>
-                        )}
-
-                        {job.status === "completed" && job.audioUrl && (
-                          <div className="mt-3 space-y-2.5">
-                            <AudioPlayer
-                              src={job.audioUrl}
-                              duration={Math.max(1, job.durationSeconds ?? 1)}
-                              peaks={job.peaks}
-                              fileName={job.fileName}
-                              formatLabel={format}
-                              compact
-                            />
-                            {job.downloadUrl && (
-                              <div className="flex justify-end">
-                                <a
-                                  href={job.downloadUrl}
-                                  download={job.fileName}
-                                  className={buttonClasses("secondary", "md", "h-10 rounded-[12px]")}
-                                >
-                                  <Download size={14} aria-hidden />
-                                  Download {format}
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {job.status === "failed" && (
+                      ) : null}
+                      {job.status === "failed" ? (
+                        <div className="px-4 pb-4 sm:px-6">
                           <FailedNote
-                            className="mt-3"
                             message={friendlyJobError(job.error)}
                             retrying={retryingId === job.id}
                             onRetry={() => handleRetry(job.id)}
                           />
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-
-                {totalPages > 1 && (
-                  <nav
-                    aria-label="Audio history pages"
-                    className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3"
-                  >
-                    <span className="text-[12.5px] tabular-nums text-muted">
-                      Showing {startIndex + 1}–{Math.min(startIndex + pageSize, jobs.length)} of{" "}
-                      {jobs.length}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
-                        disabled={safePage <= 1}
-                        className={buttonClasses("secondary", "md")}
-                      >
-                        <ChevronLeft size={14} aria-hidden />
-                        Prev
-                      </button>
-                      <span className="px-2 text-[12.5px] font-medium tabular-nums text-ink">
-                        Page {safePage} / {totalPages}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
-                        disabled={safePage >= totalPages}
-                        className={buttonClasses("secondary", "md")}
-                      >
-                        Next
-                        <ChevronRight size={14} aria-hidden />
-                      </button>
-                    </div>
-                  </nav>
-                )}
-              </>
+                        </div>
+                      ) : null}
+                    </HistoryRow>
+                  );
+                })}
+              </HistoryList>
             )}
-          </section>
-        </StudioStage>
+          </HistorySection>
+        </div>
       </StudioFrame>
 
       <CreditGate
@@ -1092,21 +1066,19 @@ function ClipPlayButton({ src }: { src: string }) {
         onEnded={() => setPlaying(false)}
         className="hidden"
       />
-      <button
-        type="button"
-        data-sound="none"
+      <ResultButton
         onClick={toggle}
-        aria-pressed={playing}
-        aria-label={playing ? "Pause the newest clip" : "Play the newest clip"}
-        className={buttonClasses("secondary", "lg", "min-w-[96px]")}
+        label={playing ? "Pause the newest clip" : "Play the newest clip"}
+        icon={
+          playing ? (
+            <Pause size={16} fill="currentColor" aria-hidden />
+          ) : (
+            <Play size={16} fill="currentColor" aria-hidden />
+          )
+        }
       >
-        {playing ? (
-          <Pause size={15} fill="currentColor" aria-hidden />
-        ) : (
-          <Play size={15} fill="currentColor" aria-hidden />
-        )}
         {playing ? "Pause" : "Play"}
-      </button>
+      </ResultButton>
     </>
   );
 }
@@ -1126,19 +1098,15 @@ function FailedNote({
     <Note tone="error" className={className}>
       <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <span className="min-w-0 flex-1 basis-[200px] break-words">{message}</span>
-        <button
-          type="button"
+        <ToolText
           onClick={onRetry}
           disabled={retrying}
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] border border-[#f1cfc9] bg-white px-3 text-[12.5px] font-medium text-danger transition-colors hover:bg-danger-soft disabled:opacity-50"
+          icon={
+            retrying ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <RotateCcw size={14} aria-hidden />
+          }
         >
-          {retrying ? (
-            <Loader2 size={13} className="animate-spin" aria-hidden />
-          ) : (
-            <RotateCcw size={13} aria-hidden />
-          )}
           Try again
-        </button>
+        </ToolText>
       </span>
     </Note>
   );
@@ -1157,7 +1125,14 @@ function LatestJob({
   onRetry: () => void;
 }) {
   if (job.status === "failed") {
-    return <FailedNote message={friendlyJobError(job.error)} retrying={retrying} onRetry={onRetry} />;
+    return (
+      <FailedNote
+        className="m-3 shrink-0"
+        message={friendlyJobError(job.error)}
+        retrying={retrying}
+        onRetry={onRetry}
+      />
+    );
   }
 
   if (job.status === "completed") {
@@ -1173,29 +1148,22 @@ function LatestJob({
       .join(" · ");
 
     return (
-      <ResultCard className={RESULT_CARD_FIT} title="Your audio is ready" meta={meta}>
+      <ResultCard title="Audio ready" meta={meta}>
         <ClipPlayButton src={job.audioUrl} />
         {job.downloadUrl && (
-          <a
-            href={job.downloadUrl}
-            download={job.fileName}
-            className={buttonClasses("success", "lg")}
-          >
-            <Download size={15} aria-hidden />
-            Download {format}
-          </a>
+          <ResultButton loud href={job.downloadUrl} filename={job.fileName} icon={<Download size={16} aria-hidden />}>
+            {format}
+          </ResultButton>
         )}
       </ResultCard>
     );
   }
 
   return (
-    <div className="rounded-[14px] border border-accent/30 bg-white px-3.5 py-3">
-      <div className="mb-2.5 flex items-center justify-between gap-3">
-        <p className="min-w-0 truncate text-[13.5px] font-medium text-ink">{job.textPreview}</p>
-        <span className="shrink-0 text-[12.5px] tabular-nums text-faint">
-          {formatElapsedClock(elapsedMs)}
-        </span>
+    <div className="shrink-0 border-b border-line bg-panel px-4 py-4 sm:px-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-[15px] font-semibold">{job.textPreview}</p>
+        <span className="fb-num shrink-0 text-[13px] text-faint">{formatElapsedClock(elapsedMs)}</span>
       </div>
       <Progress value={job.progress} max={100} label={friendlyJobStage(job)} showValue />
     </div>

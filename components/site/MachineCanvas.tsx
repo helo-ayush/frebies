@@ -208,10 +208,25 @@ export function MachineHero({
 }
 
 /** Closing scene: the machine head-on. `pressed` pushes the button and lights it. */
-export function MachineFront({ pressed, className = "" }: { pressed: boolean; className?: string }) {
+export function MachineFront({
+  pressed,
+  from = "READY",
+  to = "GO",
+  className = "",
+}: {
+  pressed: boolean;
+  /** The two lines on its display. */
+  from?: string;
+  to?: string;
+  className?: string;
+}) {
   const mountRef = useRef<HTMLDivElement>(null);
   const pressedRef = useRef(pressed);
   pressedRef.current = pressed;
+  const lines = useRef({ from, to });
+  lines.current = { from, to };
+  const displayRef = useRef<((from: string, to: string) => void) | null>(null);
+  useEffect(() => displayRef.current?.(from, to), [from, to]);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -234,7 +249,8 @@ export function MachineFront({ pressed, className = "" }: { pressed: boolean; cl
       const lights = lightScene(scene, renderer);
       const camera = new THREE.PerspectiveCamera(18, 1, 0.1, 100);
       const machine = buildMachine();
-      machine.display("READY", "GO");
+      machine.display(lines.current.from, lines.current.to);
+      displayRef.current = machine.display;
       scene.add(machine.group);
       const disposables = [...lights, ...machine.disposables];
 
@@ -285,6 +301,7 @@ export function MachineFront({ pressed, className = "" }: { pressed: boolean; cl
       loop();
 
       cleanup = () => {
+        displayRef.current = null;
         window.cancelAnimationFrame(frame);
         window.removeEventListener("pointermove", onPointer);
         resizeObserver.disconnect();
@@ -310,10 +327,10 @@ function FlatMachine({ className = "" }: { className?: string }) {
   return (
     <div className={`grid place-items-center ${className}`} aria-hidden>
       <div className="w-[min(46vw,320px)] border-[10px] border-[#e6e1d6] bg-[#e6e1d6]">
-        <div className="grid aspect-square place-items-center bg-[var(--lp-ink)]">
-          <span className="h-1/3 w-1/3 rounded-full bg-[var(--lp-coral)]" />
+        <div className="grid aspect-square place-items-center bg-[var(--fb-ink)]">
+          <span className="h-1/3 w-1/3 rounded-full bg-[var(--fb-coral)]" />
         </div>
-        <div className="mt-2 h-2 bg-[var(--lp-coral)]" />
+        <div className="mt-2 h-2 bg-[var(--fb-coral)]" />
         <div className="h-14" />
       </div>
     </div>

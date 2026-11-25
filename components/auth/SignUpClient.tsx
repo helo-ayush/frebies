@@ -3,9 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSignUp } from "@clerk/nextjs";
-import { Eye, EyeOff, KeyRound, UserPlus } from "lucide-react";
+import { KeyRound, UserPlus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { Input } from "@/components/aceternity/input";
 import { AUTH_ROUTES, sanitizeRedirectUrl } from "@/lib/auth/clerk-config";
 import {
   extractSignalError,
@@ -14,8 +13,8 @@ import {
 } from "@/lib/auth/clerk-errors";
 import { useAuthSession } from "./AuthContext";
 import { AuthCodeVerification } from "./AuthCodeVerification";
-import { AuthErrorBanner, AuthShell } from "./AuthShell";
-import { GlossySubmitButton } from "./GlossySubmitButton";
+import { AuthDivider, AuthErrorBanner, AuthHeading, AuthShell } from "./AuthShell";
+import { AuthField, AuthSubmit, PasswordInput } from "./AuthSubmit";
 import { GoogleOAuthButton } from "./GoogleOAuthButton";
 
 type SignUpMethod = "code" | "password";
@@ -35,6 +34,7 @@ function SignUpView({
   busy,
   oauthBusy,
   error,
+  signInHref,
   showCaptchaSlot,
   onEmailChange,
   onPasswordChange,
@@ -64,6 +64,8 @@ function SignUpView({
   busy: boolean;
   oauthBusy: boolean;
   error: ParsedAuthError | null;
+  /** Sign in, with the email and the page to return to. */
+  signInHref: string;
   showCaptchaSlot: boolean;
   onEmailChange: (v: string) => void;
   onPasswordChange: (v: string) => void;
@@ -85,25 +87,20 @@ function SignUpView({
     error?.code === "identifier_already_exists";
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="font-display text-[22px] font-semibold leading-tight tracking-[-0.025em] text-ink">
-          Create your account
-        </h2>
-        <p className="mt-1 text-[13px] text-muted">
-          Get 25 free AI credits and save your voice generations cleanly.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <AuthHeading title="Create an account">
+        {step === "verify_email"
+          ? "Type the code from your email. It opens your account on the last digit."
+          : step === "missing_fields"
+            ? "One last detail and you are in."
+            : "25 credits for the AI tools, and a library of what you make."}
+      </AuthHeading>
 
       {error && (
         <AuthErrorBanner
           message={error.message}
-          actionLabel={showSignInHint ? "Already have an account? Sign in →" : undefined}
-          actionHref={
-            showSignInHint
-              ? `/sign-in${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ""}`
-              : undefined
-          }
+          actionLabel={showSignInHint ? "Already have an account? Sign in" : undefined}
+          actionHref={showSignInHint ? signInHref : undefined}
         />
       )}
 
@@ -111,11 +108,11 @@ function SignUpView({
         {step === "details" && (
           <motion.div
             key="signup-details"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.22 }}
-            className="space-y-4"
+            initial={{ opacity: 0, x: -14 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -14 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-5"
           >
             <GoogleOAuthButton
               label="Sign up with Google"
@@ -124,20 +121,11 @@ function SignUpView({
               onClick={onGoogleClick}
             />
 
-            <div className="relative flex items-center py-0.5">
-              <span className="h-px flex-1 bg-black/[0.08]" />
-              <span className="px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
-                or create with email
-              </span>
-              <span className="h-px flex-1 bg-black/[0.08]" />
-            </div>
+            <AuthDivider>or with email</AuthDivider>
 
-            <form onSubmit={onSubmitDetails} className="space-y-3.5">
-              <div className="space-y-1.5">
-                <label htmlFor="signup-email" className="block text-[12px] font-medium text-ink">
-                  Email address
-                </label>
-                <Input
+            <form onSubmit={onSubmitDetails} className="space-y-5">
+              <AuthField id="signup-email" label="Email address">
+                <input
                   id="signup-email"
                   type="email"
                   autoComplete="email"
@@ -145,9 +133,9 @@ function SignUpView({
                   placeholder="you@domain.com"
                   value={email}
                   onChange={(e) => onEmailChange(e.target.value)}
-                  className="bg-white/85 backdrop-blur-sm"
+                  className="fb-input !h-[52px] !text-[16px]"
                 />
-              </div>
+              </AuthField>
 
               <AnimatePresence initial={false}>
                 {method === "password" && (
@@ -158,76 +146,55 @@ function SignUpView({
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    <div className="space-y-1.5 pt-0.5">
-                      <label
-                        htmlFor="signup-password"
-                        className="block text-[12px] font-medium text-ink"
-                      >
-                        Create password
-                      </label>
-                      <div className="relative">
-                        <Input
-                          id="signup-password"
-                          type={showPassword ? "text" : "password"}
-                          autoComplete="new-password"
-                          required
-                          minLength={8}
-                          placeholder="At least 8 characters"
-                          value={password}
-                          onChange={(e) => onPasswordChange(e.target.value)}
-                          className="bg-white/85 pr-10 backdrop-blur-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={onTogglePasswordVisibility}
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-faint transition-colors hover:text-ink"
-                        >
-                          {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                        </button>
-                      </div>
-                    </div>
+                    <AuthField id="signup-password" label="Password" hint="8 characters or more">
+                      <PasswordInput
+                        id="signup-password"
+                        value={password}
+                        onChange={onPasswordChange}
+                        shown={showPassword}
+                        onToggle={onTogglePasswordVisibility}
+                        placeholder="At least 8 characters"
+                        autoComplete="new-password"
+                        minLength={8}
+                      />
+                    </AuthField>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {showCaptchaSlot && <div id="clerk-captcha" className="pt-0.5" />}
+              {showCaptchaSlot && <div id="clerk-captcha" className="empty:hidden" />}
 
-              <GlossySubmitButton
-                label={method === "code" ? "Continue with 6-digit code" : "Create account"}
-                busyLabel="Preparing your account…"
+              <AuthSubmit
+                label={method === "code" ? "Send me a code" : "Create account"}
+                busyLabel="Setting up…"
                 busy={busy}
                 disabled={oauthBusy || !email.trim() || (method === "password" && !password)}
-                icon={method === "code" ? <UserPlus size={15} aria-hidden /> : <KeyRound size={15} aria-hidden />}
+                icon={method === "code" ? <UserPlus size={19} aria-hidden /> : <KeyRound size={19} aria-hidden />}
               />
             </form>
 
-            <div className="flex items-center justify-center pt-0.5">
-              <button
-                type="button"
-                onClick={() => onSwitchMethod(method === "code" ? "password" : "code")}
-                className="rounded-full border border-transparent px-3 py-1 text-[12px] font-medium text-muted transition-all duration-200 hover:-translate-y-px hover:border-white/95 hover:bg-white/80 hover:text-ink hover:shadow-sm"
-              >
-                {method === "code"
-                  ? "Set a password instead"
-                  : "Sign up passwordless with 6-digit code"}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => onSwitchMethod(method === "code" ? "password" : "code")}
+              className="text-[14px] font-semibold underline decoration-line-strong underline-offset-4 transition-colors hover:text-accent-deep"
+            >
+              {method === "code" ? "Set a password instead" : "Use an email code instead"}
+            </button>
           </motion.div>
         )}
 
         {step === "verify_email" && (
           <motion.div
             key="signup-otp"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.22 }}
+            initial={{ opacity: 0, x: 14 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 14 }}
+            transition={{ duration: 0.2 }}
           >
             <AuthCodeVerification
               email={email}
-              title="Verification code sent to"
-              submitLabel="Verify & activate account"
+              title="Code sent to"
+              submitLabel="Open my account"
               code={code}
               onCodeChange={onCodeChange}
               onSubmit={onSubmitCode}
@@ -241,116 +208,95 @@ function SignUpView({
         {step === "missing_fields" && (
           <motion.form
             key="signup-missing"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.22 }}
+            initial={{ opacity: 0, x: 14 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 14 }}
+            transition={{ duration: 0.2 }}
             onSubmit={onSubmitMissingFields}
-            className="space-y-3.5"
+            className="space-y-5"
           >
-            <div className="rounded-[12px] border border-white/85 bg-white/70 px-3.5 py-2.5 text-[12.5px] text-ink backdrop-blur-sm">
-              Finish a quick required detail to complete your sign-up.
-            </div>
-
             {(missingFields.includes("first_name") || missingFields.includes("last_name")) && (
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-3">
                 {missingFields.includes("first_name") && (
-                  <div className="space-y-1.5">
-                    <label
-                      htmlFor="signup-first-name"
-                      className="block text-[12px] font-medium text-ink"
-                    >
-                      First name
-                    </label>
-                    <Input
+                  <AuthField id="signup-first-name" label="First name">
+                    <input
                       id="signup-first-name"
                       type="text"
                       required
+                      autoComplete="given-name"
                       placeholder="Alex"
                       value={firstName}
                       onChange={(e) => onFirstNameChange(e.target.value)}
+                      className="fb-input !h-[52px] !text-[16px]"
                     />
-                  </div>
+                  </AuthField>
                 )}
                 {missingFields.includes("last_name") && (
-                  <div className="space-y-1.5">
-                    <label
-                      htmlFor="signup-last-name"
-                      className="block text-[12px] font-medium text-ink"
-                    >
-                      Last name
-                    </label>
-                    <Input
+                  <AuthField id="signup-last-name" label="Last name">
+                    <input
                       id="signup-last-name"
                       type="text"
                       required
+                      autoComplete="family-name"
                       placeholder="Rivera"
                       value={lastName}
                       onChange={(e) => onLastNameChange(e.target.value)}
+                      className="fb-input !h-[52px] !text-[16px]"
                     />
-                  </div>
+                  </AuthField>
                 )}
               </div>
             )}
 
             {missingFields.includes("username") && (
-              <div className="space-y-1.5">
-                <label htmlFor="signup-username" className="block text-[12px] font-medium text-ink">
-                  Username
-                </label>
-                <Input
+              <AuthField id="signup-username" label="Username">
+                <input
                   id="signup-username"
                   type="text"
                   required
+                  autoComplete="username"
                   placeholder="alexrivera"
                   value={username}
                   onChange={(e) => onUsernameChange(e.target.value)}
+                  className="fb-input !h-[52px] !text-[16px]"
                 />
-              </div>
+              </AuthField>
             )}
 
             {missingFields.includes("password") && (
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="signup-missing-password"
-                  className="block text-[12px] font-medium text-ink"
-                >
-                  Create password
-                </label>
-                <div className="relative">
-                  <Input
-                    id="signup-missing-password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="new-password"
-                    required
-                    minLength={8}
-                    placeholder="At least 8 characters"
-                    value={password}
-                    onChange={(e) => onPasswordChange(e.target.value)}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={onTogglePasswordVisibility}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-faint transition-colors hover:text-ink"
-                  >
-                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
-                </div>
-              </div>
+              <AuthField id="signup-missing-password" label="Password" hint="8 characters or more">
+                <PasswordInput
+                  id="signup-missing-password"
+                  value={password}
+                  onChange={onPasswordChange}
+                  shown={showPassword}
+                  onToggle={onTogglePasswordVisibility}
+                  placeholder="At least 8 characters"
+                  autoComplete="new-password"
+                  minLength={8}
+                />
+              </AuthField>
             )}
 
-            <GlossySubmitButton
-              label="Complete sign up"
-              busyLabel="Finishing setup…"
+            <AuthSubmit
+              label="Finish"
+              busyLabel="Finishing…"
               busy={busy}
+              icon={<UserPlus size={19} aria-hidden />}
             />
           </motion.form>
         )}
       </AnimatePresence>
     </div>
   );
+}
+
+/** Where "sign in" goes: same return page, same email. */
+function otherPage(path: string, redirectUrl: string, email: string): string {
+  const query = new URLSearchParams();
+  if (redirectUrl && redirectUrl !== AUTH_ROUTES.afterAuth) query.set("redirect_url", redirectUrl);
+  if (email.trim()) query.set("email", email.trim());
+  return query.size > 0 ? `${path}?${query}` : path;
 }
 
 function ClerkSignUpFlow({
@@ -572,6 +518,7 @@ function ClerkSignUpFlow({
       busy={busy}
       oauthBusy={oauthBusy}
       error={activeError}
+      signInHref={otherPage(AUTH_ROUTES.signIn, redirectUrl, email)}
       showCaptchaSlot={true}
       onEmailChange={(v) => {
         setLocalError(null);
@@ -603,7 +550,7 @@ function ClerkSignUpFlow({
   );
 }
 
-function PreviewSignUpFlow({ initialEmail }: { initialEmail: string }) {
+function PreviewSignUpFlow({ redirectUrl, initialEmail }: { redirectUrl: string; initialEmail: string }) {
   const [method, setMethod] = useState<SignUpMethod>("code");
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
@@ -633,6 +580,7 @@ function PreviewSignUpFlow({ initialEmail }: { initialEmail: string }) {
       busy={false}
       oauthBusy={false}
       error={error}
+      signInHref={otherPage(AUTH_ROUTES.signIn, redirectUrl, email)}
       showCaptchaSlot={false}
       onEmailChange={(v) => {
         setError(null);
@@ -677,11 +625,11 @@ export function SignUpClient() {
   const initialEmail = searchParams.get("email")?.trim() ?? "";
 
   return (
-    <AuthShell mode="sign-up" redirectUrl={redirectUrl}>
+    <AuthShell mode="sign-up" redirectUrl={redirectUrl} email={initialEmail}>
       {clerkEnabled ? (
         <ClerkSignUpFlow redirectUrl={redirectUrl} initialEmail={initialEmail} />
       ) : (
-        <PreviewSignUpFlow initialEmail={initialEmail} />
+        <PreviewSignUpFlow redirectUrl={redirectUrl} initialEmail={initialEmail} />
       )}
     </AuthShell>
   );

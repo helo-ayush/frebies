@@ -19,8 +19,8 @@ import { Switch } from "@/components/arc/switch/switch";
 
 export function PreviewNotice() {
   return (
-    <div className="mb-3 flex items-center gap-2 rounded-[10px] border border-[#ece5d8] bg-[#fdfbf6] px-3 py-2 text-micro text-[#6f5b3d]">
-      <span className="h-1.5 w-1.5 rounded-full bg-[#c38b47]" />
+    <div className="mb-3 flex items-center gap-2 border border-line bg-panel px-3 py-2 text-[12px] text-ink">
+      <span className="h-1.5 w-1.5 bg-accent" />
       Interface preview — file processing and AI runs are not connected yet.
     </div>
   );
@@ -34,10 +34,10 @@ export function WorkspaceGrid({
   settings: ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-[16px] border border-line bg-white">
+    <div className="overflow-hidden border border-line bg-white">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_330px]">
         <div className="min-w-0 p-4 sm:p-5">{children}</div>
-        <aside className="border-t border-line bg-[#fdfdfc] p-4 sm:p-5 lg:border-l lg:border-t-0">
+        <aside className="border-t border-line bg-panel p-4 sm:p-5 lg:border-l lg:border-t-0">
           <div className="mb-5 flex items-center gap-2 border-b border-line-soft pb-3">
             <SlidersHorizontal size={14} className="text-muted" aria-hidden />
             <h2 className="text-ui font-semibold">Settings</h2>
@@ -78,11 +78,11 @@ export function Dropzone({
 
   return (
     <div
-      className={`relative flex ${compact ? "min-h-[210px]" : "min-h-[320px]"} flex-col items-center justify-center overflow-hidden rounded-[13px] border border-dashed border-[#d7d7d3] px-5 py-8 text-center ${
-        checkerboard ? "checkerboard" : "bg-[#fafaf9]"
+      className={`relative flex ${compact ? "min-h-[210px]" : "min-h-[320px]"} flex-col items-center justify-center overflow-hidden border border-dashed border-line-strong px-5 py-8 text-center ${
+        checkerboard ? "checkerboard" : "bg-panel"
       }`}
     >
-      <span className="grid h-12 w-12 place-items-center rounded-[13px] border border-line bg-white text-muted shadow-[0_2px_8px_rgba(15,15,16,0.04)]">
+      <span className="grid h-12 w-12 place-items-center border border-line bg-white text-muted shadow-[0_2px_8px_rgba(15,15,16,0.04)]">
         <UploadCloud size={22} strokeWidth={1.45} aria-hidden />
       </span>
       <p className="mt-4 text-sm font-semibold tracking-[-0.01em] text-ink">
@@ -98,7 +98,7 @@ export function Dropzone({
         <FileUp size={14} aria-hidden />
         Choose {multiple ? "files" : noun}
       </button>
-      <p className="mt-4 max-w-sm text-micro leading-relaxed text-faint">{limits.join(" · ")}</p>
+      <p className="mt-4 max-w-sm text-[12px] leading-relaxed text-faint">{limits.join(" · ")}</p>
       <span className="absolute bottom-3 right-3 grid h-7 w-7 place-items-center rounded-lg border border-line/80 bg-white/80 text-faint">
         <Icon size={13} strokeWidth={1.5} aria-hidden />
       </span>
@@ -117,7 +117,7 @@ export function ActionBar({
 }) {
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line-soft pt-4">
-      <p className="flex items-center gap-1.5 text-micro text-faint">
+      <p className="flex items-center gap-1.5 text-[12px] text-faint">
         {tool.tier === "credits" ? <Lock size={11} aria-hidden /> : <ShieldCheck size={12} aria-hidden />}
         {note ??
           (tool.tier === "credits"
@@ -151,7 +151,7 @@ export function Field({
     <div>
       <div className="flex items-center justify-between gap-3">
         <span className="text-ui font-medium text-ink">{label}</span>
-        {hint && <span className="text-micro text-faint">{hint}</span>}
+        {hint && <span className="text-[12px] text-faint">{hint}</span>}
       </div>
       <div className="mt-2">{children}</div>
     </div>
@@ -175,7 +175,7 @@ export function SelectField({
         <span className="sr-only">{label}</span>
         <select
           defaultValue={defaultValue ?? options[0]}
-          className="h-9 w-full appearance-none rounded-[9px] border border-line bg-white px-3 pr-8 text-ui text-ink outline-none hover:border-[#d5d5d1] focus:border-[#bbbbb6]"
+          className="h-9 w-full appearance-none border border-line bg-white px-3 pr-8 text-ui text-ink outline-none hover:border-ink focus:border-ink"
         >
           {options.map((option) => <option key={option}>{option}</option>)}
         </select>
@@ -203,9 +203,9 @@ export function TextField({
         <input
           type={type}
           defaultValue={defaultValue}
-          className="h-9 w-full rounded-[9px] border border-line bg-white px-3 pr-10 text-ui text-ink outline-none focus:border-[#bbbbb6]"
+          className="h-9 w-full border border-line bg-white px-3 pr-10 text-ui text-ink outline-none focus:border-ink"
         />
-        {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-micro text-faint">{suffix}</span>}
+        {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-faint">{suffix}</span>}
       </span>
     </label>
   );
@@ -233,7 +233,7 @@ export function RangeField({
     <Field label={label} hint={`${value}${suffix}`}>
       <RailSlider label={label} value={value} min={min} max={max} onValueChange={setValue} className="mt-2" />
       {(left || right) && (
-        <div className="mt-1.5 flex justify-between text-micro text-faint"><span>{left}</span><span>{right}</span></div>
+        <div className="mt-1.5 flex justify-between text-[12px] text-faint"><span>{left}</span><span>{right}</span></div>
       )}
     </Field>
   );
@@ -257,7 +257,7 @@ export function Toggle({
         className="min-w-0 flex-1 text-left"
       >
         <span className="block text-ui font-medium text-ink">{label}</span>
-        {description && <span className="mt-1 block text-micro leading-relaxed text-faint">{description}</span>}
+        {description && <span className="mt-1 block text-[12px] leading-relaxed text-faint">{description}</span>}
       </button>
       <Switch checked={checked} onCheckedChange={setChecked} aria-label={label} className="mt-0.5 shrink-0" />
     </div>
@@ -286,9 +286,9 @@ export function ChoiceCards({
               defaultChecked={choice.value === (defaultChoice ?? choices[0].value)}
               className="peer sr-only"
             />
-            <span className="block min-h-[58px] rounded-[9px] border border-line bg-white px-3 py-2.5 transition-colors peer-checked:border-ink peer-checked:bg-rail peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
+            <span className="block min-h-[58px] border border-line bg-white px-3 py-2.5 transition-colors peer-checked:border-ink peer-checked:bg-rail peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
               <span className="block text-ui font-medium text-ink">{choice.title}</span>
-              {choice.description && <span className="mt-0.5 block text-micro text-faint">{choice.description}</span>}
+              {choice.description && <span className="mt-0.5 block text-[12px] text-faint">{choice.description}</span>}
             </span>
           </label>
         ))}
@@ -300,11 +300,11 @@ export function ChoiceCards({
 export function Waveform({ label = "Audio waveform preview" }: { label?: string }) {
   const bars = [18, 30, 22, 48, 62, 38, 72, 54, 28, 66, 82, 46, 34, 58, 74, 40, 24, 52, 68, 36, 78, 56, 30, 44, 64, 26, 48, 70, 42, 20, 54, 76, 38, 60, 32, 50, 24, 66, 46, 28, 58, 36, 18, 44, 62, 34, 52, 26, 40, 20, 48, 32, 16, 38, 26, 14, 30, 20, 12, 24, 16, 10];
   return (
-    <div aria-label={label} role="img" className="flex h-[112px] items-center gap-[3px] overflow-hidden rounded-[12px] border border-line bg-[#fafaf9] px-4">
+    <div aria-label={label} role="img" className="flex h-[112px] items-center gap-[3px] overflow-hidden border border-line bg-panel px-4">
       {bars.map((height, index) => (
         <span
           key={index}
-          className={`w-full max-w-1 flex-1 rounded-full ${index < 24 ? "bg-[#b6b6b1]" : "bg-[#dededa]"}`}
+          className={`w-full max-w-1 flex-1 ${index < 24 ? "bg-faint" : "bg-line-strong"}`}
           style={{ height: `${height}%` }}
         />
       ))}
@@ -314,23 +314,23 @@ export function Waveform({ label = "Audio waveform preview" }: { label?: string 
 
 export function WorkspaceHistory({ tool }: { tool: Tool }) {
   return (
-    <section className="mt-5 overflow-hidden rounded-[14px] border border-line bg-white">
+    <section className="mt-5 overflow-hidden border border-line bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft px-4 py-3.5">
         <div className="flex items-center gap-2">
           <History size={15} className="text-muted" aria-hidden />
           <h2 className="text-ui font-semibold">History</h2>
         </div>
-        <span className="text-micro text-faint">Recent outputs from this workspace</span>
+        <span className="text-[12px] text-faint">Recent outputs from this workspace</span>
       </div>
-      <div className="hidden grid-cols-[minmax(0,1fr)_130px_100px_32px] gap-4 border-b border-line-soft px-4 py-2.5 text-micro font-medium text-faint sm:grid">
+      <div className="hidden grid-cols-[minmax(0,1fr)_130px_100px_32px] gap-4 border-b border-line-soft px-4 py-2.5 text-[12px] font-medium text-faint sm:grid">
         <span>Name</span><span>Output</span><span>Created</span><span />
       </div>
       <div className="flex flex-col items-center px-5 py-9 text-center">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-rail text-muted">
+        <span className="grid h-9 w-9 place-items-center bg-rail text-muted">
           <Clock3 size={16} strokeWidth={1.5} aria-hidden />
         </span>
         <p className="mt-3 text-ui font-medium text-ink">No runs yet</p>
-        <p className="mt-1 text-micro text-muted">Completed files and outputs will appear here.</p>
+        <p className="mt-1 text-[12px] text-muted">Completed files and outputs will appear here.</p>
       </div>
     </section>
   );

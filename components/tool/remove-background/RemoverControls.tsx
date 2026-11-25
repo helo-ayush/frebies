@@ -1,8 +1,8 @@
 "use client";
 
-import { Field } from "@/components/tool/kit";
+import { Field, Segmented } from "@/components/tool/kit";
 import { PaidSlider, PaidToggle } from "@/components/tool/paid/PaidControls";
-import { RAIL_CARD_ACTIVE, RAIL_CARD_IDLE } from "@/components/tool/studio/RailSection";
+import { RailCards, RailHint } from "@/components/tool/studio/RailControls";
 import {
   REMOVER_BACKGROUNDS,
   REMOVER_FORMATS,
@@ -20,8 +20,6 @@ const SUBJECT_DETAIL: Record<SubjectType, string> = {
   graphic: "Logos and icons",
 };
 
-const SWATCH = "h-[18px] w-[18px] shrink-0 rounded-[5px] border";
-
 export function RemoverControls({
   settings,
   onPatch,
@@ -32,34 +30,23 @@ export function RemoverControls({
   const format = REMOVER_FORMATS.find((entry) => entry.value === settings.format);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <Field label="Subject">
-        <div className="grid grid-cols-2 gap-1.5">
-          {SUBJECT_TYPES.map((entry) => {
-            const selected = settings.subject === entry.value;
-            return (
-              <button
-                key={entry.value}
-                type="button"
-                aria-pressed={selected}
-                title={entry.hint}
-                onClick={() => onPatch({ subject: entry.value as SubjectType })}
-                className={`rounded-[10px] border px-3 py-2.5 text-left transition-colors ${
-                  selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
-                }`}
-              >
-                <span className="block text-[13px] font-medium text-ink">{entry.label}</span>
-                <span className="mt-0.5 block text-[12px] leading-snug text-faint">
-                  {SUBJECT_DETAIL[entry.value]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <RailCards
+          label="Subject"
+          value={settings.subject}
+          options={SUBJECT_TYPES.map((entry) => ({
+            value: entry.value,
+            label: entry.label,
+            note: SUBJECT_DETAIL[entry.value],
+            title: entry.hint,
+          }))}
+          onChange={(subject) => onPatch({ subject })}
+        />
       </Field>
 
       <Field label="Edges">
-        <div className="space-y-3.5">
+        <div className="space-y-4">
           <PaidSlider
             label="Edge feather"
             value={settings.feather}
@@ -86,33 +73,30 @@ export function RemoverControls({
       </Field>
 
       <Field label="Background">
-        <div className="grid grid-cols-2 gap-1.5">
+        <div role="group" aria-label="Background" className="grid grid-cols-2 gap-px border border-line-strong bg-line-strong">
           {REMOVER_BACKGROUNDS.map((entry) => {
             const selected = settings.background === entry.value;
-            const card = `flex h-10 items-center gap-2 rounded-[10px] border px-3 text-left text-[13px] font-medium text-ink transition-colors ${
-              selected ? RAIL_CARD_ACTIVE : RAIL_CARD_IDLE
+            const cell = `relative flex h-11 items-center gap-2.5 px-3 text-left text-[13.5px] font-medium transition-colors ${
+              selected ? "bg-ink text-white" : "bg-white hover:bg-hover"
             }`;
+            const mark = selected ? <span aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] bg-accent" /> : null;
             if (entry.value === "color") {
               return (
                 <label
                   key={entry.value}
-                  className={`relative cursor-pointer focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent ${card}`}
+                  className={`cursor-pointer focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent ${cell}`}
                 >
                   <input
                     type="color"
                     value={settings.color}
                     onClick={() => onPatch({ background: "color" })}
-                    onChange={(event) =>
-                      onPatch({ color: event.target.value, background: "color" })
-                    }
-                    aria-label="Custom background colour"
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    onChange={(event) => onPatch({ color: event.target.value, background: "color" })}
+                    aria-label="Custom background color"
+                    className="!absolute !inset-0 h-full w-full cursor-pointer opacity-0"
                   />
-                  <span
-                    className={`${SWATCH} border-[#d8d5cf]`}
-                    style={{ background: settings.color }}
-                  />
+                  <span className="h-[18px] w-[18px] shrink-0 border border-black/25" style={{ background: settings.color }} />
                   Custom
+                  {mark}
                 </label>
               );
             }
@@ -122,24 +106,25 @@ export function RemoverControls({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => onPatch({ background: entry.value as RemoverBackground })}
-                className={card}
+                className={cell}
               >
                 <span
-                  className={`${SWATCH} ${
+                  className={`h-[18px] w-[18px] shrink-0 border border-black/25 ${
                     entry.value === "transparent"
-                      ? "checkerboard border-line"
+                      ? "fb-checker !bg-[length:9px_9px]"
                       : entry.value === "black"
-                        ? "border-ink bg-ink"
-                        : "border-[#d8d5cf] bg-white"
+                        ? "bg-black"
+                        : "bg-white"
                   }`}
                 />
                 {entry.label}
+                {mark}
               </button>
             );
           })}
         </div>
 
-        <div className="mt-3.5 space-y-3.5">
+        <div className="mt-4 space-y-4">
           <PaidToggle
             title="Drop shadow"
             description="Add a soft shadow around the cut-out."
@@ -161,37 +146,22 @@ export function RemoverControls({
       </Field>
 
       <Field label="Output format">
-        <div
-          role="radiogroup"
-          aria-label="Output format"
-          className="grid grid-cols-3 gap-1 rounded-[12px] bg-card p-1"
-        >
-          {REMOVER_FORMATS.map((entry) => (
-            <label key={entry.value} className="relative cursor-pointer">
-              <input
-                type="radio"
-                name="remover-format"
-                value={entry.value}
-                checked={settings.format === entry.value}
-                onChange={() =>
-                  onPatch({
-                    format: entry.value as RemoverFormat,
-                    ...(entry.value === "jpg" && settings.background === "transparent"
-                      ? { background: "white" as RemoverBackground }
-                      : null),
-                  })
-                }
-                className="peer sr-only"
-              />
-              <span className="grid h-9 place-items-center rounded-[9px] text-[13px] font-medium text-muted transition-colors hover:text-ink peer-checked:bg-white peer-checked:text-ink peer-checked:shadow-[0_1px_2px_rgba(15,15,16,0.12)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent">
-                {entry.label}
-              </span>
-            </label>
-          ))}
-        </div>
-        <p className="mt-2 text-[12px] leading-relaxed text-faint">{format?.hint}</p>
+        <Segmented
+          label="Output format"
+          options={REMOVER_FORMATS.map((entry) => ({ value: entry.value, label: entry.label }))}
+          value={settings.format}
+          onChange={(value) =>
+            onPatch({
+              format: value as RemoverFormat,
+              ...(value === "jpg" && settings.background === "transparent"
+                ? { background: "white" as RemoverBackground }
+                : null),
+            })
+          }
+        />
+        <RailHint>{format?.hint}</RailHint>
 
-        <div className="mt-3.5">
+        <div className="mt-4">
           <PaidToggle
             title="Keep metadata"
             description="Carry camera details into the cut-out file."
