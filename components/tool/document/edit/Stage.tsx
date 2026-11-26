@@ -9,6 +9,8 @@ import {
   Copy,
   FilePlus2,
   Loader2,
+  Maximize,
+  Minimize,
   Minus,
   Plus,
   RotateCcw,
@@ -18,7 +20,7 @@ import {
 import { FindBar } from "./FindBar";
 import { PageView } from "./PageView";
 import { toPage } from "./interact";
-import { shownSize, type Page } from "./model";
+import { pageBox, shownSize, type Page } from "./model";
 import { useEditor, type EditorStore } from "./store";
 import { BarButton, MenuRow, Pop } from "./ui";
 import type { RenderQueue } from "@/components/tool/viewer/render-queue";
@@ -32,12 +34,12 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 export type Place = { kind: "page"; page: Page; x: number; y: number; index: number } | { kind: "gap"; index: number };
 
 /** What is being dragged in, as far as the browser tells before it lands. */
-function carried(event: DragEvent): "pdf" | "image" | "both" | null {
+function carried(event: DragEvent): "file" | "image" | "both" | null {
   const { types, items } = event.dataTransfer;
   if (![...types].includes("Files")) return null;
   const kinds = [...items].filter((item) => item.kind === "file").map((item) => item.type);
-  if (kinds.length > 0 && kinds.every((type) => type === "application/pdf")) return "pdf";
   if (kinds.length > 0 && kinds.every((type) => type.startsWith("image/"))) return "image";
+  if (kinds.length > 0 && kinds.every((type) => !type.startsWith("image/"))) return "file";
   return "both";
 }
 
@@ -47,17 +49,21 @@ const ICON = { size: 15, strokeWidth: 1.8, "aria-hidden": true } as const;
 export function Stage({
   store,
   queue,
+  full,
+  onFull,
   onAddFiles,
   onDropFiles,
 }: {
   store: EditorStore;
   queue: RenderQueue;
+  full: boolean;
+  onFull: () => void;
   onAddFiles: (at: number) => void;
   onDropFiles: (files: File[], place: Place) => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
-  const [drop, setDrop] = useState<{ place: Place; kind: "pdf" | "image" | "both" } | null>(null);
+  const [drop, setDrop] = useState<{ place: Place; kind: "file" | "image" | "both" } | null>(null);
   const pages = useEditor(store, (s) => s.doc.pages);
   const zoom = useEditor(store, (s) => s.view.zoom);
   const fit = useEditor(store, (s) => s.view.fit);
@@ -65,6 +71,18 @@ export function Stage({
   const find = useEditor(store, (s) => s.view.find.open);
   const busy = useEditor(store, (s) => s.view.busy);
   const tool = useEditor(store, (s) => s.view.tool);
+  const note = useEditor(store, (s) => s.view.note);
+  const rulers = useEditor(store, (s) => s.view.prefs.rulers);
+  const painter = useEditor(store, (s) => s.view.painter !== null);
+
+  // Said once, and gone again.
+  useEffect(() => {
+    if (!note) return;
+    const timer = setTimeout(() => {
+      if (store.view.note?.n === note.n) store.setView({ note: null });
+    }, 4200);
+    return () => clearTimeout(timer);
+  }, [note, store]);
 
   useLayoutEffect(() => {
     const node = scroller.current;
@@ -172,7 +190,8 @@ export function Stage({
       const glide = (to: number) =>
         node.scrollTo({ top: to, behavior: Math.abs(to - node.scrollTop) > node.clientHeight * 4 ? "auto" : "smooth" });
       if (goTo.box) {
-        const y = top + goTo.box.y * z;
+        const page = store.page(goTo.page);
+        const y = top + (goTo.box.y - (page && page.rotate === 0 ? pageBox(page).y : 0)) * z;
         const seen = y > node.scrollTop + 60 && y + goTo.box.h * z < node.scrollTop + node.clientHeight - 60;
         if (!seen) glide(y - node.clientHeight * 0.35);
       } else glide(top - 48);
@@ -199,7 +218,7 @@ export function Stage({
     return { kind: "gap", index: list.length };
   };
 
-  const slot = drop && (drop.kind === "pdf" || drop.place.kind === "gap") ? drop.place.index : null;
+  const slot = drop && (drop.kind === "file" || drop.place.kind === "gap") ? drop.place.index : null;
   const percent = Math.round((zoom / PT_TO_PX) * 100);
   const narrow = box.w > 0 && box.w < 520;
 
@@ -231,9 +250,11 @@ export function Stage({
           event.preventDefault();
           onDropFiles(files, placeAt(event));
         }}
-        className={`fb-stage studio-main absolute inset-0 overflow-auto overscroll-contain outline-none focus-visible:outline-none ${tool === "select" ? "" : "select-none"}`}
+        className={`fb-stage studio-main absolute inset-0 overflow-auto overscroll-contain outline-none focus-visible:outline-none ${tool === "select" ? "" : "select-none"} ${painter ? "[&_[data-kind=text]]:!cursor-copy" : ""}`}
       >
-        <div className="mx-auto flex w-max min-w-full flex-col items-center px-2.5 pb-24 pt-1 sm:px-4">
+        <div
+          className={`mx-auto flex w-max min-w-full flex-col items-center px-2.5 pb-24 pt-1 ${rulers ? "sm:px-9" : "sm:px-4"}`}
+        >
           {box.w > 0
             ? pages.map((page, i) => (
                 <PageItem
@@ -246,26 +267,21 @@ export function Stage({
                   queue={queue}
                   lit={slot === i}
                   aimed={Boolean(
-                    drop && drop.kind !== "pdf" && drop.place.kind === "page" && drop.place.page.id === page.id,
+                    drop && drop.kind !== "file" && drop.place.kind === "page" && drop.place.page.id === page.id,
                   )}
                   onAddFiles={onAddFiles}
                 />
               ))
             : null}
           {box.w > 0 ? (
-            <End
-              store={store}
-              width={Math.min(box.w - 24, widest * zoom)}
-              lit={slot === pages.length}
-              onAddFiles={onAddFiles}
-            />
+            <End store={store} width={Math.min(box.w - 24, 620)} lit={slot === pages.length} onAddFiles={onAddFiles} />
           ) : null}
         </div>
       </div>
 
       {drop ? (
         <p className="pointer-events-none absolute left-1/2 top-3 z-[7] -translate-x-1/2 whitespace-nowrap bg-ink px-4 py-2 text-[14px] font-medium text-white">
-          {drop.kind === "pdf"
+          {drop.kind === "file"
             ? slot === pages.length
               ? "Add its pages at the end"
               : `Add its pages before page ${(slot ?? 0) + 1}`
@@ -276,6 +292,15 @@ export function Stage({
       ) : null}
 
       {find ? <FindBar store={store} /> : null}
+
+      {note ? (
+        <p
+          role="status"
+          className="pointer-events-none absolute bottom-16 left-1/2 z-[6] w-max max-w-[min(92%,520px)] -translate-x-1/2 bg-ink px-4 py-2 text-center text-[14px] leading-snug text-white"
+        >
+          {note.text}
+        </p>
+      ) : null}
 
       {busy && !busy.label.startsWith("Saving") ? (
         <p
@@ -309,6 +334,17 @@ export function Stage({
         </button>
         <button type="button" aria-label="Zoom in" onClick={() => zoomTo(zoom * 1.2)} className={NAV_KEY}>
           <Plus size={14} aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label={full ? "Leave the full screen" : "Use the full screen"}
+          aria-pressed={full}
+          title={full ? "Leave the full screen" : "Use the full screen"}
+          data-slot={full ? "viewer-close" : "viewer-open"}
+          onClick={onFull}
+          className={`${NAV_KEY} max-lg:hidden`}
+        >
+          {full ? <Minimize size={14} aria-hidden /> : <Maximize size={14} aria-hidden />}
         </button>
         {(["width", "page"] as const).map((option) => (
           <button
@@ -453,7 +489,7 @@ const PageItem = memo(function PageItem({
         <div className="h-10" />
       )}
       <div className="relative">
-        <PageView store={store} page={page} number={index + 1} zoom={zoom} queue={queue} near={here} />
+        <PageView store={store} page={page} index={index} count={count} zoom={zoom} queue={queue} near={here} />
         {aimed ? (
           <span
             aria-hidden
@@ -485,7 +521,8 @@ function AddMenu({
         onClick={() => (store.addBlank(index), close())}
       />
       <MenuRow
-        label="PDF or pictures"
+        label="Document"
+        hint="PDF, Word, pictures…"
         icon={<FilePlus2 size={16} aria-hidden />}
         onClick={() => (onAddFiles(index), close())}
       />
@@ -513,7 +550,7 @@ function Gap({
       {first ? null : (
         <Pop
           label="Add a page here"
-          width={210}
+          width={250}
           button={(open, toggle, ref) => (
             <button
               ref={ref}
@@ -562,7 +599,7 @@ function PageHead({
         <BarButton
           label="Move up"
           disabled={index === 0}
-          onClick={() => store.movePage(page.id, index - 1)}
+          onClick={() => store.movePages([page.id], index - 1)}
           className="!h-8 !min-w-8"
         >
           <ArrowUp {...ICON} />
@@ -570,21 +607,21 @@ function PageHead({
         <BarButton
           label="Move down"
           disabled={index === count - 1}
-          onClick={() => store.movePage(page.id, index + 2)}
+          onClick={() => store.movePages([page.id], index + 2)}
           className="!h-8 !min-w-8"
         >
           <ArrowDown {...ICON} />
         </BarButton>
-        <BarButton label="Turn left" onClick={() => store.rotatePage(page.id, -90)} className="!h-8 !min-w-8">
+        <BarButton label="Turn left" onClick={() => store.rotatePages([page.id], -90)} className="!h-8 !min-w-8">
           <RotateCcw {...ICON} />
         </BarButton>
-        <BarButton label="Turn right" onClick={() => store.rotatePage(page.id, 90)} className="!h-8 !min-w-8">
+        <BarButton label="Turn right" onClick={() => store.rotatePages([page.id], 90)} className="!h-8 !min-w-8">
           <RotateCw {...ICON} />
         </BarButton>
         <BarButton
           label="Duplicate this page"
           sound="page"
-          onClick={() => store.duplicatePage(page.id)}
+          onClick={() => store.duplicatePages([page.id])}
           className="!h-8 !min-w-8"
         >
           <Copy {...ICON} />
@@ -603,7 +640,7 @@ function PageHead({
   );
 }
 
-/** After the last page: more pages, or another file. */
+/** After the last page: more pages, or another file. The same size at every zoom. */
 function End({
   store,
   width,
@@ -619,12 +656,12 @@ function End({
   return (
     <div
       data-slot="add-pages"
-      className={`mt-9 flex flex-wrap items-center justify-between gap-x-6 gap-y-4 border border-dashed px-5 py-5 transition-colors ${lit ? "border-accent bg-accent/[0.08]" : "border-line-strong bg-panel/60"}`}
-      style={{ width: Math.max(width, 250) }}
+      className={`mt-9 flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-4 border border-dashed px-5 py-5 transition-colors ${lit ? "border-accent bg-accent/[0.08]" : "border-line-strong bg-panel/60"}`}
+      style={{ width }}
     >
       <div>
         <p className="fb-wide text-[18px]">{lit ? "Let go" : "Add more pages"}</p>
-        <p className="mt-2 text-[14px] text-muted">Drop another PDF or pictures here, or use the keys.</p>
+        <p className="mt-2 text-[14px] text-muted">Drop a document or pictures here, or use the keys.</p>
       </div>
       <div className="flex flex-wrap gap-2.5">
         <button
@@ -642,7 +679,7 @@ function End({
           className="inline-flex h-11 items-center gap-2 border border-line-strong bg-panel px-4 text-[14px] font-medium hover:border-ink hover:bg-ink hover:text-white"
         >
           <FilePlus2 size={16} aria-hidden />
-          PDF or pictures
+          Document
         </button>
       </div>
     </div>

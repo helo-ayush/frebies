@@ -248,7 +248,10 @@ export type Picture = {
   inline: boolean;
 };
 
-export type PageTree = { root: StreamNode; shows: Show[]; pictures: Picture[] };
+/** One painting instruction (fill, stroke, or neither) at the end of a path. */
+export type Paint = { node: StreamNode; start: number; end: number };
+
+export type PageTree = { root: StreamNode; shows: Show[]; pictures: Picture[]; paints: Paint[] };
 
 export function streamBytes(stream: PDFStream): Uint8Array {
   if (stream instanceof PDFRawStream) return decodePDFRawStream(stream).decode();
@@ -315,6 +318,7 @@ export function readPage(page: PDFPage): PageTree {
   const { context } = page.doc;
   const shows: Show[] = [];
   const pictures: Picture[] = [];
+  const paints: Paint[] = [];
   const root: StreamNode = {
     bytes: pageBytes(page),
     resources: page.node.Resources(),
@@ -404,6 +408,7 @@ export function readPage(page: PDFPage): PageTree {
           }
           clipping = false;
           path = [];
+          paints.push({ node, start: at, end: reader.at });
           break;
         case "Tf": {
           const name = args[0];
@@ -526,7 +531,7 @@ export function readPage(page: PDFPage): PageTree {
   };
 
   walk(root, { ctm: IDENTITY, clip: null, font: undefined }, 0, []);
-  return { root, shows, pictures };
+  return { root, shows, pictures, paints };
 }
 
 // ---------------------------------------------------------------- taking things out
@@ -610,7 +615,14 @@ export type Cuts = {
   /** Glyphs to drop, by text operator. */
   text: Map<number, Set<number>>;
   pictures: Set<number>;
+  /** Painting instructions to leave out. */
+  paths: Set<number>;
+  /** Pictures to draw another one for, by its name among the page's resources. */
+  swaps?: Map<number, PDFObject>;
 };
+
+/** What has to line up before anything is cut: how many of each there are. */
+export type PageCount = { shows: readonly ShowInfo[]; paints: number };
 
 let names = 0;
 export function freshName(dict: PDFDict, prefix: string): PDFName {
@@ -647,18 +659,20 @@ const latin = (text: string) => {
 };
 
 /**
- * The page's own drawing without the cut parts. `infos` must line up with the
- * page's text operators. Operators that could not be cut are reported.
+ * The page's own drawing without the cut parts. `count` must line up with the
+ * page's instructions. Text that could not be cut is reported.
  */
 export function cutPage(
   page: PDFPage,
   tree: PageTree,
-  infos: readonly ShowInfo[],
+  count: PageCount,
   cuts: Cuts,
 ): { bytes: Uint8Array; failed: Set<number> } {
   const { context } = page.doc;
   const failed = new Set<number>();
+  const infos = count.shows;
   const aligned = infos.length === tree.shows.length;
+  const painted = count.paints === tree.paints.length;
   if (!aligned) for (const op of cuts.text.keys()) failed.add(op);
 
   const rebuild = (node: StreamNode): Uint8Array | null => {
@@ -673,9 +687,22 @@ export function cutPage(
       else edits.push({ start: show.start, end: show.end, text });
     });
     tree.pictures.forEach((picture, index) => {
-      if (picture.node === node && cuts.pictures.has(index))
-        edits.push({ start: picture.start, end: picture.end, text: "" });
+      if (picture.node !== node) return;
+      const other = cuts.swaps?.get(index);
+      if (cuts.pictures.has(index)) edits.push({ start: picture.start, end: picture.end, text: "" });
+      else if (other) {
+        const home = node.resources ?? pageResources(page);
+        const xobjects = resourceDict(context, home, "XObject");
+        const name = freshName(xobjects, "FbS");
+        xobjects.set(name, other);
+        edits.push({ start: picture.start, end: picture.end, text: `${name.asString()} Do` });
+      }
     });
+    // The path stays, so clipping still works; only the paint goes.
+    if (painted && cuts.paths.size > 0)
+      tree.paints.forEach((paint, index) => {
+        if (paint.node === node && cuts.paths.has(index)) edits.push({ start: paint.start, end: paint.end, text: "n" });
+      });
     for (const child of node.children) {
       const bytes = rebuild(child);
       if (!bytes || !child.call || !child.form) continue;
@@ -715,10 +742,17 @@ export function cutPage(
   return { bytes, failed };
 }
 
-/** Puts drawing on a page: its own, closed off so nothing leaks, then ours. */
-export function setContents(page: PDFPage, own: Uint8Array, root: StreamNode, ours: string, compress: boolean) {
+/** Puts drawing on a page: what lies under it, its own, closed off so nothing leaks, then ours. */
+export function setContents(
+  page: PDFPage,
+  own: Uint8Array,
+  root: StreamNode,
+  ours: string,
+  compress: boolean,
+  under = "",
+) {
   const { context } = page.doc;
-  const head = latin("q\n".repeat(1 + root.extra));
+  const head = latin(under + "q\n".repeat(1 + root.extra));
   const tail = latin(`\n${"Q ".repeat(1 + root.open)}\n${ours}`);
   const bytes = new Uint8Array(head.length + own.length + tail.length);
   bytes.set(head, 0);

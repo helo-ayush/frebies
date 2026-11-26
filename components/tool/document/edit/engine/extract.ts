@@ -1,9 +1,12 @@
 import type { PDFPageProxy } from "pdfjs-dist";
-import type { Align, GlyphRange, Run, Style } from "../model";
-import { tidyRuns } from "../model";
-import { IDENTITY, apply, mul, type Matrix } from "./matrix";
+import { IDENTITY, apply, bounds, intersect, mul, type Box, type Matrix, type Point } from "./matrix";
 import type { ShowInfo } from "./content";
-import { registerPdfFont, type PdfFontObject } from "./fonts";
+import { registerPdfFont, symbolText, type PdfFontObject } from "./fonts";
+import { findBlocks, type Block } from "./paragraphs";
+import type { Cmd } from "./shapes";
+import { rulesOf, type VectorPath } from "./vectors";
+
+export type { Block };
 
 /**
  * Finds the text of a page: what it says, where each letter sits and which
@@ -29,45 +32,14 @@ export type Glyph = {
   space: boolean;
 };
 
-type Fragment = {
-  angle: number;
-  size: number;
-  /** In the frame turned by `angle`. */
-  x0: number;
-  x1: number;
-  y: number;
-  glyphs: { glyph: Glyph; x: number; rise: number; before: string }[];
-  /** A second copy drawn on top, as some programs do for bold. */
-  extra: Glyph[];
-  /** Letters that stack and reorder, so baselines wander. */
-  odd: boolean;
-  /** Holds letters the PDF gives no text for: left alone. */
-  broken: boolean;
+export type PageText = {
+  shows: ShowInfo[];
+  glyphs: Glyph[];
+  blocks: Block[];
+  /** Lines and shapes, and how many painting instructions there are in all. */
+  paths: VectorPath[];
+  paints: number;
 };
-
-export type Block = {
-  key: string;
-  angle: number;
-  /** Top-left corner in page space, with the block's own width and height. */
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  /** One entry per line, with its width in points. */
-  lines: { runs: Run[]; x: number; width: number }[];
-  align: Align;
-  size: number;
-  leading: number;
-  /** Local y of the first baseline below the top edge. */
-  ascent: number;
-  alpha: number;
-  ranges: GlyphRange[];
-  text: string;
-  /** Where each line sits, in the frame turned by `angle`, with the left edge of every letter and the line's end. */
-  rows: { x0: number; x1: number; y: number; size: number; stops: number[] }[];
-};
-
-export type PageText = { shows: ShowInfo[]; glyphs: Glyph[]; blocks: Block[] };
 
 /** Arimo's, which sets the rhythm of every text box. */
 export const STRUT_ASCENT = 1854 / 2048;
@@ -105,6 +77,15 @@ type TextState = {
   fill: string;
   stroke: string;
   alpha: number;
+  strokeAlpha: number;
+  /** Painted with a pattern instead of a colour. */
+  fillPattern: boolean;
+  strokePattern: boolean;
+  lineWidth: number;
+  lineCap: 0 | 1 | 2;
+  lineJoin: 0 | 1 | 2;
+  dash: number[];
+  clip: Box | null;
 };
 
 const EPS = 1e-6;
@@ -132,6 +113,23 @@ export async function readText(page: PDFPageProxy, sourceId: string, pageIndex: 
   const { OPS } = pdfjs;
   const list = await page.getOperatorList({ intent: "display", annotationMode: pdfjs.AnnotationMode.DISABLE });
   const viewport = page.getViewport({ scale: 1 });
+  const STROKES = new Set<number>([
+    OPS.stroke,
+    OPS.closeStroke,
+    OPS.fillStroke,
+    OPS.eoFillStroke,
+    OPS.closeFillStroke,
+    OPS.closeEOFillStroke,
+  ]);
+  const FILLS = new Set<number>([
+    OPS.fill,
+    OPS.eoFill,
+    OPS.fillStroke,
+    OPS.eoFillStroke,
+    OPS.closeFillStroke,
+    OPS.closeEOFillStroke,
+  ]);
+  const EVEN_ODD = new Set<number>([OPS.eoFill, OPS.eoFillStroke, OPS.closeEOFillStroke]);
 
   const wanted = new Set<string>();
   list.fnArray.forEach((fn: number, i: number) => {
@@ -169,7 +167,18 @@ export async function readText(page: PDFPageProxy, sourceId: string, pageIndex: 
     fill: "#000000",
     stroke: "#000000",
     alpha: 1,
+    strokeAlpha: 1,
+    fillPattern: false,
+    strokePattern: false,
+    lineWidth: 1,
+    lineCap: 0,
+    lineJoin: 0,
+    dash: [],
+    clip: null,
   };
+  const paths: VectorPath[] = [];
+  let paints = 0;
+  let clipping = false;
   const stack: TextState[] = [];
   /** Inside a soft mask nothing is text to a reader, and the page's own list does not count it. */
   let masked = 0;
@@ -246,6 +255,11 @@ export async function readText(page: PDFPageProxy, sourceId: string, pageIndex: 
       case OPS.setGState:
         for (const [key, value] of args[0] as [string, unknown][]) {
           if (key === "ca") s.alpha = Number(value);
+          else if (key === "CA") s.strokeAlpha = Number(value);
+          else if (key === "LW") s.lineWidth = Number(value);
+          else if (key === "LC") s.lineCap = capOf(value);
+          else if (key === "LJ") s.lineJoin = capOf(value);
+          else if (key === "D") s.dash = [...((value as [number[], number])[0] ?? [])];
           else if (key === "Font") {
             const [name, size] = value as [string, number];
             s.font = fonts.get(name) ?? null;
@@ -256,10 +270,68 @@ export async function readText(page: PDFPageProxy, sourceId: string, pageIndex: 
         break;
       case OPS.setFillRGBColor:
         s.fill = hexColor(args[0], "#000000");
+        s.fillPattern = false;
         break;
       case OPS.setStrokeRGBColor:
         s.stroke = hexColor(args[0], "#000000");
+        s.strokePattern = false;
         break;
+      case OPS.setFillColorN:
+        s.fillPattern = true;
+        break;
+      case OPS.setStrokeColorN:
+        s.strokePattern = true;
+        break;
+      case OPS.setLineWidth:
+        s.lineWidth = args[0];
+        break;
+      case OPS.setLineCap:
+        s.lineCap = capOf(args[0]);
+        break;
+      case OPS.setLineJoin:
+        s.lineJoin = capOf(args[0]);
+        break;
+      case OPS.setDash:
+        s.dash = Array.from((args[0] ?? []) as ArrayLike<number>);
+        break;
+      case OPS.clip:
+      case OPS.eoClip:
+        clipping = true;
+        break;
+      case OPS.constructPath: {
+        if (masked > 0) break;
+        const op = paints;
+        paints += 1;
+        const [how, data] = args as [number, [ArrayLike<number> | null]];
+        const path = pageSpace(data?.[0] ?? null, s.ctm);
+        if (path.length > 0) {
+          const box = boundsOf(path);
+          const stroked = STROKES.has(how);
+          const filled = FILLS.has(how);
+          const scale = Math.sqrt(Math.abs(s.ctm[0] * s.ctm[3] - s.ctm[1] * s.ctm[2]));
+          const seen = s.clip ? intersect(s.clip, { x: box.x - 1, y: box.y - 1, w: box.w + 2, h: box.h + 2 }) : box;
+          if ((stroked || filled) && (seen.w > 0 || seen.h > 0 || !s.clip)) {
+            paths.push({
+              op,
+              path,
+              // What is cut off by a frame around it is not there to be picked.
+              box: s.clip && filled && !stroked ? intersect(s.clip, box) : box,
+              stroke: stroked && !s.strokePattern ? s.stroke : null,
+              fill: filled && !s.fillPattern ? s.fill : null,
+              width: stroked ? Math.max(0.05, s.lineWidth * scale) : 0,
+              dash: s.dash.map((value) => value * scale),
+              cap: s.lineCap,
+              join: s.lineJoin,
+              evenOdd: EVEN_ODD.has(how),
+              alpha: filled ? s.alpha : s.strokeAlpha,
+              pattern: (filled && s.fillPattern) || (stroked && s.strokePattern),
+            });
+          }
+          if (clipping) s.clip = s.clip ? intersect(s.clip, box) : box;
+        }
+        clipping = false;
+        break;
+      }
       case OPS.moveText:
         move(args[0], args[1]);
         break;
@@ -314,7 +386,7 @@ export async function readText(page: PDFPageProxy, sourceId: string, pageIndex: 
           const advance = vertical ? glyphWidth * abs * unit - spacing * dir : glyphWidth * abs * unit + spacing * dir;
           if (fontId && !vertical) {
             const from = apply(text, s.x + x * scaleX, s.y + s.rise);
-            const value = item.unicode ?? "";
+            const value = symbolText(font?.name ?? "", item.unicode ?? "");
             glyphs.push({
               op,
               at,
@@ -343,312 +415,59 @@ export async function readText(page: PDFPageProxy, sourceId: string, pageIndex: 
     }
   }
 
-  return { shows, glyphs, blocks: findBlocks(glyphs) };
-}
-
-// ---------------------------------------------------------------- lines and paragraphs
-
-const turn = (angle: number) => {
-  const rad = (angle * Math.PI) / 180;
-  return { cos: Math.cos(rad), sin: Math.sin(rad) };
-};
-
-/** Page space to the frame where the text runs left to right. */
-function localOf(x: number, y: number, t: { cos: number; sin: number }) {
-  return { x: x * t.cos + y * t.sin, y: -x * t.sin + y * t.cos };
-}
-
-function pageOfLocal(x: number, y: number, t: { cos: number; sin: number }) {
-  return { x: x * t.cos - y * t.sin, y: x * t.sin + y * t.cos };
-}
-
-/** Scripts whose letters stack and reorder, so their baselines wander. */
-const stacked = (text: string) => /[֐-ࣿऀ-໿က-႟ក-៿]/.test(text);
-const readable = (text: string) => text !== "" && !/[\u0000-\u0008-�]/.test(text);
-
-function findBlocks(glyphs: readonly Glyph[]): Block[] {
-  // 1. letters that follow each other
-  const fragments: Fragment[] = [];
-  let open: Fragment | null = null;
-  let gapText = "";
-  let pending: Glyph[] = [];
-
-  for (const glyph of glyphs) {
-    if (glyph.size < 0.8) continue;
-    const t = turn(glyph.angle);
-    const p = localOf(glyph.x, glyph.y, t);
-    if (glyph.space) {
-      if (open) {
-        gapText += glyph.text || " ";
-        pending.push(glyph);
-      }
-      continue;
-    }
-    const broken = !readable(glyph.text);
-    const odd = broken || stacked(glyph.text);
-    const gap: number = open ? p.x - open.x1 : 0;
-    const drop: number = open ? p.y - open.y : 0;
-    const reach = open ? Math.max(open.size, glyph.size) : 0;
-    const loose = open !== null && odd && open.odd;
-    const level = open !== null && Math.abs(drop) < open.size * (loose ? 0.6 : 0.12);
-    const script =
-      open !== null &&
-      !level &&
-      Math.abs(drop) < open.size * 0.62 &&
-      (glyph.size < open.size * 0.86 || Math.abs(drop) < open.size * 0.3);
-    const joins =
-      open !== null &&
-      open.odd === odd &&
-      Math.abs(((glyph.angle - open.angle + 540) % 360) - 180) < 0.6 &&
-      (level || script) &&
-      gap > -reach * (loose ? 1.6 : 0.4) &&
-      gap < reach * (gapText ? 1.6 : script ? 0.5 : 0.95) &&
-      glyph.size < open.size * 2.2;
-    if (open && joins) {
-      const before = gapText !== "" ? gapText.replace(/[^ ]/g, " ") : gap > reach * 0.17 ? " " : "";
-      for (const space of pending) open.extra.push(space);
-      open.glyphs.push({ glyph, x: p.x, rise: script && !loose ? -drop : 0, before });
-      open.x1 = Math.max(open.x1, p.x + glyph.w);
-      open.broken ||= broken;
-    } else {
-      open = {
-        angle: glyph.angle,
-        size: glyph.size,
-        x0: p.x,
-        x1: p.x + glyph.w,
-        y: p.y,
-        glyphs: [{ glyph, x: p.x, rise: 0, before: "" }],
-        extra: [],
-        odd,
-        broken,
-      };
-      fragments.push(open);
-    }
-    gapText = "";
-    pending = [];
-  }
-
-  // 2. the same line, drawn in pieces or out of order
-  fragments.sort((a, b) => a.angle - b.angle || a.y - b.y || a.x0 - b.x0);
-  const text = (fragment: Fragment) => fragment.glyphs.map((item) => item.before + item.glyph.text).join("");
-  const lines: Fragment[] = [];
-  for (const fragment of fragments) {
-    let target: Fragment | null = null;
-    for (let i = lines.length - 1; i >= 0; i -= 1) {
-      const line = lines[i];
-      if (Math.abs(line.angle - fragment.angle) > 0.6) break;
-      if (fragment.y - line.y > Math.max(line.size, fragment.size) * 0.6) break;
-      if (line.odd !== fragment.odd) continue;
-      if (Math.abs(fragment.y - line.y) > Math.min(line.size, fragment.size) * (line.odd ? 0.5 : 0.14)) continue;
-      const reach = Math.max(line.size, fragment.size);
-      if (
-        Math.abs(fragment.x0 - line.x0) < reach * 0.16 &&
-        Math.abs(fragment.x1 - line.x1) < reach * 0.2 &&
-        text(fragment) === text(line)
-      ) {
-        line.extra.push(...fragment.glyphs.map((item) => item.glyph), ...fragment.extra);
-        target = line;
-        break;
-      }
-      const gap = fragment.x0 - line.x1;
-      const ratio = line.size / fragment.size;
-      if (gap > -reach * 0.3 && gap < reach * 0.62 && ratio > 0.5 && ratio < 2) {
-        const first = fragment.glyphs[0];
-        line.glyphs.push(
-          { ...first, before: first.before || (gap > reach * 0.17 ? " " : "") },
-          ...fragment.glyphs.slice(1),
-        );
-        line.extra.push(...fragment.extra);
-        line.broken ||= fragment.broken;
-        line.x1 = Math.max(line.x1, fragment.x1);
-        line.size = Math.max(line.size, fragment.size);
-        target = line;
-        break;
-      }
-    }
-    if (!target) lines.push({ ...fragment, glyphs: [...fragment.glyphs], extra: [...fragment.extra] });
-  }
-
-  // 3. lines that make a paragraph
-  const face = (line: Fragment) => {
-    const count = new Map<string, number>();
-    for (const { glyph } of line.glyphs) count.set(glyph.font, (count.get(glyph.font) ?? 0) + 1);
-    return [...count.entries()].sort((a, b) => b[1] - a[1])[0][0];
-  };
-  const firstWord = (line: Fragment) => {
-    let end = line.x0;
-    for (const item of line.glyphs) {
-      if (item.before && item !== line.glyphs[0]) break;
-      end = item.x + item.glyph.w;
-    }
-    return end - line.x0;
-  };
-  type Group = { lines: Fragment[]; leading: number };
-  const groups: Group[] = [];
-  for (const line of lines) {
-    let home: Group | null = null;
-    for (let i = groups.length - 1; i >= 0 && i > groups.length - 60; i -= 1) {
-      const group = groups[i];
-      const last = group.lines[group.lines.length - 1];
-      if (Math.abs(last.angle - line.angle) > 0.6) continue;
-      const step = line.y - last.y;
-      if (step < line.size * 0.82 || step > line.size * 2.05) continue;
-      if (line.broken || last.broken || line.odd !== last.odd) continue;
-      if (Math.abs(last.size - line.size) > line.size * 0.06) continue;
-      if (group.leading && Math.abs(step - group.leading) > group.leading * 0.08) continue;
-      if (face(last) !== face(group.lines[0]) && face(line) !== face(last)) continue;
-      const overlap = Math.min(last.x1, line.x1) - Math.max(last.x0, line.x0);
-      if (overlap < Math.min(last.x1 - last.x0, line.x1 - line.x0) * 0.5) continue;
-      const first = group.lines[0];
-      const body = group.lines[1] ?? last;
-      const left =
-        Math.abs(line.x0 - body.x0) < line.size * 0.5 ||
-        (group.lines.length === 1 && Math.abs(line.x0 - first.x0) < line.size * 3.2);
-      const center = Math.abs((line.x0 + line.x1) / 2 - (last.x0 + last.x1) / 2) < line.size * 0.5;
-      const right = Math.abs(line.x1 - last.x1) < line.size * 0.5;
-      if (!left && !center && !right) continue;
-      // Something else between them would break the paragraph.
-      const blocked = lines.some(
-        (other) =>
-          other !== line &&
-          other !== last &&
-          Math.abs(other.angle - line.angle) < 0.6 &&
-          other.y > last.y + line.size * 0.3 &&
-          other.y < line.y - line.size * 0.3 &&
-          Math.min(other.x1, line.x1) - Math.max(other.x0, line.x0) > line.size,
-      );
-      if (blocked) continue;
-      home = group;
-      if (!group.leading) group.leading = step;
-      break;
-    }
-    if (home) home.lines.push(line);
-    else groups.push({ lines: [line], leading: 0 });
-  }
-
-  // 4. a line that stops early ends its paragraph
-  const paragraphs: Group[] = [];
-  for (const group of groups) {
-    if (group.lines.length === 1) {
-      paragraphs.push(group);
-      continue;
-    }
-    const x0 = Math.min(...group.lines.map((line) => line.x0));
-    const x1 = Math.max(...group.lines.map((line) => line.x1));
-    let part: Fragment[] = [group.lines[0]];
-    for (let i = 1; i < group.lines.length; i += 1) {
-      const last = group.lines[i - 1];
-      const line = group.lines[i];
-      const centered =
-        Math.abs((last.x0 + last.x1) / 2 - (x0 + x1) / 2) < last.size * 0.4 && Math.abs(last.x0 - x0) > last.size * 0.6;
-      const room = centered ? x1 - x0 - (last.x1 - last.x0) : x1 - last.x1;
-      const fits = firstWord(line) + last.size * 0.24 < room * 0.98;
-      const narrow = x1 - x0 < last.size * 9;
-      const indented = line.x0 - x0 > line.size * 0.9 && last.x0 - x0 < line.size * 0.5 && !centered && i > 1;
-      if (fits || narrow || indented) {
-        paragraphs.push({ lines: part, leading: group.leading });
-        part = [line];
-      } else part.push(line);
-    }
-    paragraphs.push({ lines: part, leading: group.leading });
-  }
-
-  // 5. as blocks
-  return paragraphs
-    .filter((group) => !group.lines.some((line) => line.broken))
-    .map((group, index) => blockOf(group.lines, group.leading, index))
-    .filter((block): block is Block => block !== null);
-}
-
-function runsOf(line: Fragment): Run[] {
-  const runs: Run[] = [];
-  for (const item of line.glyphs) {
-    const { glyph } = item;
-    const style: Style = {
-      font: glyph.font,
-      size: Math.round(glyph.size * 100) / 100,
-      color: glyph.color,
-      bold: false,
-      italic: glyph.slant,
-      underline: false,
-      strike: false,
-      tracking: 0,
-      rise: Math.abs(item.rise) > 0.05 ? Math.round(item.rise * 100) / 100 : 0,
-    };
-    if (item.before) runs.push({ text: item.before, style: runs[runs.length - 1]?.style ?? style });
-    runs.push({ text: glyph.text, style });
-  }
-  return tidyRuns(runs);
-}
-
-function blockOf(lines: Fragment[], leading: number, index: number): Block | null {
-  const angle = lines[0].angle;
-  const t = turn(angle);
-  const size = Math.max(...lines.map((line) => line.size));
-  const x0 = Math.min(...lines.map((line) => line.x0));
-  const x1 = Math.max(...lines.map((line) => line.x1));
-  const line = leading || size * 1.2;
-  const ascent = firstBaseline(size, line);
-  const top = lines[0].y - ascent;
-  const corner = pageOfLocal(x0, top, t);
-
-  let align: Align = "left";
-  if (lines.length > 1) {
-    const full = lines.slice(0, -1);
-    const near = (a: number, b: number, k: number) => Math.abs(a - b) < size * k;
-    const lefts = lines.every((item, i) => near(item.x0, x0, 0.4) || (i === 0 && item.x0 - x0 < size * 3.2));
-    const rights = full.every((item) => near(item.x1, x1, 0.12));
-    const centers = lines.every((item) => near((item.x0 + item.x1) / 2, (x0 + x1) / 2, 0.4));
-    if (lefts) align = rights && full.length > 1 ? "justify" : "left";
-    else if (centers) align = "center";
-    else if (lines.every((item) => near(item.x1, x1, 0.4))) align = "right";
-  }
-
-  const byOp = new Map<number, Set<number>>();
-  const note = (glyph: Glyph) => {
-    let set = byOp.get(glyph.op);
-    if (!set) byOp.set(glyph.op, (set = new Set()));
-    set.add(glyph.at);
-  };
-  for (const item of lines) {
-    item.glyphs.forEach(({ glyph }) => note(glyph));
-    item.extra.forEach(note);
-  }
-  const ranges: GlyphRange[] = [];
-  for (const [op, set] of byOp) {
-    const at = [...set].sort((a, b) => a - b);
-    let from = at[0];
-    for (let i = 1; i <= at.length; i += 1) {
-      if (at[i] === at[i - 1] + 1) continue;
-      ranges.push([op, from, at[i - 1] + 1]);
-      from = at[i];
-    }
-  }
-
-  const out = lines.map((item) => ({ runs: runsOf(item), x: item.x0 - x0, width: item.x1 - item.x0 }));
-  const text = out.map((item) => item.runs.map((run) => run.text).join("")).join("\n");
-  if (text.trim() === "") return null;
   return {
-    key: `b${index}`,
-    angle: Math.abs(angle) < 0.05 ? 0 : angle,
-    x: corner.x,
-    y: corner.y,
-    w: x1 - x0,
-    h: line * lines.length,
-    lines: out,
-    align,
-    size,
-    leading: line,
-    ascent,
-    alpha: lines[0].glyphs[0].glyph.alpha,
-    ranges,
-    text,
-    rows: lines.map((item) => ({
-      x0: item.x0,
-      x1: item.x1,
-      y: item.y,
-      size: item.size,
-      stops: [...item.glyphs.map((glyph) => glyph.x), item.x1],
-    })),
+    shows,
+    glyphs,
+    blocks: findBlocks(glyphs, rulesOf(paths), { w: viewport.width, h: viewport.height }),
+    paths,
+    paints,
   };
+}
+
+const capOf = (value: unknown): 0 | 1 | 2 => (value === 1 ? 1 : value === 2 ? 2 : 0);
+
+/** A path as pdf.js keeps it (0 move, 1 line, 2 curve, 3 close), in page space. */
+function pageSpace(data: ArrayLike<number> | null, m: Matrix): Cmd[] {
+  const out: Cmd[] = [];
+  if (!data) return out;
+  const at = (i: number): Point => apply(m, data[i], data[i + 1]);
+  for (let i = 0; i < data.length;) {
+    const kind = data[i];
+    i += 1;
+    if (kind === 0 || kind === 1) {
+      const p = at(i);
+      out.push([kind === 0 ? "M" : "L", p.x, p.y]);
+      i += 2;
+    } else if (kind === 2) {
+      const a = at(i);
+      const b = at(i + 2);
+      const c = at(i + 4);
+      out.push(["C", a.x, a.y, b.x, b.y, c.x, c.y]);
+      i += 6;
+    } else out.push(["Z"]);
+  }
+  return out;
+}
+
+export function boundsOf(path: readonly Cmd[]): Box {
+  const points: Point[] = [];
+  let from: Point = { x: 0, y: 0 };
+  for (const cmd of path) {
+    if (cmd[0] === "M" || cmd[0] === "L") {
+      from = { x: cmd[1], y: cmd[2] };
+      points.push(from);
+    } else if (cmd[0] === "C") {
+      // Close enough: points along the curve.
+      for (let i = 1; i <= 10; i += 1) {
+        const t = i / 10;
+        const u = 1 - t;
+        points.push({
+          x: u * u * u * from.x + 3 * u * u * t * cmd[1] + 3 * u * t * t * cmd[3] + t * t * t * cmd[5],
+          y: u * u * u * from.y + 3 * u * u * t * cmd[2] + 3 * u * t * t * cmd[4] + t * t * t * cmd[6],
+        });
+      }
+      from = { x: cmd[5], y: cmd[6] };
+    }
+  }
+  return points.length > 0 ? bounds(points) : { x: 0, y: 0, w: 0, h: 0 };
 }

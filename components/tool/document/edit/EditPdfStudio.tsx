@@ -2,23 +2,30 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FilePlus, Loader2 } from "lucide-react";
+import { FilePlus, History, Loader2, Trash2 } from "lucide-react";
 import { Dropzone } from "@/components/tool/kit/Dropzone";
 import { ActionDock, Note, StudioFrame, StudioStage } from "@/components/tool/kit";
 import { createRenderQueue } from "@/components/tool/viewer/render-queue";
 import { useFileIntake } from "@/components/tool/studio/useFileIntake";
 import { downloadBlob } from "@/lib/image/encode";
-import { FormatBar, backToText } from "./FormatBar";
+import { ContextMenu } from "./ContextMenu";
+import { FormatBar } from "./FormatBar";
 import { PageRail } from "./PageRail";
-import { DownloadKey, Ribbon } from "./Ribbon";
+import { DownloadKey, Ribbon, type DialogName } from "./Ribbon";
 import { SignDialog } from "./SignDialog";
 import { Stage, type Place } from "./Stage";
-import { isBold, isItalic, withEmphasis } from "./engine/fonts";
+import { pasteCells, tableOf } from "./commands";
+import { BandsDialog, PaperDialog, WatermarkDialog } from "./dialogs/DecorDialogs";
+import { BookmarksDialog, PasswordDialog, PropertiesDialog, ShortcutsDialog } from "./dialogs/FileDialogs";
+import { CodeDialog, SymbolsDialog } from "./dialogs/InsertDialogs";
+import { NewDialog, SizeDialog } from "./dialogs/PageSetup";
+import { SaveDialog, type SaveChoice } from "./dialogs/SaveDialog";
+import { findDraft, forgetDraft, keepDraft, openDraft, type Draft } from "./drafts";
+import { rowsFromHtml, rowsFromText } from "./engine/table";
 import { toPage } from "./interact";
-import { pageOf, type Tool } from "./model";
-import { EditorStore, isImage, isPdf, styleOfSelection, useEditor } from "./store";
-
-const KEYS: Record<string, Tool> = { v: "select", t: "text", p: "pen", h: "highlight", w: "whiteout" };
+import { pressKey } from "./keys";
+import { marginBox, pageOf } from "./model";
+import { EditorStore, OPENS, isImage, useEditor } from "./store";
 
 /** Leaving with the browser's back key. */
 const BACK = "back";
@@ -34,12 +41,14 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
   const error = useEditor(store, (s) => s.view.error);
   const dirty = useEditor(store, (s) => s.view.dirty);
   const saved = useEditor(store, (s) => s.view.saved);
+  const doc = useEditor(store, (s) => s.doc);
 
   const [dragging, setDragging] = useState(false);
   const [rail, setRail] = useState(false);
   const [full, setFull] = useState(false);
-  const [sign, setSign] = useState(false);
+  const [dialog, setDialog] = useState<DialogName | null>(null);
   const [leaving, setLeaving] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
 
   const openInput = useRef<HTMLInputElement>(null);
   const pageInput = useRef<HTMLInputElement>(null);
@@ -70,6 +79,32 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
     };
   }, [full]);
 
+  // ------------------------------------------------------------ work in progress
+
+  useEffect(() => {
+    if (open) return;
+    let off = false;
+    void findDraft()
+      .then((found) => !off && setDraft(found))
+      .catch(() => undefined);
+    return () => {
+      off = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !dirty) return;
+    const timer = setTimeout(() => {
+      void keepDraft(store).catch(() => undefined);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [doc, dirty, open, store]);
+
+  // Downloaded as a whole: there is nothing left to lose.
+  useEffect(() => {
+    if (saved > 0 && !store.view.dirty) void forgetDraft().catch(() => undefined);
+  }, [saved, store]);
+
   // ------------------------------------------------------------ files coming in
 
   const allowed = useCallback(
@@ -84,14 +119,17 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
   /** The middle of what is on screen, as a spot on a page. */
   const spot = useCallback(() => {
     const box = store.scroller?.getBoundingClientRect();
-    const page = store.page(store.view.page ?? "") ?? store.doc.pages[0];
-    const sheet = page ? store.sheets.get(page.id)?.getBoundingClientRect() : null;
-    if (!page || !sheet || !box) return page ? { page: page.id, x: page.w / 2, y: page.h / 2 } : null;
+    const page = store.here;
+    if (!page) return null;
+    const inner = marginBox(page);
+    const middle = { page: page.id, x: inner.x + inner.w / 2, y: inner.y + inner.h / 2 };
+    const sheet = store.sheets.get(page.id)?.getBoundingClientRect();
+    if (!sheet || !box) return middle;
     const top = Math.max(sheet.top, box.top);
     const bottom = Math.min(sheet.bottom, box.bottom);
     const left = Math.max(sheet.left, box.left);
     const right = Math.min(sheet.right, box.right);
-    if (bottom - top < 30 || right - left < 30) return { page: page.id, x: page.w / 2, y: page.h / 2 };
+    if (bottom - top < 30 || right - left < 30) return middle;
     const at = toPage(store, page, (left + right) / 2, (top + bottom) / 2);
     return { page: page.id, x: at.x, y: at.y };
   }, [store]);
@@ -115,30 +153,22 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
     async (list: File[], place: Place | null) => {
       const files = allowed(list);
       if (files.length === 0) return;
-      const pdfs = files.filter(isPdf);
-      const images = files.filter((file) => !isPdf(file) && isImage(file));
-      if (pdfs.length + images.length === 0) {
-        store.setView({ error: "Only PDFs and pictures can go in here." });
-        return;
-      }
       if (store.doc.pages.length === 0) {
-        if (pdfs.length === 0) await store.insertFiles(images);
-        else {
-          await store.open(pdfs[0]);
-          const rest = files.filter((file) => file !== pdfs[0] && (isPdf(file) || isImage(file)));
-          if (rest.length > 0 && store.doc.pages.length > 0) await store.insertFiles(rest);
-        }
+        await store.open(files[0]);
+        if (files.length > 1 && store.doc.pages.length > 0) await store.insertFiles(files.slice(1));
         return;
       }
+      const images = files.filter(isImage);
+      const documents = files.filter((file) => !isImage(file));
       if (place?.kind === "gap") {
-        await store.insertFiles([...pdfs, ...images], place.index);
+        await store.insertFiles(files, place.index);
         return;
       }
       if (images.length > 0) {
         const at = place ? { page: place.page.id, x: place.x, y: place.y } : spot();
         if (at) await placeImages(images, at.page, at.x, at.y);
       }
-      if (pdfs.length > 0) await store.insertFiles(pdfs, place ? place.index : undefined);
+      if (documents.length > 0) await store.insertFiles(documents, place ? place.index : undefined);
     },
     [allowed, placeImages, spot, store],
   );
@@ -152,12 +182,28 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
 
   // ------------------------------------------------------------ the way out
 
-  const download = useCallback(async () => {
+  const saveAs = useCallback(
+    async (choice: SaveChoice) => {
+      if (store.view.busy || store.doc.pages.length === 0) return;
+      try {
+        const { saveAs: make } = await import("./convert/save");
+        const { blob, name } = await make(store, choice);
+        downloadBlob(blob, name);
+      } catch {
+        // Said in the note.
+      }
+    },
+    [store],
+  );
+  const download = useCallback(
+    () => void saveAs({ format: store.view.format, pages: null, dpi: 150, options: {} }),
+    [saveAs, store],
+  );
+  const print = useCallback(async () => {
     if (store.view.busy || store.doc.pages.length === 0) return;
     try {
-      const bytes = await store.save();
-      const name = store.name.trim() || "document";
-      downloadBlob(new Blob([bytes as BlobPart], { type: "application/pdf" }), `${name}-edited.pdf`);
+      const { printDocument } = await import("./convert/save");
+      await printDocument(store);
     } catch {
       // Said in the note.
     }
@@ -206,140 +252,60 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
     };
   }, [dirty, open]);
 
-  // ------------------------------------------------------------ keyboard
+  // ------------------------------------------------------------ keyboard and clipboard
 
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || document.querySelector("dialog[open]")) return;
-      const target = event.target as HTMLElement | null;
-      const inText = Boolean(target?.isContentEditable);
-      const inField =
-        !inText &&
-        Boolean(target?.closest("input:not([type=range]):not([type=checkbox]):not([type=radio]), textarea, select"));
-      const mod = event.ctrlKey || event.metaKey;
-      const key = event.key.toLowerCase();
-      const { selection, editing, tool, find } = store.view;
-      const texts = editing ? [editing] : selection.filter((id) => store.doc.objects[id]?.type === "text");
-
-      const run = (): boolean => {
-        if (mod && !event.altKey) {
-          if (key === "s") {
-            void download();
-            return true;
-          }
-          if (key === "f") {
-            store.setView({ find: { ...find, open: true } });
-            return true;
-          }
-          if (inField) return false;
-          if (key === "z") {
-            if (event.shiftKey) store.redo();
-            else store.undo();
-            return true;
-          }
-          if (key === "y") {
-            store.redo();
-            return true;
-          }
-          if (texts.length > 0 && (key === "b" || key === "i" || key === "u")) {
-            const look = styleOfSelection(store);
-            if (!look) return true;
-            store.styleSelection(
-              (style) =>
-                key === "u"
-                  ? { ...style, underline: !look.underline }
-                  : withEmphasis(style, key === "b" ? { bold: !isBold(look) } : { italic: !isItalic(look) }),
-              null,
-              true,
-            );
-            requestAnimationFrame(() => backToText(store));
-            return true;
-          }
-          if (inText) return false;
-          if (key === "d" && selection.length > 0) {
-            store.duplicate(selection);
-            return true;
-          }
-          if (key === "a") {
-            const page = store.page(store.view.page ?? "");
-            if (page) store.select(page.objects.filter((id) => store.doc.objects[id]));
-            return true;
-          }
-          if (
-            (key === "c" || key === "x") &&
-            selection.length > 0 &&
-            (window.getSelection()?.toString() ?? "") === ""
-          ) {
-            store.copy(selection);
-            if (key === "x") store.remove(selection);
-            return true;
-          }
-          return false;
-        }
-        if (event.key === "Escape") {
-          if (document.querySelector("[data-editor-panel]")) return false;
-          if (store.view.crop) store.setView({ crop: null });
-          else if (editing) {
-            (document.activeElement as HTMLElement | null)?.blur();
-            store.select([editing]);
-          } else if (tool !== "select") store.setTool("select");
-          else if (selection.length > 0) store.select([]);
-          else if (find.open) store.setView({ find: { ...find, open: false, hits: [] } });
-          else if (full) setFull(false);
-          else return false;
+      const done = pressKey(store, event, {
+        download,
+        open: () => openInput.current?.click(),
+        print: () => void print(),
+        shortcuts: () => setDialog("shortcuts"),
+        shrink: () => {
+          if (!full) return false;
+          setFull(false);
           return true;
-        }
-        if (inText || inField || mod || event.altKey) return false;
-        if (selection.length > 0) {
-          if (event.key === "Delete" || event.key === "Backspace") {
-            store.remove(selection);
-            return true;
-          }
-          if (event.key === "Enter" && selection.length === 1 && texts.length === 1) {
-            store.select(selection, selection[0]);
-            return true;
-          }
-          if (event.key.startsWith("Arrow")) {
-            const step = event.shiftKey ? 10 : 1;
-            const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
-            const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
-            store.patchMany(selection, (object) => ({ x: object.x + dx, y: object.y + dy }), "nudge");
-            return true;
-          }
-        }
-        if (target?.closest("button, a, [role=button]") && (event.key === "Enter" || event.key === " ")) return false;
-        if (!event.shiftKey && KEYS[key]) {
-          store.setTool(KEYS[key]);
-          return true;
-        }
-        return false;
-      };
-      if (!run()) return;
+        },
+      });
+      if (!done) return;
       event.preventDefault();
       event.stopImmediatePropagation();
     };
     const onPaste = (event: ClipboardEvent) => {
-      if (document.querySelector("dialog[open]") || event.clipboardData?.files.length) return;
+      const data = event.clipboardData;
+      if (document.querySelector("dialog[open]") || !data) return;
       const target = event.target as HTMLElement | null;
       if (target?.isContentEditable || target?.closest("input, textarea, select")) return;
-      const text = event.clipboardData?.getData("text/plain") ?? "";
-      if (store.hasClip && text.replace(/\r\n/g, "\n") === store.clipText) {
+      const text = data.getData("text/plain").replace(/\r\n?/g, "\n");
+      if (store.hasClip && text === store.clipText) {
         event.preventDefault();
         store.paste(store.view.page);
-      } else if (text.trim() !== "") {
-        event.preventDefault();
-        const at = spot();
-        if (at) store.pasteText(at.page, at.x, at.y, text.replace(/\r\n?/g, "\n").trim());
+        return;
       }
+      // Cells copied from a sheet come as a picture too: the cells are what is wanted.
+      const html = data.getData("text/html");
+      const cells = html.includes("<table") ? rowsFromHtml(html) : null;
+      const rows = cells?.rows ?? rowsFromText(text);
+      if (rows && (rows.length > 1 || rows[0].length > 1)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!pasteCells(store, rows)) tableOf(store, rows, cells?.bold);
+        return;
+      }
+      if (data.files.length > 0 || text.trim() === "") return;
+      event.preventDefault();
+      const at = spot();
+      if (at) store.pasteText(at.page, at.x, at.y, text.trim());
     };
     window.addEventListener("keydown", onKey, true);
-    window.addEventListener("paste", onPaste);
+    window.addEventListener("paste", onPaste, true);
     return () => {
       window.removeEventListener("keydown", onKey, true);
-      window.removeEventListener("paste", onPaste);
+      window.removeEventListener("paste", onPaste, true);
     };
-  }, [open, store, download, full, spot]);
+  }, [open, store, download, print, full, spot]);
 
   const selectedPage = useEditor(store, (s) =>
     s.view.selection[0] ? (pageOf(s.doc, s.view.selection[0])?.id ?? null) : null,
@@ -350,25 +316,27 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
 
   // ------------------------------------------------------------ what is shown
 
-  const inputs = (
+  const shut = () => setDialog(null);
+  const shared = (
     <>
       <input
         ref={openInput}
         type="file"
-        accept="application/pdf,.pdf,image/*"
+        accept={OPENS}
         multiple
         className="hidden"
-        aria-label="Choose a PDF"
+        aria-label="Choose a file"
         onChange={(event) => {
           const files = [...(event.target.files ?? [])];
           event.target.value = "";
-          void take(files, null);
+          if (store.doc.pages.length > 0) void (files[0] ? openAnother(files) : undefined);
+          else void take(files, null);
         }}
       />
       <input
         ref={pageInput}
         type="file"
-        accept="application/pdf,.pdf,image/*"
+        accept={OPENS}
         multiple
         className="hidden"
         aria-label="Add pages from files"
@@ -401,8 +369,18 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
           }
         }}
       />
+      <NewDialog store={store} open={dialog === "new"} onClose={shut} />
+      <PasswordDialog store={store} />
     </>
   );
+
+  async function openAnother(list: File[]) {
+    const files = allowed(list);
+    if (files.length === 0) return;
+    if (store.view.dirty) await keepDraft(store).catch(() => undefined);
+    await store.open(files[0]);
+    if (files.length > 1 && store.doc.pages.length > 0) await store.insertFiles(files.slice(1));
+  }
 
   if (!open) {
     return (
@@ -418,15 +396,15 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
             <div role="status" className="grid min-h-[420px] flex-1 place-items-center">
               <p className="flex items-center gap-3 text-[16px]">
                 <Loader2 size={20} className="animate-spin" aria-hidden />
-                Opening your PDF…
+                Opening your file…
               </p>
             </div>
           ) : (
             <Dropzone
-              title="Drop a PDF to edit it"
-              description="Click any text to change it. Move things, add pictures, sign, and add or delete pages."
-              buttonLabel="Choose a PDF"
-              limits={`PDF, up to ${maxSizeMB} MB`}
+              title="Drop a file to edit it"
+              description="PDF, Word, PowerPoint, Excel, pictures and more. Change any text, draw, sign, fill in, and save it as what you need."
+              buttonLabel="Choose a file"
+              limits={`PDF, DOCX, DOC, ODT, RTF, PPTX, XLSX, TXT, HTML, pictures, up to ${maxSizeMB} MB`}
               note="Edited in your browser. Nothing is uploaded."
               onChoose={() => openInput.current?.click()}
               dragging={dragging}
@@ -443,18 +421,61 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
                 void take([...event.dataTransfer.files], null);
               }}
             >
-              <button
-                type="button"
-                onClick={() => store.startBlank()}
-                className="inline-flex h-10 items-center gap-2 px-3 text-[14.5px] font-medium underline decoration-line-strong underline-offset-4 hover:decoration-ink"
+              <span
+                className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2"
+                onClick={(event) => event.stopPropagation()}
               >
-                <FilePlus size={16} aria-hidden />
-                Start with a blank page
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setDialog("new")}
+                  className="inline-flex h-10 items-center gap-2 px-3 text-[14.5px] font-medium underline decoration-line-strong underline-offset-4 hover:decoration-ink"
+                >
+                  <FilePlus size={16} aria-hidden />
+                  Start a new document
+                </button>
+                {draft ? (
+                  <span className="inline-flex h-10 items-stretch border border-line-strong bg-panel text-[14px]">
+                    <button
+                      type="button"
+                      data-slot="draft-open"
+                      onClick={() =>
+                        void openDraft(store).catch((problem: Error) =>
+                          store.setView({ opening: false, error: problem.message }),
+                        )
+                      }
+                      className="inline-flex items-center gap-2 px-3 font-medium hover:bg-ink hover:text-white"
+                    >
+                      <History size={16} aria-hidden />
+                      <span className="max-w-[220px] truncate">Go on with {draft.name}</span>
+                      <span className="fb-num text-[12px] opacity-60">
+                        {new Date(draft.time).toLocaleString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Forget this draft"
+                      title="Forget this draft"
+                      data-slot="file-remove"
+                      onClick={() => {
+                        setDraft(null);
+                        void forgetDraft().catch(() => undefined);
+                      }}
+                      className="grid w-10 place-items-center border-l border-line-strong hover:bg-danger hover:text-white"
+                    >
+                      <Trash2 size={15} aria-hidden />
+                    </button>
+                  </span>
+                ) : null}
+              </span>
             </Dropzone>
           )}
         </StudioStage>
-        {inputs}
+        {shared}
       </StudioFrame>
     );
   }
@@ -471,20 +492,24 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
       <Ribbon
         store={store}
         rail={rail}
-        full={full}
         onRail={() => setRail((value) => !value)}
-        onFull={() => setFull((value) => !value)}
         onImage={() => {
           replacing.current = null;
           imageInput.current?.click();
         }}
-        onSign={() => setSign(true)}
         onFind={() => store.setView({ find: { ...store.view.find, open: !store.view.find.open, hits: [] } })}
-        onDownload={() => void download()}
+        onOpen={() => openInput.current?.click()}
+        onAddFiles={() => addFiles(store.doc.pages.length)}
+        onPrint={() => void print()}
+        onDialog={setDialog}
+        onDownload={download}
         onClose={() => {
           setFull(false);
           store.close();
+          void forgetDraft().catch(() => undefined);
+          setDraft(null);
         }}
+        spot={spot}
       />
       <FormatBar
         store={store}
@@ -518,6 +543,14 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
             queue={thumbs}
             onAddFiles={addFiles}
             onDropFiles={(files, at) => void take(files, { kind: "gap", index: at })}
+            onExtract={(ids) =>
+              void saveAs({
+                format: "pdf",
+                pages: ids.map((id) => store.doc.pages.findIndex((page) => page.id === id)),
+                dpi: 150,
+                options: {},
+              })
+            }
             onClose={() => setRail(false)}
             className="max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-[8] max-lg:shadow-[8px_0_0_rgba(24,24,27,0.12)]"
           />
@@ -525,6 +558,8 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
         <Stage
           store={store}
           queue={queue}
+          full={full}
+          onFull={() => setFull((value) => !value)}
           onAddFiles={addFiles}
           onDropFiles={(files, place) => void take(files, place)}
         />
@@ -533,12 +568,31 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
       <ActionDock pinned={false} className="!px-3 !pb-[max(0.75rem,env(safe-area-inset-bottom))] !pt-3 lg:hidden">
         <div className="h-[56px]">
           <div className="flex h-full">
-            <DownloadKey store={store} onClick={() => void download()} />
+            <DownloadKey store={store} onClick={download} onFormat={() => setDialog("save")} />
           </div>
         </div>
       </ActionDock>
 
-      <SignDialog store={store} open={sign} onClose={() => setSign(false)} place={spot} />
+      <ContextMenu
+        store={store}
+        onImage={() => {
+          replacing.current = null;
+          imageInput.current?.click();
+        }}
+        onAddFiles={addFiles}
+      />
+      <SignDialog store={store} open={dialog === "sign"} onClose={shut} place={spot} />
+      <SaveDialog store={store} open={dialog === "save"} onClose={shut} onSave={(choice) => void saveAs(choice)} />
+      <SizeDialog store={store} open={dialog === "size"} onClose={shut} />
+      <BandsDialog store={store} open={dialog === "bands"} onClose={shut} />
+      <WatermarkDialog store={store} open={dialog === "watermark"} onClose={shut} />
+      <PaperDialog store={store} open={dialog === "paper"} onClose={shut} />
+      <SymbolsDialog store={store} open={dialog === "symbols"} onClose={shut} place={spot} />
+      <CodeDialog store={store} kind="qr" open={dialog === "qr"} onClose={shut} place={spot} />
+      <CodeDialog store={store} kind="barcode" open={dialog === "barcode"} onClose={shut} place={spot} />
+      <PropertiesDialog store={store} open={dialog === "properties"} onClose={shut} />
+      <BookmarksDialog store={store} open={dialog === "bookmarks"} onClose={shut} />
+      <ShortcutsDialog open={dialog === "shortcuts"} onClose={shut} />
       <LeaveDialog
         to={leaving}
         onStay={() => setLeaving(null)}
@@ -549,7 +603,7 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
           else router.push(to);
         }}
       />
-      {inputs}
+      {shared}
     </section>
   );
 }
@@ -579,7 +633,9 @@ function LeaveDialog({
     >
       <div className="p-5">
         <p className="fb-wide text-[19px]">Leave without downloading?</p>
-        <p className="mt-3 text-[15px] leading-snug text-muted">Your changes are only in this tab, and will be lost.</p>
+        <p className="mt-3 text-[15px] leading-snug text-muted">
+          Your changes are kept in this browser, so you can go on with them when you come back.
+        </p>
         <div className="mt-5 grid grid-cols-2 gap-2.5">
           <button type="button" onClick={onStay} className="fb-btn !px-3">
             Keep editing

@@ -618,26 +618,43 @@ dialog::backdrop { background: rgba(29, 28, 31, 0.55); backdrop-filter: none; }
 /* PDF editor                                                          */
 /* ------------------------------------------------------------------ */
 
+/* Bullets and numbers of the PDF editor's lists: drawn beside the words, never part of them. */
+[data-p][data-mark]::before {
+  content: attr(data-mark);
+  position: absolute;
+  top: var(--mt);
+  left: var(--ml);
+  font: var(--mf);
+  line-height: var(--mh);
+  color: var(--mc);
+  white-space: pre;
+  letter-spacing: 0;
+  text-indent: 0;
+  pointer-events: none;
+}
+
 .fb-ed-bar { container: ribbon / inline-size; }
-.fb-ed-file { width: 190px; }
+.fb-ed-file { width: 168px; }
 .fb-ed-close { display: none; }
+.fb-ed-save { width: 226px; }
 /* Tight: pictures without words. */
-@container ribbon (max-width: 1239.98px) and (min-width: 740px) {
+@container ribbon (max-width: 1209.98px) and (min-width: 740px) {
   .fb-ed-word { display: none; }
-  .fb-ed-key { min-width: 46px; padding: 0 4px; }
-  .fb-ed-file { width: 130px; }
-  .fb-ed-save { width: 160px; }
+  .fb-ed-key { min-width: 44px; padding: 0 3px; }
+  .fb-ed-file { width: 140px; }
 }
 /* Tighter: the file keeps its close key, the download its arrow. */
-@container ribbon (max-width: 1015.98px) and (min-width: 740px) {
-  .fb-ed-name { display: none; }
-  .fb-ed-file { width: 44px; }
-}
-@container ribbon (max-width: 879.98px) and (min-width: 740px) {
-  .fb-ed-key { min-width: 42px; }
-  .fb-ed-save { width: 60px; }
-  .fb-ed-save .fb-run-icon { width: 60px !important; }
+@container ribbon (max-width: 1119.98px) and (min-width: 740px) {
+  .fb-ed-save { width: 118px; }
+  .fb-ed-save .fb-run-icon { width: 52px !important; }
   .fb-ed-save .fb-run-label { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
+}
+@container ribbon (max-width: 999.98px) and (min-width: 740px) {
+  .fb-ed-name { display: none; }
+  .fb-ed-file { width: 42px; }
+}
+@container ribbon (max-width: 899.98px) and (min-width: 740px) {
+  .fb-ed-key { min-width: 38px; }
 }
 /* Phones: words again, and the strip scrolls. */
 @container ribbon (max-width: 739.98px) {

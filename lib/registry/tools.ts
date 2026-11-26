@@ -648,7 +648,7 @@ export const tools: Tool[] = [
     engine: "browser",
     status: "live",
     featured: true,
-    limits: { maxSizeMB: 50, formats: ["PDF"] },
+    limits: { maxSizeMB: 50, formats: ["PDF", "DOCX", "DOC", "ODT", "RTF", "PPTX", "XLSX", "TXT", "HTML", "JPG", "PNG"] },
     resumeBehavior: "auto",
     seo: {
       title: "Edit PDF Online Free — Change Text, Images & Pages",
@@ -682,8 +682,12 @@ export const tools: Tool[] = [
           a: "The text in a scan is part of a picture, so it cannot be changed as text. You can erase areas and type over them, sign, mark up the page and change its pages.",
         },
         {
+          q: "Which files can I open and save?",
+          a: "Open PDF, Word (DOCX and DOC), ODT, RTF, PowerPoint, Excel, ODS, CSV, text, Markdown, HTML, EPUB and pictures. Save as PDF, Word, ODT, RTF, PowerPoint, Excel, HTML, Markdown or text, or each page as a PNG, JPG or WebP picture.",
+        },
+        {
           q: "What about protected PDFs?",
-          a: "A PDF with a password or an editing restriction has to be unlocked before it can be opened here.",
+          a: "If a PDF needs a password to open or to change, you are asked for it, and it is checked on your device. When you download, you can lock the new file with a password of your own.",
         },
         {
           q: "Is there a size limit?",

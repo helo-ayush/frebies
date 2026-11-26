@@ -7,12 +7,15 @@ import {
   useRef,
   useState,
   type DragEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Copy, FilePlus2, GripVertical, Plus, RotateCw, Trash2, X } from "lucide-react";
+import { Copy, Download, FilePlus2, GripVertical, Plus, RotateCw, Trash2, X } from "lucide-react";
 import { ObjectArt, placeCss } from "./Art";
-import { track } from "./interact";
-import { mixes, shownSize, type EditObject, type Page } from "./model";
+import { DecorLayer } from "./Backdrop";
+import { renderClear } from "./engine/render";
+import { shownCss, track } from "./interact";
+import { mixes, pageBox, shownSize, type EditObject, type Page } from "./model";
 import { useEditor, type EditorStore } from "./store";
 import { MenuRow, Pop } from "./ui";
 import type { RenderQueue } from "@/components/tool/viewer/render-queue";
@@ -30,13 +33,26 @@ const ThumbObject = memo(function ThumbObject({ store, id }: { store: EditorStor
   );
 });
 
-function ThumbArt({ store, page, queue }: { store: EditorStore; page: Page; queue: RenderQueue }) {
+function ThumbArt({
+  store,
+  page,
+  index,
+  count,
+  queue,
+}: {
+  store: EditorStore;
+  page: Page;
+  index: number;
+  count: number;
+  queue: RenderQueue;
+}) {
   const holder = useRef<HTMLSpanElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [near, setNear] = useState(false);
   const key = useEditor(store, (s) => s.backdropKey(page));
   const size = shownSize(page);
   const scale = Math.min(WIDTH / size.w, HEIGHT / size.h);
+  const { paper } = page;
 
   useEffect(() => {
     const node = holder.current;
@@ -61,7 +77,7 @@ function ThumbArt({ store, page, queue }: { store: EditorStore; page: Page; queu
         const bench = document.createElement("canvas");
         bench.width = Math.max(1, Math.round(viewport.width));
         bench.height = Math.max(1, Math.round(viewport.height));
-        const task = item.page.render({ canvas: bench, viewport });
+        const task = paper ? renderClear(item.page, bench, viewport) : item.page.render({ canvas: bench, viewport });
         stop = () => task.cancel();
         try {
           await task.promise;
@@ -79,25 +95,26 @@ function ThumbArt({ store, page, queue }: { store: EditorStore; page: Page; queu
       clearTimeout(timer);
       stop?.();
     };
-  }, [near, store, page, key, scale, queue]);
+  }, [near, store, page, key, scale, queue, paper]);
 
-  const turned =
-    page.rotate === 90
-      ? `translate(${page.h * scale}px, 0) rotate(90deg) `
-      : page.rotate === 180
-        ? `translate(${page.w * scale}px, ${page.h * scale}px) rotate(180deg) `
-        : page.rotate === 270
-          ? `translate(0, ${page.w * scale}px) rotate(270deg) `
-          : "";
+  const box = pageBox(page);
   return (
     <span
       ref={holder}
-      className="relative block overflow-hidden bg-white"
-      style={{ width: size.w * scale, height: size.h * scale }}
+      className="relative block overflow-hidden"
+      style={{ width: size.w * scale, height: size.h * scale, background: paper ?? "#ffffff" }}
     >
       <span
         className="absolute left-0 top-0 block"
-        style={{ width: page.w, height: page.h, transformOrigin: "0 0", transform: `${turned}scale(${scale})` }}
+        style={{
+          width: page.w,
+          height: page.h,
+          transformOrigin: "0 0",
+          transform: shownCss(page, scale),
+          clipPath: page.box
+            ? `inset(${box.y}px ${page.w - box.x - box.w}px ${page.h - box.y - box.h}px ${box.x}px)`
+            : undefined,
+        }}
       >
         <canvas
           ref={canvas}
@@ -119,6 +136,7 @@ function ThumbArt({ store, page, queue }: { store: EditorStore; page: Page; queu
                   <ThumbObject key={id} store={store} id={id} />
                 ))}
             </span>
+            <DecorLayer store={store} page={page} index={index} count={count} />
           </>
         ) : null}
       </span>
@@ -158,6 +176,85 @@ const Tiny = ({
   </button>
 );
 
+/** Between two thumbnails: a page or a document can go right there. */
+function Between({
+  store,
+  at,
+  onAddFiles,
+  children,
+  className = "",
+}: {
+  store: EditorStore;
+  at: number;
+  onAddFiles: (at: number) => void;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  const key =
+    "flex h-[26px] flex-1 items-center justify-center gap-1 border border-line-strong bg-panel text-[11.5px] font-medium leading-none hover:border-ink hover:bg-ink hover:text-white";
+  return (
+    <div data-between={at} className={`group/gap relative flex items-center ${className}`} style={{ width: WIDTH }}>
+      {children}
+      <div className="absolute inset-x-0 top-1/2 z-[2] flex -translate-y-1/2 gap-1 bg-canvas opacity-0 transition-opacity focus-within:opacity-100 group-hover/gap:opacity-100">
+        <button
+          type="button"
+          data-sound="page"
+          title="Add a blank page here"
+          onClick={() => store.addBlank(at)}
+          className={key}
+        >
+          <Plus size={12} aria-hidden />
+          Page
+        </button>
+        <button
+          type="button"
+          title="Add a document here: PDF, Word, pictures and more"
+          onClick={() => onAddFiles(at)}
+          className={key}
+        >
+          <FilePlus2 size={12} aria-hidden />
+          File
+        </button>
+      </div>
+      {/* Fingers do not hover. */}
+      <span className="ml-auto hidden [@media(hover:none)]:block">
+        <Pop
+          label="Add here"
+          width={190}
+          button={(open, toggle, ref) => (
+            <button
+              ref={ref}
+              type="button"
+              aria-label="Add here"
+              aria-expanded={open}
+              onClick={toggle}
+              className="relative z-[3] grid h-8 w-8 place-items-center"
+            >
+              <Plus size={15} aria-hidden />
+            </button>
+          )}
+        >
+          {(close) => (
+            <>
+              <MenuRow
+                label="Blank page"
+                icon={<Plus size={16} aria-hidden />}
+                sound="page"
+                onClick={() => (store.addBlank(at), close())}
+              />
+              <MenuRow
+                label="Document"
+                icon={<FilePlus2 size={16} aria-hidden />}
+                onClick={() => (onAddFiles(at), close())}
+              />
+            </>
+          )}
+        </Pop>
+      </span>
+    </div>
+  );
+}
+
 const Thumb = memo(function Thumb({
   store,
   page,
@@ -168,6 +265,7 @@ const Thumb = memo(function Thumb({
   faded,
   onGrab,
   onPick,
+  onAddFiles,
 }: {
   store: EditorStore;
   page: Page;
@@ -177,36 +275,75 @@ const Thumb = memo(function Thumb({
   lit: boolean;
   faded: boolean;
   onGrab: (event: ReactPointerEvent, id: string) => void;
-  onPick: (id: string) => void;
+  onPick: (id: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
+  onAddFiles: (at: number) => void;
 }) {
   const active = useEditor(store, (s) => s.view.page === page.id);
+  const marked = useEditor(store, (s) => s.view.marked.includes(page.id));
+  const many = useEditor(store, (s) => s.view.marked.length > 1);
   return (
     <li data-thumb={page.id} className={`group relative ${faded ? "opacity-40" : ""}`}>
       {lit ? (
-        <span aria-hidden className="pointer-events-none absolute inset-x-0 -top-[10px] h-[3px] bg-accent" />
+        <span aria-hidden className="pointer-events-none absolute inset-x-0 -top-[8px] z-[3] h-[3px] bg-accent" />
       ) : null}
-      <button
-        type="button"
-        aria-label={`Page ${i + 1}`}
-        aria-current={active ? "page" : undefined}
-        onPointerDown={(event) => {
-          if (event.pointerType !== "touch") onGrab(event, page.id);
-        }}
-        onClick={(event) => {
-          // A mouse press was handled above; this is touch and the keyboard.
-          if (event.detail === 0 || (event.nativeEvent as PointerEvent).pointerType === "touch") onPick(page.id);
-        }}
-        onKeyDown={(event) => {
-          if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-            event.preventDefault();
-            store.movePage(page.id, event.key === "ArrowUp" ? i - 1 : i + 2);
-          } else if (event.key === "Delete") store.deletePages([page.id]);
-        }}
-        className={`block cursor-grab outline-offset-2 ${active ? "shadow-[0_0_0_2px_#f2552c]" : "shadow-[0_0_0_1px_rgba(24,24,27,0.25)] hover:shadow-[0_0_0_2px_#1d1c1f]"}`}
-      >
-        <ThumbArt store={store} page={page} queue={queue} />
-      </button>
-      <div className="mt-1.5 flex items-center justify-between" style={{ width: WIDTH }}>
+      <div className="relative" style={{ width: WIDTH }}>
+        <button
+          type="button"
+          aria-label={`Page ${i + 1}`}
+          aria-current={active ? "page" : undefined}
+          aria-pressed={many ? marked : undefined}
+          onPointerDown={(event) => {
+            if (event.pointerType !== "touch") onGrab(event, page.id);
+          }}
+          onClick={(event: ReactMouseEvent) => {
+            // A mouse press was handled above; this is touch and the keyboard.
+            if (event.detail === 0 || (event.nativeEvent as PointerEvent).pointerType === "touch")
+              onPick(page.id, event);
+          }}
+          onKeyDown={(event) => {
+            if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+              event.preventDefault();
+              store.movePages([page.id], event.key === "ArrowUp" ? i - 1 : i + 2);
+            } else if (event.key === "Delete") {
+              event.stopPropagation();
+              store.deletePages(many && marked ? store.view.marked : [page.id]);
+            } else if (event.key === " " && (event.ctrlKey || event.metaKey)) {
+              event.preventDefault();
+              onPick(page.id, event);
+            }
+          }}
+          className={`relative block cursor-grab outline-offset-2 ${
+            active || (many && marked)
+              ? "shadow-[0_0_0_2px_#f2552c]"
+              : "shadow-[0_0_0_1px_rgba(24,24,27,0.25)] hover:shadow-[0_0_0_2px_#1d1c1f]"
+          }`}
+        >
+          <ThumbArt store={store} page={page} index={i} count={count} queue={queue} />
+          {many && marked ? <span aria-hidden className="pointer-events-none absolute inset-0 bg-accent/25" /> : null}
+        </button>
+        <div
+          className={`absolute right-0 top-0 flex flex-col border border-line-strong transition-opacity ${
+            many ? "hidden" : active ? "opacity-100" : "opacity-0 focus-within:opacity-100 group-hover:opacity-100"
+          }`}
+        >
+          <Tiny label={`Turn page ${i + 1}`} onClick={() => store.rotatePages([page.id], 90)}>
+            <RotateCw size={13} aria-hidden />
+          </Tiny>
+          <Tiny label={`Duplicate page ${i + 1}`} onClick={() => store.duplicatePages([page.id])}>
+            <Copy size={13} aria-hidden />
+          </Tiny>
+          <Tiny
+            label={`Delete page ${i + 1}`}
+            danger
+            disabled={count < 2}
+            slot="page-remove"
+            onClick={() => store.deletePages([page.id])}
+          >
+            <Trash2 size={13} aria-hidden />
+          </Tiny>
+        </div>
+      </div>
+      <Between store={store} at={i + 1} onAddFiles={onAddFiles} className="h-[42px]">
         <span
           className={`fb-num inline-block min-w-[22px] px-1.5 text-center text-[12.5px] leading-[20px] ${active ? "bg-accent-deep text-white" : "text-muted"}`}
         >
@@ -215,40 +352,22 @@ const Thumb = memo(function Thumb({
         <span
           aria-hidden
           onPointerDown={(event) => onGrab(event, page.id)}
-          className="grid h-7 w-8 cursor-grab touch-none place-items-center text-muted [@media(hover:hover)]:hidden"
+          className="relative z-[3] grid h-8 w-8 cursor-grab touch-none place-items-center text-muted [@media(hover:hover)]:hidden"
         >
           <GripVertical size={15} />
         </span>
-      </div>
-      <div
-        className={`absolute right-0 top-0 flex flex-col border border-line-strong transition-opacity ${active ? "opacity-100" : "opacity-0 focus-within:opacity-100 group-hover:opacity-100"}`}
-      >
-        <Tiny label={`Turn page ${i + 1}`} onClick={() => store.rotatePage(page.id, 90)}>
-          <RotateCw size={13} aria-hidden />
-        </Tiny>
-        <Tiny label={`Duplicate page ${i + 1}`} onClick={() => store.duplicatePage(page.id)}>
-          <Copy size={13} aria-hidden />
-        </Tiny>
-        <Tiny
-          label={`Delete page ${i + 1}`}
-          danger
-          disabled={count < 2}
-          slot="page-remove"
-          onClick={() => store.deletePages([page.id])}
-        >
-          <Trash2 size={13} aria-hidden />
-        </Tiny>
-      </div>
+      </Between>
     </li>
   );
 });
 
-/** Every page, small: pick one, drag it to reorder, or drop files between. */
+/** Every page, small: pick one or several, drag them to reorder, or drop files between. */
 export function PageRail({
   store,
   queue,
   onAddFiles,
   onDropFiles,
+  onExtract,
   onClose,
   className = "",
 }: {
@@ -256,18 +375,21 @@ export function PageRail({
   queue: RenderQueue;
   onAddFiles: (at: number) => void;
   onDropFiles: (files: File[], at: number) => void;
+  /** Saves some pages as a PDF of their own. */
+  onExtract: (ids: string[]) => void;
   onClose: () => void;
   className?: string;
 }) {
   const pages = useEditor(store, (s) => s.doc.pages);
   const current = useEditor(store, (s) => s.view.page);
+  const marked = useEditor(store, (s) => s.view.marked);
   const list = useRef<HTMLDivElement>(null);
   const [drop, setDrop] = useState<number | null>(null);
-  const [dragged, setDragged] = useState<string | null>(null);
+  const [dragged, setDragged] = useState<string[]>([]);
 
   // Follow the page being worked on.
   useEffect(() => {
-    if (!current || dragged) return;
+    if (!current || dragged.length > 0) return;
     const node = list.current?.querySelector<HTMLElement>(`[data-thumb="${current}"]`);
     const box = list.current;
     if (!node || !box) return;
@@ -278,8 +400,29 @@ export function PageRail({
 
   const closing = useRef(onClose);
   closing.current = onClose;
+  const anchor = useRef<string | null>(null);
   const pick = useCallback(
-    (id: string) => {
+    (id: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
+      const all = store.doc.pages;
+      const { marked: now, page } = store.view;
+      if (event.ctrlKey || event.metaKey) {
+        const base = now.length > 0 ? now : page ? [page] : [];
+        const next = base.includes(id) ? base.filter((one) => one !== id) : [...base, id];
+        anchor.current = id;
+        store.setView({ marked: next.length > 1 ? next : [], page: next.includes(id) ? id : (next[0] ?? id) });
+        return;
+      }
+      if (event.shiftKey) {
+        const from = all.findIndex((item) => item.id === (anchor.current ?? page));
+        const to = all.findIndex((item) => item.id === id);
+        if (from >= 0 && to >= 0) {
+          const [a, b] = from < to ? [from, to] : [to, from];
+          store.setView({ marked: b > a ? all.slice(a, b + 1).map((item) => item.id) : [] });
+          return;
+        }
+      }
+      anchor.current = id;
+      if (now.length > 0) store.setView({ marked: [] });
       store.show(id);
       // Over the page on small screens: out of the way once a page is picked.
       if (window.matchMedia("(max-width: 1023px)").matches) closing.current();
@@ -300,15 +443,21 @@ export function PageRail({
     (event: ReactPointerEvent, id: string) => {
       if (event.button !== 0) return;
       const from = event.clientY;
+      const keys = { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey };
       let moving = false;
       let slot: number | null = null;
+      let ids: string[] = [id];
       track(
         event,
         (next) => {
           if (!moving && Math.abs(next.clientY - from) < 6) return;
           if (!moving) {
             moving = true;
-            setDragged(id);
+            const { marked: now } = store.view;
+            ids = now.includes(id)
+              ? store.doc.pages.filter((page) => now.includes(page.id)).map((page) => page.id)
+              : [id];
+            setDragged(ids);
           }
           const box = list.current?.getBoundingClientRect();
           if (box && list.current) {
@@ -319,13 +468,13 @@ export function PageRail({
           setDrop(slot);
         },
         (_, cancelled) => {
-          setDragged(null);
+          setDragged([]);
           setDrop(null);
           if (!moving) {
-            if (!cancelled) pick(id);
+            if (!cancelled) pick(id, keys);
             return;
           }
-          if (slot !== null && !cancelled) store.movePage(id, slot);
+          if (slot !== null && !cancelled) store.movePages(ids, slot);
         },
       );
     },
@@ -333,6 +482,8 @@ export function PageRail({
   );
 
   const carries = (event: DragEvent) => [...event.dataTransfer.types].includes("Files");
+  const many = marked.length > 1;
+  const inOrder = () => store.doc.pages.filter((page) => marked.includes(page.id)).map((page) => page.id);
 
   return (
     <aside
@@ -367,8 +518,9 @@ export function PageRail({
           <X size={17} aria-hidden />
         </button>
       </div>
-      <div ref={list} className="studio-main relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-        <ol className="flex flex-col gap-4">
+      <div ref={list} className="studio-main relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-3">
+        <Between store={store} at={0} onAddFiles={onAddFiles} className="h-[30px]" />
+        <ol className="flex flex-col">
           {pages.map((page, i) => (
             <Thumb
               key={page.id}
@@ -378,16 +530,52 @@ export function PageRail({
               count={pages.length}
               queue={queue}
               lit={drop === i}
-              faded={dragged === page.id}
+              faded={dragged.includes(page.id)}
               onGrab={startDrag}
               onPick={pick}
+              onAddFiles={onAddFiles}
             />
           ))}
         </ol>
         <div className="relative h-1">
-          {drop === pages.length ? <span aria-hidden className="absolute inset-x-0 top-2 h-[3px] bg-accent" /> : null}
+          {drop === pages.length ? <span aria-hidden className="absolute inset-x-0 -top-1 h-[3px] bg-accent" /> : null}
         </div>
       </div>
+      {many ? (
+        <div className="shrink-0 border-t border-ink bg-panel">
+          <p className="flex items-center justify-between pl-3 text-[12.5px]">
+            <span className="fb-num">{marked.length} pages</span>
+            <button
+              type="button"
+              onClick={() => store.setView({ marked: [] })}
+              className="h-9 px-3 text-muted hover:text-ink"
+            >
+              Clear
+            </button>
+          </p>
+          <div className="grid grid-cols-4 border-t border-line">
+            {(
+              [
+                ["Turn these pages", RotateCw, () => store.rotatePages(marked, 90)],
+                ["Duplicate these pages", Copy, () => store.duplicatePages(inOrder())],
+                ["Save these pages as a PDF", Download, () => onExtract(inOrder())],
+                ["Delete these pages", Trash2, () => store.deletePages(marked)],
+              ] as const
+            ).map(([label, Icon, run]) => (
+              <button
+                key={label}
+                type="button"
+                title={label}
+                aria-label={label}
+                onClick={run}
+                className={`grid h-10 place-items-center border-l border-line first:border-l-0 ${label.startsWith("Delete") ? "hover:bg-danger hover:text-white" : "hover:bg-ink hover:text-white"}`}
+              >
+                <Icon size={15} aria-hidden />
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="shrink-0 border-t border-line">
         <Pop
           label="Add pages"
@@ -414,7 +602,8 @@ export function PageRail({
                 onClick={() => (store.addBlank(), close())}
               />
               <MenuRow
-                label="PDF or pictures"
+                label="Document"
+                hint="PDF, Word…"
                 icon={<FilePlus2 size={16} aria-hidden />}
                 onClick={() => (onAddFiles(pages.length), close())}
               />
