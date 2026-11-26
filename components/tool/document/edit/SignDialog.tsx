@@ -259,7 +259,7 @@ export function SignDialog({
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) event.currentTarget.close();
       }}
-      className="m-auto max-h-[calc(100dvh-24px)] w-[min(640px,calc(100vw-24px))] max-w-none overflow-y-auto border border-ink bg-panel p-0 text-ink"
+      className="m-auto max-h-[calc(100dvh-24px)] w-[min(640px,calc(100vw-24px))] max-w-none overflow-y-auto border border-line-strong bg-panel p-0 text-ink"
     >
       {open ? (
         <div>
@@ -270,7 +270,7 @@ export function SignDialog({
               aria-label="Close"
               data-slot="viewer-close"
               onClick={() => ref.current?.close()}
-              className="grid w-[58px] place-items-center border-l border-line hover:bg-ink hover:text-white"
+              className="grid w-[58px] place-items-center border-l border-line transition-colors hover:bg-hover hover:text-accent-deep focus-visible:outline-offset-[-3px]"
             >
               <X size={18} aria-hidden />
             </button>
@@ -369,7 +369,7 @@ export function SignDialog({
                       type="button"
                       data-slot="signature-clear"
                       onClick={() => setStrokes([])}
-                      className="absolute right-0 top-0 flex h-9 items-center gap-2 bg-panel px-3 text-[13px] hover:bg-ink hover:text-white"
+                      className="absolute right-0 top-0 flex h-9 items-center gap-2 bg-panel px-3 text-[13px] hover:bg-white hover:text-accent-deep"
                     >
                       <Eraser size={15} aria-hidden />
                       Clear

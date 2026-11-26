@@ -3,8 +3,8 @@ import { isLine, marginBox, pageBox, shownMatrix, shownSize, tidyParas } from ".
 import { apply, bounds, invert, objectBounds, objectCorners, placement, type Box, type Point } from "./engine/matrix";
 import { adjOf, shapeDef } from "./engine/shape-kinds";
 import { endsOf } from "./engine/shapes";
-import { dragCol, dragRow, layTable, scaleTable } from "./engine/table";
-import type { EditorStore } from "./store";
+import { dragCol, dragRow, layTable, ownerOf, scaleTable, wholeArea } from "./engine/table";
+import type { EditorStore, Grid } from "./store";
 
 /** Pointer work shared by the page, the objects on it and their handles. */
 
@@ -606,4 +606,67 @@ export function objectsIn(store: EditorStore, page: Page, box: Box): string[] {
     return object && !object.lock && inside(object);
   });
   return store.withGroups(found);
+}
+
+/** The cell of a table under a point of the page. */
+export function cellIn(table: TableObject, p: Point): { r: number; c: number } {
+  const lay = layTable(table);
+  const local = apply(invert(placement(table.x, table.y, table.angle)), p.x, p.y);
+  const find = (stops: number[], value: number) => {
+    const at = stops.findIndex((stop, i) => i > 0 && value < stop);
+    return Math.max(0, Math.min(stops.length - 2, at < 0 ? stops.length - 2 : at - 1));
+  };
+  return ownerOf(table, find(lay.ys, local.y), find(lay.xs, local.x));
+}
+
+/**
+ * A press inside a table drawn in the PDF. A drag turns it into a table and picks the cells it passes;
+ * a press meant for typing turns it into a table with the caret in that cell. Anything else is `click`.
+ */
+export function startGridPick(
+  store: EditorStore,
+  page: Page,
+  event: { clientX: number; clientY: number; pointerId: number; pointerType: string },
+  grid: Grid,
+  edit: boolean,
+  click: () => void,
+) {
+  const start = { x: event.clientX, y: event.clientY };
+  const a = toPage(store, page, event.clientX, event.clientY);
+  let last = a;
+  let made: Promise<string | null> | null = null;
+  const open = () => (made ??= store.openGrid(page.id, grid));
+  const pick = (id: string | null) => {
+    const table = id ? store.doc.objects[id] : null;
+    if (!id || table?.type !== "table") return;
+    const from = cellIn(table, a);
+    const to = cellIn(table, last);
+    store.pickCells(id, wholeArea(table, { r0: from.r, c0: from.c, r1: to.r, c1: to.c }));
+  };
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  track(
+    event,
+    (next) => {
+      last = toPage(store, page, next.clientX, next.clientY);
+      const far = Math.hypot(next.clientX - start.x, next.clientY - start.y) >= 5;
+      // A finger dragging is scrolling the page.
+      if (!made && (next.pointerType === "touch" || !far)) return;
+      document.getSelection()?.removeAllRanges();
+      void open().then(pick);
+    },
+    (next, cancelled) => {
+      if (cancelled || made) return;
+      if (event.pointerType === "touch" && Math.hypot(next.clientX - start.x, next.clientY - start.y) > 10) return;
+      if (!edit) {
+        click();
+        return;
+      }
+      void open().then((id) => {
+        const table = id ? store.doc.objects[id] : null;
+        if (!id || table?.type !== "table") return;
+        store.caret = { x: start.x, y: start.y };
+        store.select([id], id, cellIn(table, a));
+      });
+    },
+  );
 }

@@ -94,7 +94,7 @@ export function SaveDialog({
 
   return (
     <Sheet
-      title="Download as"
+      title="Save as"
       open={open}
       onClose={onClose}
       width={760}
@@ -119,8 +119,8 @@ export function SaveDialog({
           className="fb-btn w-full"
         >
           {picture && count > 1
-            ? `Download ${count} pictures in a zip`
-            : `Download ${FORMATS.find((item) => item.value === format)?.label ?? ""}`}
+            ? `Save ${count} pictures in a zip`
+            : `Save as ${FORMATS.find((item) => item.value === format)?.label ?? ""}`}
         </button>
       }
     >
@@ -134,17 +134,13 @@ export function SaveDialog({
               data-sound="select"
               onClick={() => store.setView({ format: item.value })}
               className={`flex items-center gap-2.5 border px-3 py-2.5 text-left ${
-                format === item.value ? "border-ink bg-ink text-white" : "border-line-strong bg-white hover:border-ink"
+                format === item.value ? "fb-ed-tile-on" : "border-line-strong bg-white hover:border-ink"
               }`}
             >
               {item.icon}
               <span className="min-w-0">
                 <span className="block text-[14px] leading-tight">{item.label}</span>
-                <span
-                  className={`block truncate text-[11.5px] leading-tight ${format === item.value ? "text-white/65" : "text-muted"}`}
-                >
-                  {item.hint}
-                </span>
+                <span className={`block truncate text-[11.5px] leading-tight text-muted`}>{item.hint}</span>
               </span>
             </button>
           ))}

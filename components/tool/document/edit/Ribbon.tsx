@@ -9,11 +9,9 @@ import {
   CalendarDays,
   Check,
   CheckSquare,
-  ChevronDown,
   CircleDot,
   Crop,
   Dot,
-  Download,
   Eraser,
   EyeOff,
   FilePlus2,
@@ -26,8 +24,9 @@ import {
   Keyboard,
   Link2,
   List,
-  Loader2,
+  Maximize2,
   MessageSquare,
+  Minimize2,
   Minus,
   MousePointer2,
   Omega,
@@ -39,7 +38,6 @@ import {
   Plus,
   Printer,
   QrCode,
-  Redo2,
   Ruler,
   Scaling,
   Search,
@@ -53,17 +51,18 @@ import {
   TextCursorInput,
   Type,
   Underline,
-  Undo2,
   Waves,
   Droplets,
   X,
 } from "lucide-react";
+import { SaveKey } from "./SaveMenu";
 import { ShapeGrid } from "./ShapeGrid";
 import { insertTable } from "./commands";
 import type { Tool } from "./model";
+import type { Format } from "./store";
 import { STAMPS, addDate, addStamp } from "./stamps";
 import { useEditor, type EditorStore } from "./store";
-import { MenuRow, NumberBox, Pop } from "./ui";
+import { MenuRow, NumberBox, PlusMark, Pop } from "./ui";
 
 const ICON = { size: 19, strokeWidth: 1.6, "aria-hidden": true } as const;
 const SMALL = { size: 17, strokeWidth: 1.7, "aria-hidden": true } as const;
@@ -152,16 +151,24 @@ function Key({
       data-slot={slot}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
-      className={`fb-ed-key group relative flex h-full min-w-[48px] shrink-0 flex-col items-center justify-center gap-[5px] px-1 transition-colors disabled:pointer-events-none disabled:opacity-30 ${
-        active ? "bg-ink text-white" : expanded ? "bg-hover" : "hover:bg-hover"
+      className={`fb-ed-key group relative flex h-full shrink-0 flex-col items-center justify-center gap-[6px] transition-colors disabled:pointer-events-none disabled:opacity-30 ${
+        active ? "bg-white/75 [&_svg]:text-accent-deep" : expanded ? "bg-white/60" : "hover:bg-white/45"
       }`}
     >
       {icon}
-      <span className="fb-ed-word flex items-center gap-0.5 whitespace-nowrap text-[12px] leading-none">
-        {label}
-        {caret ? <ChevronDown size={11} aria-hidden /> : null}
+      <span className="fb-ed-word flex items-center gap-1 whitespace-nowrap text-[12px] leading-none">
+        <span className="fb-roll">
+          <span>{label}</span>
+          <span aria-hidden>{label}</span>
+        </span>
+        {caret ? <PlusMark open={expanded} /> : null}
       </span>
-      {active ? <span aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] bg-accent" /> : null}
+      <span
+        aria-hidden
+        className={`absolute inset-x-2 bottom-0 h-[2px] origin-left bg-accent transition-transform duration-300 ${
+          active || expanded ? "scale-x-100" : "scale-x-0"
+        }`}
+      />
     </button>
   );
 }
@@ -204,7 +211,7 @@ function Menu({
 }
 
 const Head = ({ children }: { children: ReactNode }) => (
-  <p className="border-y border-line bg-canvas px-3 py-1.5 text-[12px] uppercase text-muted first:border-t-0">
+  <p className="border-t border-line px-3 pb-1.5 pt-3 text-[11.5px] uppercase tracking-[0.02em] text-muted first:border-t-0">
     {children}
   </p>
 );
@@ -270,7 +277,7 @@ function TablePick({ onPick }: { onPick: (rows: number, cols: number) => void })
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => onPick(rows, cols)}
-          className="ml-auto h-9 bg-ink px-3 text-[13px] font-medium text-white hover:bg-accent-deep"
+          className="fb-btn ml-auto !h-9 !px-4 !text-[13px]"
         >
           Add
         </button>
@@ -293,8 +300,10 @@ export function Ribbon({
   onAddFiles,
   onPrint,
   onDialog,
-  onDownload,
+  onSave,
   onClose,
+  full,
+  onFull,
   spot,
 }: {
   store: EditorStore;
@@ -306,18 +315,19 @@ export function Ribbon({
   onAddFiles: () => void;
   onPrint: () => void;
   onDialog: (name: DialogName) => void;
-  onDownload: () => void;
+  /** Saves in this kind of file at once. */
+  onSave: (format: Format) => void;
   onClose: () => void;
+  full: boolean;
+  onFull: () => void;
   /** The middle of what is on screen. */
   spot: () => { page: string; x: number; y: number } | null;
 }) {
   const tool = useEditor(store, (s) => s.view.tool);
-  const canUndo = useEditor(store, (s) => s.canUndo);
-  const canRedo = useEditor(store, (s) => s.canRedo);
   const find = useEditor(store, (s) => s.view.find.open);
   const dirty = useEditor(store, (s) => s.view.dirty);
   const prefs = useEditor(store, (s) => s.view.prefs);
-  const line = <span aria-hidden className="my-3 w-px shrink-0 bg-line" />;
+  const line = <span aria-hidden className="fb-ed-gap w-px shrink-0 bg-line" />;
   const on = (list: Choice[]) => list.find((choice) => choice.tool === tool);
   const drawing = on(DRAWING);
   const marking = on(MARKS);
@@ -347,266 +357,268 @@ export function Ribbon({
       </div>
 
       <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <Menu label="File" icon={<FileText {...ICON} />} width={250}>
-          {(close) => {
-            const go = (work: () => void) => () => {
-              close();
-              work();
-            };
-            return (
-              <>
-                <MenuRow label="New document" icon={<Plus {...SMALL} />} onClick={go(() => onDialog("new"))} />
-                <MenuRow
-                  label="Open another file"
-                  icon={<FolderOpen {...SMALL} />}
-                  hint="Ctrl O"
-                  onClick={go(onOpen)}
-                />
-                <MenuRow label="Add a file to this one" icon={<FilePlus2 {...SMALL} />} onClick={go(onAddFiles)} />
-                <MenuRow label="Print" icon={<Printer {...SMALL} />} hint="Ctrl P" onClick={go(onPrint)} />
-                <MenuRow label="Bookmarks" icon={<BookMarked {...SMALL} />} onClick={go(() => onDialog("bookmarks"))} />
-                <MenuRow
-                  label="Title, author and keywords"
-                  icon={<Info {...SMALL} />}
-                  onClick={go(() => onDialog("properties"))}
-                />
-                <MenuRow
-                  label="Keyboard shortcuts"
-                  icon={<Keyboard {...SMALL} />}
-                  hint="?"
-                  onClick={go(() => onDialog("shortcuts"))}
-                />
-              </>
-            );
-          }}
-        </Menu>
-        <Key label="Pages" icon={<PanelLeft {...ICON} />} active={rail} onClick={onRail} />
-        {line}
-        <span className="flex shrink-0 flex-col">
-          {(
-            [
-              ["Undo", "Ctrl Z", Undo2, canUndo, () => store.undo()],
-              ["Redo", "Ctrl Y", Redo2, canRedo, () => store.redo()],
-            ] as const
-          ).map(([label, hint, Icon, on, work]) => (
-            <button
-              key={label}
-              type="button"
-              title={`${label} (${hint})`}
-              aria-label={label}
-              disabled={!on}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={work}
-              className="grid w-10 flex-1 place-items-center transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-30"
-            >
-              <Icon size={18} strokeWidth={1.7} aria-hidden />
-            </button>
-          ))}
-        </span>
-        {line}
-        <Key
-          label="Edit"
-          hint="V"
-          icon={<MousePointer2 {...ICON} />}
-          active={tool === "select"}
-          onClick={() => store.setTool("select")}
-        />
-        <Key
-          label="Text"
-          hint="T"
-          icon={<Type {...ICON} />}
-          active={tool === "text"}
-          onClick={() => store.setTool("text")}
-        />
-        <Menu label="Table" icon={<Table2 {...ICON} />} width={286}>
-          {(close) => (
-            <TablePick
-              onPick={(rows, cols) => {
+        <div className="mx-auto flex shrink-0 items-stretch">
+          <Menu label="File" icon={<FileText {...ICON} />} width={250}>
+            {(close) => {
+              const go = (work: () => void) => () => {
                 close();
-                insertTable(store, rows, cols, spot());
-              }}
-            />
-          )}
-        </Menu>
-        <Key label="Image" icon={<ImagePlus {...ICON} />} onClick={onImage} />
-        <Menu label="Shapes" icon={<Shapes {...ICON} />} width={330} active={tool.startsWith("shape:")}>
-          {(close) => (
-            <ShapeGrid
-              active={tool.startsWith("shape:") ? tool.slice(6) : undefined}
-              onPick={(kind) => {
-                store.setTool(`shape:${kind}`);
-                close();
-              }}
-            />
-          )}
-        </Menu>
-        <Menu
-          label="Draw"
-          icon={drawing ? big(drawing.icon) : <Pencil {...ICON} />}
-          active={Boolean(drawing)}
-          width={210}
-        >
-          {(close) => <Choices store={store} list={DRAWING} close={close} />}
-        </Menu>
-        <Menu
-          label="Mark"
-          icon={marking ? big(marking.icon) : <Highlighter {...ICON} />}
-          active={Boolean(marking)}
-          width={210}
-        >
-          {(close) => <Choices store={store} list={MARKS} close={close} />}
-        </Menu>
-        <Menu
-          label="Erase"
-          icon={erasing ? big(erasing.icon) : <Eraser {...ICON} />}
-          active={Boolean(erasing)}
-          width={220}
-        >
-          {(close) => <Choices store={store} list={ERASING} close={close} />}
-        </Menu>
-        <Menu label="Sign" icon={<Signature {...ICON} />} width={234}>
-          {(close) => (
-            <>
-              <MenuRow
-                label="Signature"
-                icon={<Signature {...SMALL} />}
-                onClick={() => {
+                work();
+              };
+              return (
+                <>
+                  <MenuRow label="New document" icon={<Plus {...SMALL} />} onClick={go(() => onDialog("new"))} />
+                  <MenuRow
+                    label="Open another file"
+                    icon={<FolderOpen {...SMALL} />}
+                    hint="Ctrl O"
+                    onClick={go(onOpen)}
+                  />
+                  <MenuRow label="Add a file to this one" icon={<FilePlus2 {...SMALL} />} onClick={go(onAddFiles)} />
+                  <MenuRow label="Print" icon={<Printer {...SMALL} />} hint="Ctrl P" onClick={go(onPrint)} />
+                  <MenuRow
+                    label="Bookmarks"
+                    icon={<BookMarked {...SMALL} />}
+                    onClick={go(() => onDialog("bookmarks"))}
+                  />
+                  <MenuRow
+                    label="Title, author and keywords"
+                    icon={<Info {...SMALL} />}
+                    onClick={go(() => onDialog("properties"))}
+                  />
+                  <MenuRow
+                    label="Keyboard shortcuts"
+                    icon={<Keyboard {...SMALL} />}
+                    hint="?"
+                    onClick={go(() => onDialog("shortcuts"))}
+                  />
+                </>
+              );
+            }}
+          </Menu>
+          <Key label="Pages" icon={<PanelLeft {...ICON} />} active={rail} onClick={onRail} />
+          {line}
+          <Key
+            label="Edit"
+            hint="V"
+            icon={<MousePointer2 {...ICON} />}
+            active={tool === "select"}
+            onClick={() => store.setTool("select")}
+          />
+          <Key
+            label="Text"
+            hint="T"
+            icon={<Type {...ICON} />}
+            active={tool === "text"}
+            onClick={() => store.setTool("text")}
+          />
+          <Menu label="Table" icon={<Table2 {...ICON} />} width={286}>
+            {(close) => (
+              <TablePick
+                onPick={(rows, cols) => {
                   close();
-                  onDialog("sign");
+                  insertTable(store, rows, cols, spot());
                 }}
-              />
-              <MenuRow
-                label="Today’s date"
-                icon={<CalendarDays {...SMALL} />}
-                onClick={() => {
-                  close();
-                  addDate(store, spot());
-                }}
-              />
-              <Head>Stamps</Head>
-              <div className="grid grid-cols-2 gap-1.5 p-2">
-                {STAMPS.map((stamp) => (
-                  <button
-                    key={stamp.text}
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      close();
-                      addStamp(store, stamp, spot());
-                    }}
-                    className="truncate border-2 bg-white px-1.5 py-1.5 text-[11.5px] font-bold uppercase leading-none hover:bg-hover"
-                    style={{ color: stamp.color, borderColor: stamp.color }}
-                  >
-                    {stamp.text}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </Menu>
-        <Menu label="Forms" icon={filling ? big(filling.icon) : <CheckSquare {...ICON} />} active={Boolean(filling)}>
-          {(close) => (
-            <>
-              <Choices store={store} list={TICKS} close={close} />
-              <Head>Fields to fill in</Head>
-              <Choices store={store} list={FIELDS} close={close} />
-            </>
-          )}
-        </Menu>
-        <Menu label="Insert" icon={<Plus {...ICON} />} active={tool === "link"} width={226}>
-          {(close) => {
-            const go = (work: () => void) => () => {
-              close();
-              work();
-            };
-            return (
-              <>
-                <MenuRow
-                  label="Link"
-                  icon={<Link2 {...SMALL} />}
-                  hint="Ctrl K"
-                  onClick={go(() => store.setTool("link"))}
-                />
-                <MenuRow
-                  label="Comment"
-                  icon={<MessageSquare {...SMALL} />}
-                  hint="N"
-                  onClick={go(() => store.setTool("note"))}
-                />
-                <MenuRow label="Symbol" icon={<Omega {...SMALL} />} onClick={go(() => onDialog("symbols"))} />
-                <MenuRow label="QR code" icon={<QrCode {...SMALL} />} onClick={go(() => onDialog("qr"))} />
-                <MenuRow label="Barcode" icon={<Barcode {...SMALL} />} onClick={go(() => onDialog("barcode"))} />
-                <MenuRow label="Stamp or date" icon={<Stamp {...SMALL} />} onClick={go(() => addDate(store, spot()))} />
-                <MenuRow
-                  label="Blank page"
-                  icon={<Plus {...SMALL} />}
-                  sound="page"
-                  onClick={go(() => store.addBlank())}
-                />
-                <MenuRow label="Document" icon={<FilePlus2 {...SMALL} />} onClick={go(onAddFiles)} />
-              </>
-            );
-          }}
-        </Menu>
-        <Menu label="Page" icon={<PanelTop {...ICON} />} active={tool === "crop"} width={232}>
-          {(close) => {
-            const go = (work: () => void) => () => {
-              close();
-              work();
-            };
-            return (
-              <>
-                <MenuRow label="Size and margins" icon={<Scaling {...SMALL} />} onClick={go(() => onDialog("size"))} />
-                <MenuRow label="Crop" icon={<Crop {...SMALL} />} onClick={go(() => store.setTool("crop"))} />
-                <MenuRow
-                  label="Header, footer, page numbers"
-                  icon={<PanelTop {...SMALL} />}
-                  onClick={go(() => onDialog("bands"))}
-                />
-                <MenuRow label="Watermark" icon={<Droplets {...SMALL} />} onClick={go(() => onDialog("watermark"))} />
-                <MenuRow label="Paper colour" icon={<Palette {...SMALL} />} onClick={go(() => onDialog("paper"))} />
-                <Head>On screen</Head>
-                <MenuRow
-                  label="Margin lines"
-                  icon={<SquareDashed {...SMALL} />}
-                  hint={prefs.margins ? "On" : "Off"}
-                  onClick={() => store.setPrefs({ margins: !prefs.margins })}
-                />
-                <MenuRow
-                  label="Rulers"
-                  icon={<Ruler {...SMALL} />}
-                  hint={prefs.rulers ? "On" : "Off"}
-                  onClick={() => store.setPrefs({ rulers: !prefs.rulers })}
-                />
-                <MenuRow
-                  label="Grid to line things up"
-                  icon={<Grid3x3 {...SMALL} />}
-                  hint={prefs.grid ? "On" : "Off"}
-                  onClick={() => store.setPrefs({ grid: !prefs.grid })}
-                />
-              </>
-            );
-          }}
-        </Menu>
-        <Key label="Find" hint="Ctrl F" icon={<Search {...ICON} />} active={find} onClick={onFind} />
-        <span className="fb-ed-close">
-          <CloseFile dirty={dirty} onClose={onClose}>
-            {(open, press, ref) => (
-              <Key
-                label="Close"
-                icon={<X {...ICON} />}
-                onClick={press}
-                buttonRef={ref}
-                expanded={open}
-                slot="file-close"
               />
             )}
-          </CloseFile>
-        </span>
+          </Menu>
+          <Key label="Image" icon={<ImagePlus {...ICON} />} onClick={onImage} />
+          <Menu label="Shapes" icon={<Shapes {...ICON} />} width={330} active={tool.startsWith("shape:")}>
+            {(close) => (
+              <ShapeGrid
+                active={tool.startsWith("shape:") ? tool.slice(6) : undefined}
+                onPick={(kind) => {
+                  store.setTool(`shape:${kind}`);
+                  close();
+                }}
+              />
+            )}
+          </Menu>
+          <Menu
+            label="Draw"
+            icon={drawing ? big(drawing.icon) : <Pencil {...ICON} />}
+            active={Boolean(drawing)}
+            width={210}
+          >
+            {(close) => <Choices store={store} list={DRAWING} close={close} />}
+          </Menu>
+          <Menu
+            label="Mark"
+            icon={marking ? big(marking.icon) : <Highlighter {...ICON} />}
+            active={Boolean(marking)}
+            width={210}
+          >
+            {(close) => <Choices store={store} list={MARKS} close={close} />}
+          </Menu>
+          <Menu
+            label="Erase"
+            icon={erasing ? big(erasing.icon) : <Eraser {...ICON} />}
+            active={Boolean(erasing)}
+            width={220}
+          >
+            {(close) => <Choices store={store} list={ERASING} close={close} />}
+          </Menu>
+          <Menu label="Sign" icon={<Signature {...ICON} />} width={234}>
+            {(close) => (
+              <>
+                <MenuRow
+                  label="Signature"
+                  icon={<Signature {...SMALL} />}
+                  onClick={() => {
+                    close();
+                    onDialog("sign");
+                  }}
+                />
+                <MenuRow
+                  label="Today’s date"
+                  icon={<CalendarDays {...SMALL} />}
+                  onClick={() => {
+                    close();
+                    addDate(store, spot());
+                  }}
+                />
+                <Head>Stamps</Head>
+                <div className="grid grid-cols-2 gap-1.5 p-2">
+                  {STAMPS.map((stamp) => (
+                    <button
+                      key={stamp.text}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        close();
+                        addStamp(store, stamp, spot());
+                      }}
+                      className="truncate border-2 bg-white px-1.5 py-1.5 text-[11.5px] font-bold uppercase leading-none hover:bg-hover"
+                      style={{ color: stamp.color, borderColor: stamp.color }}
+                    >
+                      {stamp.text}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </Menu>
+          <Menu label="Forms" icon={filling ? big(filling.icon) : <CheckSquare {...ICON} />} active={Boolean(filling)}>
+            {(close) => (
+              <>
+                <Choices store={store} list={TICKS} close={close} />
+                <Head>Fields to fill in</Head>
+                <Choices store={store} list={FIELDS} close={close} />
+              </>
+            )}
+          </Menu>
+          <Menu label="Insert" icon={<Plus {...ICON} />} active={tool === "link"} width={226}>
+            {(close) => {
+              const go = (work: () => void) => () => {
+                close();
+                work();
+              };
+              return (
+                <>
+                  <MenuRow
+                    label="Link"
+                    icon={<Link2 {...SMALL} />}
+                    hint="Ctrl K"
+                    onClick={go(() => store.setTool("link"))}
+                  />
+                  <MenuRow
+                    label="Comment"
+                    icon={<MessageSquare {...SMALL} />}
+                    hint="N"
+                    onClick={go(() => store.setTool("note"))}
+                  />
+                  <MenuRow label="Symbol" icon={<Omega {...SMALL} />} onClick={go(() => onDialog("symbols"))} />
+                  <MenuRow label="QR code" icon={<QrCode {...SMALL} />} onClick={go(() => onDialog("qr"))} />
+                  <MenuRow label="Barcode" icon={<Barcode {...SMALL} />} onClick={go(() => onDialog("barcode"))} />
+                  <MenuRow
+                    label="Stamp or date"
+                    icon={<Stamp {...SMALL} />}
+                    onClick={go(() => addDate(store, spot()))}
+                  />
+                  <MenuRow
+                    label="Blank page"
+                    icon={<Plus {...SMALL} />}
+                    sound="page"
+                    onClick={go(() => store.addBlank())}
+                  />
+                  <MenuRow label="Document" icon={<FilePlus2 {...SMALL} />} onClick={go(onAddFiles)} />
+                </>
+              );
+            }}
+          </Menu>
+          {line}
+          <Menu label="Page" icon={<PanelTop {...ICON} />} active={tool === "crop"} width={232}>
+            {(close) => {
+              const go = (work: () => void) => () => {
+                close();
+                work();
+              };
+              return (
+                <>
+                  <MenuRow
+                    label="Size and margins"
+                    icon={<Scaling {...SMALL} />}
+                    onClick={go(() => onDialog("size"))}
+                  />
+                  <MenuRow label="Crop" icon={<Crop {...SMALL} />} onClick={go(() => store.setTool("crop"))} />
+                  <MenuRow
+                    label="Header, footer, page numbers"
+                    icon={<PanelTop {...SMALL} />}
+                    onClick={go(() => onDialog("bands"))}
+                  />
+                  <MenuRow label="Watermark" icon={<Droplets {...SMALL} />} onClick={go(() => onDialog("watermark"))} />
+                  <MenuRow label="Paper colour" icon={<Palette {...SMALL} />} onClick={go(() => onDialog("paper"))} />
+                  <Head>On screen</Head>
+                  <MenuRow
+                    label="Margin lines"
+                    icon={<SquareDashed {...SMALL} />}
+                    hint={prefs.margins ? "On" : "Off"}
+                    onClick={() => store.setPrefs({ margins: !prefs.margins })}
+                  />
+                  <MenuRow
+                    label="Rulers"
+                    icon={<Ruler {...SMALL} />}
+                    hint={prefs.rulers ? "On" : "Off"}
+                    onClick={() => store.setPrefs({ rulers: !prefs.rulers })}
+                  />
+                  <MenuRow
+                    label="Grid to line things up"
+                    icon={<Grid3x3 {...SMALL} />}
+                    hint={prefs.grid ? "On" : "Off"}
+                    onClick={() => store.setPrefs({ grid: !prefs.grid })}
+                  />
+                </>
+              );
+            }}
+          </Menu>
+          <Key label="Find" hint="Ctrl F" icon={<Search {...ICON} />} active={find} onClick={onFind} />
+          <span className="fb-ed-close">
+            <CloseFile dirty={dirty} onClose={onClose}>
+              {(open, press, ref) => (
+                <Key
+                  label="Close"
+                  icon={<X {...ICON} />}
+                  onClick={press}
+                  buttonRef={ref}
+                  expanded={open}
+                  slot="file-close"
+                />
+              )}
+            </CloseFile>
+          </span>
+        </div>
       </div>
 
-      <div className="fb-ed-save flex shrink-0 items-stretch max-lg:hidden">
-        <DownloadKey store={store} onClick={onDownload} onFormat={() => onDialog("save")} />
+      <div className="fb-ed-save flex shrink-0 items-stretch border-l border-line max-lg:hidden">
+        <Key
+          label={full ? "Exit full" : "Full screen"}
+          icon={full ? <Minimize2 {...ICON} /> : <Maximize2 {...ICON} />}
+          active={full}
+          onClick={onFull}
+          slot={full ? "viewer-close" : "viewer-open"}
+        />
+        <div className="fb-ed-savekey flex">
+          <SaveKey store={store} onSave={onSave} onMore={() => onDialog("save")} />
+        </div>
       </div>
     </div>
   );
@@ -630,7 +642,7 @@ function CloseFile({
     >
       {(close) => (
         <div className="p-3.5">
-          <p className="text-[14.5px] leading-snug">Close without downloading? The changes are only in this browser.</p>
+          <p className="text-[14.5px] leading-snug">Close without saving? The changes are only in this browser.</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -646,7 +658,7 @@ function CloseFile({
                 close();
                 onClose();
               }}
-              className="h-10 bg-ink text-[13px] font-medium text-white hover:bg-danger"
+              className="fb-btn !h-10 !px-3 !text-[13px]"
             >
               Close
             </button>
@@ -672,72 +684,5 @@ function NameBox({ store }: { store: EditorStore }) {
         className="h-9 w-full min-w-0 truncate border border-transparent bg-transparent px-1.5 text-[14px] font-medium outline-none hover:border-line-strong focus:border-ink focus:bg-white focus-visible:outline-none"
       />
     </label>
-  );
-}
-
-export const FORMAT_NAMES: Record<string, string> = {
-  pdf: "PDF",
-  docx: "Word",
-  odt: "ODT",
-  rtf: "RTF",
-  pptx: "PPT",
-  xlsx: "Excel",
-  png: "PNG",
-  jpg: "JPG",
-  webp: "WebP",
-  html: "HTML",
-  md: "MD",
-  txt: "TXT",
-};
-
-/** The one loud key, and the kind of file it makes. Fills up while the file is being put together. */
-export function DownloadKey({
-  store,
-  onClick,
-  onFormat,
-}: {
-  store: EditorStore;
-  onClick: () => void;
-  onFormat: () => void;
-}) {
-  const busy = useEditor(store, (s) => s.view.busy);
-  const format = useEditor(store, (s) => s.view.format);
-  const saving = busy?.label.startsWith("Saving") ? busy : null;
-  return (
-    <>
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={Boolean(busy)}
-        aria-busy={saving ? true : undefined}
-        data-slot="primary-action"
-        data-tone="done"
-        className="fb-run !min-h-0 min-w-0 flex-1"
-      >
-        {saving ? (
-          <span
-            aria-hidden
-            className="fb-run-fill"
-            style={{ width: `${Math.max(6, (saving.progress ?? 0) * 100)}%` }}
-          />
-        ) : null}
-        <span className="fb-run-icon !w-[48px]">
-          {saving ? <Loader2 size={18} className="animate-spin" aria-hidden /> : <Download size={18} aria-hidden />}
-        </span>
-        <span className="fb-run-label">{saving ? "Saving…" : "Download"}</span>
-      </button>
-      <button
-        type="button"
-        disabled={Boolean(busy)}
-        onClick={onFormat}
-        title="Other kinds of file, pages and options"
-        aria-label={`Kind of file: ${FORMAT_NAMES[format] ?? format}. Change`}
-        data-slot="save-format"
-        className="flex w-[66px] shrink-0 items-center justify-center gap-1 border-l border-line bg-ink text-[12.5px] font-medium text-white transition-colors hover:bg-accent-deep disabled:opacity-60"
-      >
-        {FORMAT_NAMES[format] ?? format}
-        <ChevronDown size={12} aria-hidden />
-      </button>
-    </>
   );
 }

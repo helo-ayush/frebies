@@ -814,7 +814,7 @@ export function FieldBar({ store, object }: { store: EditorStore; object: FieldO
           ? "Buttons with the same question belong together."
           : object.kind === "sign"
             ? "A place to sign, in programs that sign PDFs."
-            : "People can fill this in after you download the PDF."}
+            : "People can fill this in after you save the PDF."}
       </Hint>
       <Ends store={store} objects={[object]} plain />
     </>

@@ -636,20 +636,25 @@ dialog::backdrop { background: rgba(29, 28, 31, 0.55); backdrop-filter: none; }
 .fb-ed-bar { container: ribbon / inline-size; }
 .fb-ed-file { width: 168px; }
 .fb-ed-close { display: none; }
-.fb-ed-save { width: 226px; }
+.fb-ed-key { min-width: 56px; padding: 0 10px; }
+.fb-ed-gap { margin: 14px 6px; }
+.fb-ed-savekey { width: 168px; }
+/* Snug: the words stay, the keys close up. */
+@container ribbon (max-width: 1379.98px) and (min-width: 740px) {
+  .fb-ed-key { min-width: 48px; padding: 0 6px; }
+  .fb-ed-file { width: 140px; }
+  .fb-ed-gap { margin: 14px 2px; }
+}
 /* Tight: pictures without words. */
-@container ribbon (max-width: 1209.98px) and (min-width: 740px) {
+@container ribbon (max-width: 1179.98px) and (min-width: 740px) {
   .fb-ed-word { display: none; }
   .fb-ed-key { min-width: 44px; padding: 0 3px; }
-  .fb-ed-file { width: 140px; }
 }
-/* Tighter: the file keeps its close key, the download its arrow. */
-@container ribbon (max-width: 1119.98px) and (min-width: 740px) {
-  .fb-ed-save { width: 118px; }
-  .fb-ed-save .fb-run-icon { width: 52px !important; }
+/* Tighter: the file keeps its close key, the save key its arrow. */
+@container ribbon (max-width: 1019.98px) and (min-width: 740px) {
   .fb-ed-save .fb-run-label { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
-}
-@container ribbon (max-width: 999.98px) and (min-width: 740px) {
+  .fb-ed-save .fb-run-icon { width: 54px !important; }
+  .fb-ed-savekey { width: 56px; }
   .fb-ed-name { display: none; }
   .fb-ed-file { width: 42px; }
 }
@@ -660,4 +665,33 @@ dialog::backdrop { background: rgba(29, 28, 31, 0.55); backdrop-filter: none; }
 @container ribbon (max-width: 739.98px) {
   .fb-ed-file { display: none; }
   .fb-ed-close { display: contents; }
+}
+
+/*
+ * The editor keeps the landing page's manners: hairlines and coral seams,
+ * no black blocks for what is picked and no hard shadows under panels.
+ */
+/* A picked key: white, with the coral seam under it. */
+.fb-ed-on { background: #fff; color: var(--fb-ink); box-shadow: inset 0 -2px 0 var(--fb-coral); }
+/* A picked row of a list: the sidebar's coral edge. */
+.fb-ed-row-on { background: #fff; font-weight: 600; box-shadow: inset 3px 0 0 var(--fb-coral); }
+/* A picked tile: an ink outline and the seam. */
+.fb-ed-tile-on { background: #fff; border-color: var(--fb-ink) !important; box-shadow: inset 0 -2px 0 var(--fb-coral); }
+/* Ribbon words roll to a coral copy, as the landing page's links do. */
+.fb-ed-key .fb-roll { line-height: 1.25; }
+.fb-ed-key .fb-roll > span + span { color: var(--fb-coral-deep); }
+.fb-ed-key:hover:not(:disabled) .fb-roll > span:first-child { transform: translateY(-105%); }
+.fb-ed-key:hover:not(:disabled) .fb-roll > span + span { transform: none; }
+.fb-ed-key > svg { transition: color 0.2s, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+.fb-ed-key:hover:not(:disabled) > svg { color: var(--fb-coral-deep); }
+/* Panels unfold from their key, as the tools tray unfolds from the menu. */
+.fb-ed-pop { animation: fb-unfold 0.26s cubic-bezier(0.22, 1, 0.36, 1); }
+.fb-ed-pop[data-up] { animation-name: fb-unfold-up; }
+@keyframes fb-unfold { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes fb-unfold-up { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+/* Notes from the editor: paper with the registration square, not black slabs. */
+.fb-ed-say { display: flex; align-items: center; gap: 10px; border: 1px solid var(--fb-line-strong); background: var(--fb-panel); color: var(--fb-ink); }
+.fb-ed-say::before { content: ""; width: 7px; height: 7px; flex: none; background: var(--fb-coral); }
+@media (prefers-reduced-motion: reduce) {
+  .fb-ed-pop { animation: none; }
 }

@@ -160,7 +160,7 @@ function StyleFields({
         type="button"
         aria-pressed={style.bold}
         onClick={() => onChange({ ...style, bold: !style.bold })}
-        className={`h-9 w-9 border border-line-strong text-[14px] font-bold ${style.bold ? "bg-ink text-white" : "bg-white hover:bg-hover"}`}
+        className={`h-9 w-9 border border-line-strong text-[14px] font-bold ${style.bold ? "fb-ed-on" : "bg-white hover:bg-hover"}`}
       >
         B
       </button>
@@ -168,7 +168,7 @@ function StyleFields({
         type="button"
         aria-pressed={style.italic}
         onClick={() => onChange({ ...style, italic: !style.italic })}
-        className={`h-9 w-9 border border-line-strong text-[14px] italic ${style.italic ? "bg-ink text-white" : "bg-white hover:bg-hover"}`}
+        className={`h-9 w-9 border border-line-strong text-[14px] italic ${style.italic ? "fb-ed-on" : "bg-white hover:bg-hover"}`}
       >
         I
       </button>

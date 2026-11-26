@@ -42,7 +42,7 @@ export function BarButton({
       onMouseDown={keepCaret}
       onClick={onClick}
       className={`grid h-9 min-w-9 shrink-0 place-items-center px-1.5 transition-colors disabled:pointer-events-none disabled:opacity-30 ${
-        active ? "bg-ink text-white" : "hover:bg-hover"
+        active ? "fb-ed-on" : "hover:bg-hover"
       } ${className}`}
     >
       {children}
@@ -80,7 +80,7 @@ export function BarText({
       onMouseDown={keepCaret}
       onClick={onClick}
       className={`inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap px-2.5 text-[13px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-30 ${
-        active ? "bg-ink text-white" : danger ? "hover:bg-danger hover:text-white" : "hover:bg-hover"
+        active ? "fb-ed-on" : danger ? "hover:bg-danger-soft hover:text-danger" : "hover:bg-hover"
       }`}
     >
       {icon}
@@ -88,6 +88,22 @@ export function BarText({
     </button>
   );
 }
+
+/** The landing page's plus: it turns into a cross while its panel is open. */
+export const PlusMark = ({ open }: { open?: boolean }) => (
+  <svg
+    aria-hidden
+    width="8"
+    height="8"
+    viewBox="0 0 10 10"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    className={`shrink-0 transition-transform duration-300 ${open ? "rotate-45" : ""}`}
+  >
+    <path d="M5 0v10M0 5h10" />
+  </svg>
+);
 
 export const Rule = () => <span aria-hidden className="mx-1 h-6 w-px shrink-0 bg-line-strong" />;
 
@@ -108,7 +124,7 @@ export function Pop({
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const [place, setPlace] = useState<{ left: number; top: number; max: number } | null>(null);
+  const [place, setPlace] = useState<{ left: number; top: number; max: number; up: boolean } | null>(null);
   const close = useCallback(() => setOpen(false), []);
   // Inside a dialog the panel has to be part of it: everything else is out of reach then.
   const host = open && typeof document !== "undefined" ? (anchor.current?.closest("dialog") ?? document.body) : null;
@@ -128,6 +144,7 @@ export function Pop({
         left: Math.max(8, Math.min(room, align === "right" ? rect.right - width : rect.left)),
         top: up ? Math.max(8, rect.top - 4 - Math.min(height + 2, max)) : rect.bottom + 4,
         max,
+        up,
       });
     };
     put();
@@ -173,7 +190,8 @@ export function Pop({
               role="group"
               aria-label={label}
               data-editor-panel
-              className="fixed z-[120] overflow-y-auto overscroll-contain border border-ink bg-panel text-ink shadow-[6px_6px_0_rgba(24,24,27,0.16)]"
+              data-up={place?.up || undefined}
+              className={`fixed z-[120] overflow-y-auto overscroll-contain border border-line-strong bg-panel text-ink ${place ? "fb-ed-pop" : ""}`}
               style={{ left: place?.left ?? -9999, top: place?.top ?? 0, width, maxHeight: place?.max }}
             >
               {children(close)}
@@ -207,15 +225,19 @@ export function MenuRow({
       data-sound={sound}
       onMouseDown={keepCaret}
       onClick={onClick}
-      className={`flex min-h-[42px] w-full items-center gap-3 border-b border-line px-3 py-2 text-left text-[14px] transition-colors last:border-b-0 ${
-        active ? "bg-ink text-white" : "hover:bg-hover"
+      className={`group flex min-h-[42px] w-full items-center gap-3 border-b border-line px-3 py-2 text-left text-[14px] transition-[padding,background-color] duration-200 last:border-b-0 ${
+        active ? "fb-ed-row-on" : "hover:bg-hover hover:pl-4"
       }`}
     >
-      {icon ? <span className="grid w-6 shrink-0 place-items-center">{icon}</span> : null}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {hint ? (
-        <span className={`fb-num shrink-0 text-[12px] ${active ? "text-white/60" : "text-faint"}`}>{hint}</span>
+      {icon ? (
+        <span
+          className={`grid w-6 shrink-0 place-items-center transition-colors group-hover:text-accent-deep ${active ? "text-accent-deep" : ""}`}
+        >
+          {icon}
+        </span>
       ) : null}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {hint ? <span className="fb-num shrink-0 text-[12px] text-faint">{hint}</span> : null}
     </button>
   );
 }
@@ -329,7 +351,7 @@ export function ColorPick({
                     .then((result) => onChange(result.sRGBHex))
                     .catch(() => undefined);
                 }}
-                className="grid h-9 w-9 shrink-0 place-items-center border border-line-strong bg-white hover:bg-ink hover:text-white"
+                className="grid h-9 w-9 shrink-0 place-items-center border border-line-strong bg-white hover:border-ink hover:text-accent-deep"
               >
                 <Pipette size={15} aria-hidden />
               </button>
@@ -452,7 +474,7 @@ export function NumberBox({
                   set(preset);
                   close();
                 }}
-                className={`fb-num block h-8 w-full px-3 text-left text-[13.5px] ${value === preset ? "bg-ink text-white" : "hover:bg-hover"}`}
+                className={`fb-num block h-8 w-full px-3 text-left text-[13.5px] ${value === preset ? "fb-ed-row-on" : "hover:bg-hover"}`}
               >
                 {preset}
               </button>

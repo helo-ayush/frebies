@@ -35,7 +35,7 @@ export function Sheet({
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) event.currentTarget.close();
       }}
-      className="m-auto max-h-[calc(100dvh-24px)] max-w-none overflow-hidden border border-ink bg-panel p-0 text-ink"
+      className="m-auto max-h-[calc(100dvh-24px)] max-w-none overflow-hidden border border-line-strong bg-panel p-0 text-ink"
       style={{ width: `min(${width}px, calc(100vw - 24px))` }}
     >
       {open ? (
@@ -47,7 +47,7 @@ export function Sheet({
               aria-label="Close"
               data-slot="viewer-close"
               onClick={() => ref.current?.close()}
-              className="grid w-[58px] place-items-center border-l border-line hover:bg-ink hover:text-white"
+              className="grid w-[58px] place-items-center border-l border-line transition-colors hover:bg-hover hover:text-accent-deep focus-visible:outline-offset-[-3px]"
             >
               <X size={18} aria-hidden />
             </button>
@@ -94,7 +94,7 @@ export function Choice<T extends string>({
           data-sound="select"
           onClick={() => onChange(option.value)}
           className={`min-h-[38px] border px-3 text-[13.5px] transition-colors ${
-            value === option.value ? "border-ink bg-ink text-white" : "border-line-strong bg-white hover:border-ink"
+            value === option.value ? "fb-ed-tile-on font-medium" : "border-line-strong bg-white hover:border-ink"
           }`}
         >
           {option.label}

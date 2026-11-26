@@ -64,7 +64,7 @@ export function SymbolsDialog({
           key={sign}
           type="button"
           onClick={() => put(sign)}
-          className="grid h-10 place-items-center border border-line bg-white text-[19px] hover:border-ink hover:bg-ink hover:text-white"
+          className="grid h-10 place-items-center border border-line bg-white text-[19px] transition-colors hover:border-ink hover:text-accent-deep"
           style={{ fontFamily: '"fb-arimo", "fb-symbols", system-ui, sans-serif' }}
         >
           {sign}
