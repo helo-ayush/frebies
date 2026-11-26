@@ -86,12 +86,16 @@ export function Drop({
           onMouseDown={(event) => event.preventDefault()}
           onClick={toggle}
           className={`flex h-9 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-[13px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-30 ${
-            active ? "bg-ink text-white" : open ? "bg-hover" : "hover:bg-hover"
+            active ? "fb-ed-on" : open ? "bg-hover" : "hover:bg-hover"
           }`}
         >
           {icon}
           {text ? <span>{text}</span> : null}
-          <ChevronDown size={12} aria-hidden />
+          <ChevronDown
+            size={12}
+            aria-hidden
+            className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          />
         </button>
       )}
     >
@@ -101,7 +105,7 @@ export function Drop({
 }
 
 export const Head = ({ children }: { children: ReactNode }) => (
-  <p className="border-y border-line bg-canvas px-3 py-1.5 text-[12px] uppercase text-muted first:border-t-0">
+  <p className="border-t border-line px-3 pb-1.5 pt-3 text-[11.5px] uppercase tracking-[0.02em] text-muted first:border-t-0">
     {children}
   </p>
 );
@@ -129,7 +133,7 @@ export function Faces<T extends string>({
           aria-pressed={value === option.value}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => onChange(option.value)}
-          className={`px-3 text-[13px] font-medium ${value === option.value ? "bg-ink text-white" : "hover:bg-hover"}`}
+          className={`px-3 text-[13px] font-medium ${value === option.value ? "fb-ed-on" : "hover:bg-hover"}`}
         >
           {option.label}
         </button>
@@ -313,7 +317,7 @@ export function Ends({
           hint="Del"
           slot="object-remove"
           onClick={() => store.remove(ids)}
-          className="hover:!bg-danger hover:!text-white"
+          className="hover:!bg-danger-soft hover:!text-danger"
         >
           <Trash2 {...ICON} />
         </BarButton>

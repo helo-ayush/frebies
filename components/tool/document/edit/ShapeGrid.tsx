@@ -54,7 +54,7 @@ export function ShapeGrid({ onPick, active }: { onPick: (kind: string) => void; 
                 data-sound="select"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => onPick(def.kind)}
-                className={`grid h-9 place-items-center ${active === def.kind ? "bg-ink text-white" : "hover:bg-hover"}`}
+                className={`grid h-9 place-items-center ${active === def.kind ? "fb-ed-on" : "hover:bg-hover"}`}
               >
                 <ShapeIcon def={def} />
               </button>

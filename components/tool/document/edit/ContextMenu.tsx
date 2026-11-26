@@ -16,12 +16,14 @@ import {
   LockOpen,
   MessageSquare,
   Plus,
+  Redo2,
   RotateCw,
   Scissors,
   SendToBack,
   Table2,
   Trash2,
   Type,
+  Undo2,
   Ungroup,
 } from "lucide-react";
 import { groupSelection, tableDo, ungroupSelection, insertTable } from "./commands";
@@ -96,6 +98,8 @@ export function ContextMenu({
   const rows: ReactNode[] = [];
   const row = (label: string, icon: ReactNode, work: () => void, hint?: string) =>
     rows.push(<MenuRow key={label} label={label} icon={icon} hint={hint} onClick={go(work)} />);
+  if (store.canUndo) row("Undo", <Undo2 {...ICON} />, () => store.undo(), "Ctrl Z");
+  if (store.canRedo) row("Redo", <Redo2 {...ICON} />, () => store.redo(), "Ctrl Y");
 
   if (objects.length > 0) {
     const grouped = objects.some((object) => object.group);
@@ -115,6 +119,11 @@ export function ContextMenu({
       const units = page ? store.drawingOf(page.id, first) : [];
       if (page && units.length > 3 && gridOf(units))
         row("Edit as a table", <Table2 {...ICON} />, () => void store.openTable(page.id, units));
+    }
+    if (first.type === "text" && first.pristine && first.block && objects.length === 1) {
+      const page = pageOf(store.doc, first.id);
+      const grid = page ? store.gridAt(page, { x: first.x + first.w / 2, y: first.y + first.h / 2 }) : null;
+      if (page && grid) row("Edit as a table", <Table2 {...ICON} />, () => void store.openGrid(page.id, grid));
     }
     if (texts.length > 1)
       row("Join into one text", <Combine {...ICON} />, () => store.joinTexts(texts.map((object) => object.id)));
@@ -189,7 +198,7 @@ export function ContextMenu({
       role="menu"
       data-editor-panel
       onContextMenu={(event) => event.preventDefault()}
-      className="fixed z-[120] max-h-[calc(100dvh-16px)] w-[236px] overflow-y-auto border border-ink bg-panel text-ink shadow-[6px_6px_0_rgba(24,24,27,0.16)] [&_button]:min-h-[36px] [&_button]:py-1.5 [&_button]:text-[13.5px]"
+      className="fixed z-[120] max-h-[calc(100dvh-16px)] w-[236px] overflow-y-auto fb-ed-pop border border-line-strong bg-panel text-ink [&_button]:min-h-[36px] [&_button]:py-1.5 [&_button]:text-[13.5px]"
       style={{ left: place?.left ?? -9999, top: place?.top ?? 0 }}
     >
       {rows}

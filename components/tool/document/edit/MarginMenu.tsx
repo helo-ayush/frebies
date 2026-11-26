@@ -56,7 +56,7 @@ export function MarginBoxes({
             aria-pressed={unit === item}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onUnit(item)}
-            className={`h-8 flex-1 border-l border-line-strong text-[12.5px] first:border-l-0 ${unit === item ? "bg-ink text-white" : "bg-white hover:bg-hover"}`}
+            className={`h-8 flex-1 border-l border-line-strong text-[12.5px] first:border-l-0 ${unit === item ? "fb-ed-on" : "bg-white hover:bg-hover"}`}
           >
             {UNITS[item].label}
           </button>
@@ -97,7 +97,7 @@ export function MarginMenu({ store }: { store: EditorStore }) {
                 aria-pressed={reach === item.value}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => setReach(item.value)}
-                className={`h-9 flex-1 border-l border-line text-[12.5px] font-medium first:border-l-0 ${reach === item.value ? "bg-ink text-white" : "hover:bg-hover"}`}
+                className={`h-9 flex-1 border-l border-line text-[12.5px] font-medium first:border-l-0 ${reach === item.value ? "fb-ed-on" : "hover:bg-hover"}`}
               >
                 {item.label}
               </button>
@@ -121,14 +121,12 @@ export function MarginMenu({ store }: { store: EditorStore }) {
                   setMargin(store, item.margin, reach);
                   close();
                 }}
-                className={`flex w-full items-center gap-3 border-b border-line px-3 py-2 text-left ${on ? "bg-ink text-white" : "hover:bg-hover"}`}
+                className={`flex w-full items-center gap-3 border-b border-line px-3 py-2 text-left ${on ? "fb-ed-row-on" : "hover:bg-hover"}`}
               >
                 <MarginArt margin={item.margin} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-[14px] leading-tight">{item.label}</span>
-                  <span className={`block truncate text-[12px] leading-tight ${on ? "text-white/65" : "text-muted"}`}>
-                    {item.hint}
-                  </span>
+                  <span className={`block truncate text-[12px] leading-tight text-muted`}>{item.hint}</span>
                 </span>
               </button>
             );
@@ -147,12 +145,10 @@ export function MarginMenu({ store }: { store: EditorStore }) {
             aria-expanded={custom}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => setCustom((value) => !value)}
-            className={`flex min-h-[42px] w-full items-center justify-between border-b border-line px-3 text-left text-[14px] ${!preset && page.margin ? "bg-ink text-white" : "hover:bg-hover"}`}
+            className={`flex min-h-[42px] w-full items-center justify-between border-b border-line px-3 text-left text-[14px] ${!preset && page.margin ? "fb-ed-row-on" : "hover:bg-hover"}`}
           >
             Custom
-            <span
-              className={`fb-num truncate pl-3 text-[12px] ${!preset && page.margin ? "text-white/65" : "text-muted"}`}
-            >
+            <span className={`fb-num truncate pl-3 text-[12px] text-muted`}>
               {page.margin ? marginText(page.margin, unit) : ""}
             </span>
           </button>

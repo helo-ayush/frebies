@@ -120,7 +120,7 @@ function MarginFields({
               setCustom(false);
               onChange(item.margin);
             }}
-            className={`flex items-center gap-2.5 border px-2.5 py-2 text-left ${on === item.id ? "border-ink bg-ink text-white" : "border-line-strong bg-white hover:border-ink"}`}
+            className={`flex items-center gap-2.5 border px-2.5 py-2 text-left ${on === item.id ? "fb-ed-tile-on" : "border-line-strong bg-white hover:border-ink"}`}
           >
             <MarginArt margin={item.margin} />
             <span className="text-[13.5px] leading-tight">{item.label}</span>
@@ -134,7 +134,7 @@ function MarginFields({
             setCustom(true);
             if (!value) onChange(STANDARD);
           }}
-          className={`flex items-center gap-2.5 border px-2.5 py-2 text-left ${on === "custom" ? "border-ink bg-ink text-white" : "border-line-strong bg-white hover:border-ink"}`}
+          className={`flex items-center gap-2.5 border px-2.5 py-2 text-left ${on === "custom" ? "fb-ed-tile-on" : "border-line-strong bg-white hover:border-ink"}`}
         >
           <MarginArt margin={value ?? STANDARD} />
           <span className="text-[13.5px] leading-tight">Custom</span>

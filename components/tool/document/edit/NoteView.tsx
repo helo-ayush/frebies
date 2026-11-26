@@ -32,7 +32,7 @@ export function NoteView({
         <span
           data-note-panel
           onPointerDown={(event) => event.stopPropagation()}
-          className="pointer-events-auto absolute z-[9] block w-[230px] border border-ink bg-panel text-ink shadow-[5px_5px_0_rgba(24,24,27,0.16)]"
+          className="pointer-events-auto absolute z-[9] block w-[230px] fb-ed-pop border border-line-strong bg-panel text-ink"
           style={{
             top: 0,
             [left ? "right" : "left"]: `calc(100% + 6px / var(--z))`,
@@ -73,7 +73,7 @@ export function NoteView({
       ) : note.text !== "" ? (
         <span
           role="tooltip"
-          className="pointer-events-none absolute z-[9] hidden w-max max-w-[220px] whitespace-pre-wrap border border-ink bg-panel px-2.5 py-1.5 text-[12.5px] leading-snug text-ink group-hover/note:block"
+          className="pointer-events-none absolute z-[9] hidden w-max max-w-[220px] whitespace-pre-wrap border border-line-strong bg-panel px-2.5 py-1.5 text-[12.5px] leading-snug text-ink group-hover/note:block"
           style={{
             top: 0,
             [left ? "right" : "left"]: `calc(100% + 6px / var(--z))`,

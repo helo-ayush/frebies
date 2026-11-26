@@ -15,7 +15,7 @@ import { Parts } from "./Art";
 import { Backdrop, DecorLayer } from "./Backdrop";
 import { CropArea } from "./CropArea";
 import { Field } from "./Fields";
-import { Frame, ManyFrame } from "./Frame";
+import { Frame, HoverMove, ManyFrame } from "./Frame";
 import { ObjectView } from "./ObjectView";
 import { Rulers } from "./Rulers";
 import {
@@ -25,6 +25,7 @@ import {
   lineBox,
   objectsIn,
   shownCss,
+  startGridPick,
   startMove,
   straighten,
   toPage,
@@ -258,7 +259,10 @@ const PageBody = memo(function PageBody({
 
   const pressBlock = (event: ReactPointerEvent, block: Block) => {
     if (event.button !== 0) return;
-    if (tool === "select") {
+    // The key shown over a text moves it, whatever lies under it.
+    const grip = event.target instanceof HTMLElement && event.target.closest("[data-grip]") !== null;
+    const twice = doublePress(store.press, event);
+    if (tool === "select" && !grip) {
       const unit = lineOver(event, block);
       if (unit) {
         pressUnit(event, unit);
@@ -271,11 +275,38 @@ const PageBody = memo(function PageBody({
     const start = { clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId };
     const add = event.shiftKey || event.ctrlKey || event.metaKey;
     const cover = coverOf(store, page, block);
+    const before = store.view.selection;
+    /** A press that did not move: the words are picked, and typed in when pressed twice. */
+    const picked = () =>
+      void store.openBlock(page.id, block.key, cover).then((id) => {
+        if (!id) return;
+        if (add) {
+          store.select([...before, id]);
+          return;
+        }
+        if (twice || store.view.tool === "text") {
+          store.caret = { x: start.clientX, y: start.clientY };
+          if (store.view.tool === "text") store.setView({ tool: "select" });
+          store.select([id], id);
+          return;
+        }
+        store.press = { time: performance.now(), x: start.clientX, y: start.clientY, fresh: id };
+        store.select([id]);
+      });
+    // Words inside a table drawn in the file: dragging picks cells, pressing twice types in one.
+    if (tool === "select" && !grip && !add) {
+      const box = blockBox(block);
+      const grid = store.gridAt(page, { x: box.x + box.w / 2, y: box.y + box.h / 2 });
+      if (grid) {
+        store.press = twice ? null : { time: performance.now(), x: event.clientX, y: event.clientY, fresh: null };
+        startGridPick(store, page, event, grid, twice, picked);
+        return;
+      }
+    }
     const keyOf = dragKey();
     let opening: Promise<string | null> | null = null;
     let last = start;
     let released = false;
-    const before = store.view.selection;
     track(
       event,
       (next) => {
@@ -300,19 +331,12 @@ const PageBody = memo(function PageBody({
           if (!released) startMove(store, page, [id], last, undefined, keyOf);
         });
       },
-      (_, cancelled) => {
+      (next, cancelled) => {
         released = true;
         if (opening || cancelled) return;
-        void store.openBlock(page.id, block.key, cover).then((id) => {
-          if (!id) return;
-          if (add) {
-            store.select([...before, id]);
-            return;
-          }
-          store.caret = { x: start.clientX, y: start.clientY };
-          if (store.view.tool === "text") store.setView({ tool: "select" });
-          store.select([id], id);
-        });
+        if (next.pointerType === "touch" && Math.hypot(next.clientX - start.clientX, next.clientY - start.clientY) > 10)
+          return;
+        picked();
       },
     );
   };
@@ -653,6 +677,15 @@ const PageBody = memo(function PageBody({
     if (tool === "select") {
       const reach = (touch ? 10 : 4) / zoom;
       const double = doublePress(store.press, event);
+      const many = event.shiftKey || event.ctrlKey || event.metaKey;
+      // Inside a table drawn in the file, as in Word: drag over cells to pick them, press twice to type.
+      const grid = many ? null : store.gridAt(page, a, 3 / zoom);
+      if (grid) {
+        if (!touch) event.preventDefault();
+        store.press = double ? null : { time: performance.now(), x: event.clientX, y: event.clientY, fresh: null };
+        startGridPick(store, page, event, grid, double, () => store.select([]));
+        return;
+      }
       const unit = double ? null : unitAt(a, reach);
       if (unit && !isPanel(unit, page)) {
         pressUnit(event, unit);
@@ -1004,9 +1037,11 @@ const PageBody = memo(function PageBody({
                   key={block.key}
                   data-block={block.key}
                   onPointerDown={(event) => pressBlock(event, block)}
-                  className={`absolute ${hover ? "cursor-move" : "cursor-text hover:bg-accent/[0.07] hover:shadow-[0_0_0_calc(1.5px/var(--z))_#f2552c]"}`}
+                  className={`group/move absolute cursor-move ${hover ? "" : "hover:bg-accent/[0.07] hover:shadow-[0_0_0_calc(1.5px/var(--z))_#f2552c]"}`}
                   style={boxStyle(block)}
-                />
+                >
+                  {tool === "select" && !hover ? <HoverMove /> : null}
+                </div>
               ))}
             </div>
           ) : null}

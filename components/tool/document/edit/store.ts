@@ -245,6 +245,8 @@ export class EditorStore {
   assets = new Map<string, Asset>();
   primary: string | null = null;
   name = "document";
+  /** What kind of file was opened, and the kind it is best saved as. Null for a new document. */
+  origin: Origin | null = null;
 
   /** Elements of the pages on screen, and what is drawn on them. */
   readonly sheets = new Map<string, HTMLElement>();
@@ -276,6 +278,7 @@ export class EditorStore {
   private pictures = new Map<string, Promise<PagePicture[]>>();
   private picturesNow = new Map<string, PagePicture[]>();
   private units = new WeakMap<PageText, Unit[]>();
+  private grids = new WeakMap<PageText, Grid[]>();
   private notes = new Map<string, Promise<{ links: PageLink[]; fields: PageField[] }>>();
   private clip: { objects: EditObject[]; page: string } | null = null;
   /** What was put on the clipboard with it, to know it again. */
@@ -1557,6 +1560,52 @@ export class EditorStore {
     };
   }
 
+  /** The ruled tables drawn on a page: where each one is and the lines it is made of. */
+  gridsOn(page: Page): Grid[] {
+    const text = this.readyText(page);
+    if (!text) return [];
+    let grids = this.grids.get(text);
+    if (!grids) {
+      grids = [];
+      const units = this.unitsOn(page);
+      const seen = new Set<Unit>();
+      for (const unit of units) {
+        if (!unit.line || seen.has(unit)) continue;
+        const parts = touching(units, unit, page);
+        for (const part of parts) seen.add(part);
+        if (parts.length < 4 || parts.length > 900) continue;
+        const grid = gridOf(parts);
+        if (!grid) continue;
+        const { xs, ys } = grid;
+        const box = { x: xs[0], y: ys[0], w: xs[xs.length - 1] - xs[0], h: ys[ys.length - 1] - ys[0] };
+        const cells = (xs.length - 1) * (ys.length - 1);
+        // A frame round a part of the page is not a table.
+        if (cells < 2 || box.w * box.h > page.w * page.h * 0.6) continue;
+        grids.push({ box, units: parts });
+      }
+      this.grids.set(text, grids);
+    }
+    return grids.filter((grid) => !grid.units.some((unit) => unit.ops.some((op) => page.pathCuts.includes(op))));
+  }
+
+  /** The ruled table of the page a point is inside, if any. The edge itself stays a line. */
+  gridAt(page: Page, p: Point, edge = 0): Grid | null {
+    return (
+      this.gridsOn(page).find(
+        ({ box }) =>
+          p.x > box.x + edge && p.x < box.x + box.w - edge && p.y > box.y + edge && p.y < box.y + box.h - edge,
+      ) ?? null
+    );
+  }
+
+  /** Turns a ruled table of the page into a table. What was opened in it goes back first, so its words come along. */
+  async openGrid(pageId: string, grid: Grid): Promise<string | null> {
+    this.select([]);
+    const id = await this.openTable(pageId, grid.units);
+    if (!id) this.say("These lines do not make a table that can be read.");
+    return id;
+  }
+
   /** Makes a ruled table of the page one that can be changed like any table. */
   async openTable(pageId: string, units: readonly Unit[]): Promise<string | null> {
     const page = this.page(pageId);
@@ -2104,7 +2153,7 @@ export class EditorStore {
     const kind = await sniff(file);
     if (kind === "pdf") {
       const pages = await this.addSource(file.name, new Uint8Array(await file.arrayBuffer()));
-      return { pages, objects: {}, source: pages[0]?.source ?? null };
+      return { pages, objects: {}, source: pages[0]?.source ?? null, kind };
     }
     if (kind === "image") {
       const asset = await this.makeAsset(file);
@@ -2124,7 +2173,12 @@ export class EditorStore {
         angle: 0,
         opacity: 1,
       };
-      return { pages: [{ ...blankPage(w, h), objects: [object.id] }], objects: { [object.id]: object }, source: null };
+      return {
+        pages: [{ ...blankPage(w, h), objects: [object.id] }],
+        objects: { [object.id]: object },
+        source: null,
+        kind,
+      };
     }
     const [{ readFile }, { layDocument }] = await Promise.all([import("./convert/read"), import("./convert/lay")]);
     const read = await readFile(file, kind);
@@ -2138,7 +2192,7 @@ export class EditorStore {
       about.title || about.author
         ? { title: about.title ?? "", author: about.author ?? "", subject: "", keywords: "" }
         : undefined;
-    return { ...laid, meta, source: null };
+    return { ...laid, meta, source: null, kind };
   }
 
   async open(file: File) {
@@ -2151,6 +2205,7 @@ export class EditorStore {
       this.close(false, made.source, new Set(kept.map((asset) => asset.id)));
       this.primary = made.source;
       this.name = baseName(file.name);
+      this.origin = originOf(file, made.kind);
       this.doc = {
         ...EMPTY,
         pages: made.pages,
@@ -2159,7 +2214,7 @@ export class EditorStore {
         outline: made.outline,
         meta: made.meta,
       };
-      this.view = this.freshView(made.pages[0]?.id ?? null);
+      this.view = { ...this.freshView(made.pages[0]?.id ?? null), format: this.origin.format };
       this.emit();
       void import("./engine/export");
       if (made.source) void this.findMargins(made.source);
@@ -2177,6 +2232,7 @@ export class EditorStore {
     registerLibrary();
     this.close(false);
     this.name = "document";
+    this.origin = null;
     const pages = Array.from({ length: Math.max(1, setup.count ?? 1) }, () => ({
       ...blankPage(setup.w, setup.h),
       margin: setup.margin,
@@ -2723,10 +2779,58 @@ type Made = {
   pages: Page[];
   objects: Record<string, EditObject>;
   source: string | null;
+  kind?: string;
   decor?: DocState["decor"];
   outline?: DocState["outline"];
   meta?: DocState["meta"];
 };
+
+/** A table drawn with lines in the PDF. */
+export type Grid = { box: Box; units: Unit[] };
+
+export type Origin = {
+  /** The kind of file that is recommended. */
+  format: Format;
+  /** The ending of the file that was opened. */
+  from: string;
+  /** Why that kind is recommended. */
+  why: string;
+};
+
+/** Saving goes back to the kind of file that came in, where the editor can make it. */
+export function originOf(file: File, kind = "pdf"): Origin {
+  const from = (/\.([a-z0-9]{1,5})$/i.exec(file.name)?.[1] ?? kind).toLowerCase();
+  const same = "The same kind as the file you opened";
+  switch (kind) {
+    case "docx":
+      return { format: "docx", from, why: same };
+    case "doc":
+      return { format: "docx", from, why: `Word, like the .${from} file you opened` };
+    case "odt":
+      return { format: "odt", from, why: same };
+    case "rtf":
+      return { format: "rtf", from, why: same };
+    case "pptx":
+      return { format: "pptx", from, why: same };
+    case "xlsx":
+      return { format: "xlsx", from, why: same };
+    case "ods":
+    case "csv":
+      return { format: "xlsx", from, why: `Excel, for the .${from} sheet you opened` };
+    case "html":
+      return { format: "html", from, why: same };
+    case "markdown":
+      return { format: "md", from, why: same };
+    case "text":
+      return { format: "txt", from, why: same };
+    case "image":
+      return { format: "pdf", from, why: "Keeps the picture and everything put on it" };
+    case "pdf":
+      return { format: "pdf", from, why: same };
+    default:
+      return { format: "pdf", from, why: "Keeps every page exactly as it looks" };
+  }
+}
 
 export type SaveOptions = {
   pages?: readonly string[];

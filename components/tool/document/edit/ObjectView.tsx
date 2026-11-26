@@ -6,7 +6,8 @@ import { NoteView } from "./NoteView";
 import { TableView } from "./TableView";
 import { Words } from "./TextView";
 import { applyPainter, shapeWords } from "./commands";
-import { doublePress, startMove, track } from "./interact";
+import { HoverMove } from "./Frame";
+import { doublePress, startGridPick, startMove, track } from "./interact";
 import { isCover, isLine, type EditObject, type Page, type ShapeObject, type TextObject } from "./model";
 import { wordsBox } from "./engine/shape-text";
 import { inkPath, scaledPath, shapeParts, toSvg } from "./engine/shapes";
@@ -132,8 +133,10 @@ export const ObjectView = memo(function ObjectView({
     }
     if (now.lock) return;
     if (family.length > 1 && !was) return;
-    if (now.type === "text") edit(spot);
-    else if (double && canHoldWords(now) && !now.lock) {
+    // One press picks a text, a second one types in it.
+    if (now.type === "text") {
+      if (was || double || tool === "text") edit(spot);
+    } else if (double && canHoldWords(now) && !now.lock) {
       store.caret = spot;
       shapeWords(store, id);
     } else if (was && selection.length > 1) store.select([id]);
@@ -178,11 +181,27 @@ export const ObjectView = memo(function ObjectView({
         (next, cancelled) => {
           if (cancelled || Math.hypot(next.clientX - spot.x, next.clientY - spot.y) > 10) return;
           const now = store.doc.objects[id];
-          if (now?.type === "text" && family.length === 1 && !now.lock) edit(spot);
+          if (now?.type === "text" && tool === "text" && !now.lock) edit(spot);
           else store.select(family);
         },
       );
       return;
+    }
+    // Words taken from a table drawn in the file belong to that table: drag picks cells, typing goes in one.
+    const own = store.doc.objects[id];
+    if (
+      tool === "select" &&
+      own?.type === "text" &&
+      own.pristine &&
+      own.block &&
+      !(event.shiftKey || event.ctrlKey || event.metaKey)
+    ) {
+      const grid = store.gridAt(page, { x: own.x + own.w / 2, y: own.y + own.h / 2 });
+      if (grid) {
+        event.preventDefault();
+        startGridPick(store, page, event, grid, was || double, () => clicked(spot, was, double, fresh));
+        return;
+      }
     }
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     event.preventDefault();
@@ -236,12 +255,15 @@ export const ObjectView = memo(function ObjectView({
     <div
       {...common}
       style={placeCss(object)}
-      className={`${reachable && !outline ? "pointer-events-auto" : "pointer-events-none"} ${selected ? "touch-none" : ""} ${
+      className={`group/move ${reachable && !outline ? "pointer-events-auto" : "pointer-events-none"} ${selected ? "touch-none" : ""} ${
         editing
           ? ""
           : `${object.lock ? "cursor-default" : "cursor-move"} ${reachable && !selected && !outline ? "hover:shadow-[0_0_0_calc(1.5px/var(--z))_#f2552c]" : ""}`
       }`}
     >
+      {object.type === "text" && reachable && tool === "select" && !selected && !editing && !object.lock ? (
+        <HoverMove />
+      ) : null}
       {object.type === "text" ? (
         <TextView store={store} object={object} editing={editing} cover={cover} />
       ) : object.type === "shape" ? (

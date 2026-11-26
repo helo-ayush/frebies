@@ -64,7 +64,7 @@ export function FindBar({ store }: { store: EditorStore }) {
     <div
       role="search"
       aria-label="Find and replace"
-      className="absolute right-3 top-3 z-[6] w-[min(420px,calc(100%-24px))] border border-ink bg-panel shadow-[6px_6px_0_rgba(24,24,27,0.16)]"
+      className="absolute right-3 top-3 z-[6] w-[min(420px,calc(100%-24px))] fb-ed-pop border border-line-strong bg-panel"
     >
       <div className="flex items-center border-b border-line">
         <input
@@ -151,7 +151,7 @@ export function FindBar({ store }: { store: EditorStore }) {
           type="button"
           disabled={count === 0}
           onClick={() => void replace(false)}
-          className="h-9 shrink-0 border border-line-strong px-2.5 text-[13px] font-medium hover:bg-ink hover:text-white disabled:pointer-events-none disabled:opacity-35"
+          className="h-9 shrink-0 border border-line-strong px-2.5 text-[13px] font-medium transition-colors hover:border-ink hover:bg-white hover:text-accent-deep disabled:pointer-events-none disabled:opacity-35"
         >
           Replace
         </button>
@@ -159,7 +159,7 @@ export function FindBar({ store }: { store: EditorStore }) {
           type="button"
           disabled={count === 0}
           onClick={() => void replace(true)}
-          className="h-9 shrink-0 border border-line-strong px-2.5 text-[13px] font-medium hover:bg-ink hover:text-white disabled:pointer-events-none disabled:opacity-35"
+          className="h-9 shrink-0 border border-line-strong px-2.5 text-[13px] font-medium transition-colors hover:border-ink hover:bg-white hover:text-accent-deep disabled:pointer-events-none disabled:opacity-35"
         >
           All
         </button>

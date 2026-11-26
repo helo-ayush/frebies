@@ -9,13 +9,13 @@ import {
   Copy,
   FilePlus2,
   Loader2,
-  Maximize,
-  Minimize,
   Minus,
   Plus,
+  Redo2,
   RotateCcw,
   RotateCw,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import { FindBar } from "./FindBar";
 import { PageView } from "./PageView";
@@ -49,15 +49,11 @@ const ICON = { size: 15, strokeWidth: 1.8, "aria-hidden": true } as const;
 export function Stage({
   store,
   queue,
-  full,
-  onFull,
   onAddFiles,
   onDropFiles,
 }: {
   store: EditorStore;
   queue: RenderQueue;
-  full: boolean;
-  onFull: () => void;
   onAddFiles: (at: number) => void;
   onDropFiles: (files: File[], place: Place) => void;
 }) {
@@ -74,6 +70,8 @@ export function Stage({
   const note = useEditor(store, (s) => s.view.note);
   const rulers = useEditor(store, (s) => s.view.prefs.rulers);
   const painter = useEditor(store, (s) => s.view.painter !== null);
+  const canUndo = useEditor(store, (s) => s.canUndo);
+  const canRedo = useEditor(store, (s) => s.canRedo);
 
   // Said once, and gone again.
   useEffect(() => {
@@ -280,7 +278,7 @@ export function Stage({
       </div>
 
       {drop ? (
-        <p className="pointer-events-none absolute left-1/2 top-3 z-[7] -translate-x-1/2 whitespace-nowrap bg-ink px-4 py-2 text-[14px] font-medium text-white">
+        <p className="fb-ed-say pointer-events-none absolute left-1/2 top-3 z-[7] -translate-x-1/2 whitespace-nowrap px-4 py-2 text-[14px] font-medium">
           {drop.kind === "file"
             ? slot === pages.length
               ? "Add its pages at the end"
@@ -296,7 +294,7 @@ export function Stage({
       {note ? (
         <p
           role="status"
-          className="pointer-events-none absolute bottom-16 left-1/2 z-[6] w-max max-w-[min(92%,520px)] -translate-x-1/2 bg-ink px-4 py-2 text-center text-[14px] leading-snug text-white"
+          className="fb-ed-say pointer-events-none absolute bottom-16 left-1/2 z-[6] w-max max-w-[min(92%,520px)] -translate-x-1/2 px-4 py-2 text-[14px] leading-snug"
         >
           {note.text}
         </p>
@@ -305,7 +303,7 @@ export function Stage({
       {busy && !busy.label.startsWith("Saving") ? (
         <p
           role="status"
-          className="absolute left-1/2 top-3 z-[6] flex -translate-x-1/2 items-center gap-2.5 whitespace-nowrap bg-ink px-4 py-2 text-[14px] text-white"
+          className="fb-ed-say absolute left-1/2 top-3 z-[6] -translate-x-1/2 whitespace-nowrap px-4 py-2 text-[14px]"
         >
           <Loader2 size={15} className="animate-spin" aria-hidden />
           {busy.label}
@@ -320,6 +318,29 @@ export function Stage({
         aria-label="Zoom"
         className="absolute bottom-3 right-3 z-[3] flex border border-line-strong bg-panel"
       >
+        <button
+          type="button"
+          aria-label="Undo"
+          title="Undo (Ctrl Z)"
+          disabled={!canUndo}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => store.undo()}
+          className={NAV_KEY}
+        >
+          <Undo2 size={15} aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label="Redo"
+          title="Redo (Ctrl Y)"
+          disabled={!canRedo}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => store.redo()}
+          className={NAV_KEY}
+        >
+          <Redo2 size={15} aria-hidden />
+        </button>
+        <span aria-hidden className="w-[3px] shrink-0 border-l border-line-strong bg-canvas" />
         <button type="button" aria-label="Zoom out" onClick={() => zoomTo(zoom / 1.2)} className={NAV_KEY}>
           <Minus size={14} aria-hidden />
         </button>
@@ -335,17 +356,6 @@ export function Stage({
         <button type="button" aria-label="Zoom in" onClick={() => zoomTo(zoom * 1.2)} className={NAV_KEY}>
           <Plus size={14} aria-hidden />
         </button>
-        <button
-          type="button"
-          aria-label={full ? "Leave the full screen" : "Use the full screen"}
-          aria-pressed={full}
-          title={full ? "Leave the full screen" : "Use the full screen"}
-          data-slot={full ? "viewer-close" : "viewer-open"}
-          onClick={onFull}
-          className={`${NAV_KEY} max-lg:hidden`}
-        >
-          {full ? <Minimize size={14} aria-hidden /> : <Maximize size={14} aria-hidden />}
-        </button>
         {(["width", "page"] as const).map((option) => (
           <button
             key={option}
@@ -353,7 +363,7 @@ export function Stage({
             aria-pressed={fit === option}
             onClick={() => store.setView({ fit: option })}
             title={option === "width" ? "Fit the width" : "Fit the whole page"}
-            className={`h-9 border-l border-line-strong px-3 text-[12.5px] font-medium uppercase transition-colors ${fit === option ? "bg-ink text-white" : "hover:bg-hover"} ${
+            className={`h-9 border-l border-line-strong px-3 text-[12.5px] font-medium uppercase transition-colors ${fit === option ? "fb-ed-on" : "hover:bg-hover"} ${
               narrow && option === "page" ? "hidden" : ""
             }`}
           >
@@ -366,7 +376,7 @@ export function Stage({
 }
 
 const NAV_KEY =
-  "grid h-9 w-9 place-items-center border-l border-line-strong transition-colors first:border-l-0 hover:bg-ink hover:text-white disabled:pointer-events-none disabled:opacity-35";
+  "grid h-9 w-9 place-items-center border-l border-line-strong transition-colors first:border-l-0 hover:bg-white hover:text-accent-deep disabled:pointer-events-none disabled:opacity-35";
 
 function PageNav({ store }: { store: EditorStore }) {
   const pages = useEditor(store, (s) => s.doc.pages);
@@ -557,7 +567,7 @@ function Gap({
               type="button"
               aria-expanded={open}
               onClick={toggle}
-              className={`flex h-8 items-center gap-1.5 px-3 text-[12.5px] font-medium transition-colors ${open ? "bg-ink text-white" : "text-muted hover:bg-ink hover:text-white"} ${lit ? "opacity-0" : ""}`}
+              className={`flex h-8 items-center gap-1.5 border px-3 text-[12.5px] font-medium transition-colors ${open ? "fb-ed-tile-on" : "border-transparent text-muted hover:border-line-strong hover:bg-white hover:text-ink"} ${lit ? "opacity-0" : ""}`}
             >
               <Plus size={14} aria-hidden />
               Add a page here
@@ -631,7 +641,7 @@ function PageHead({
           slot="page-remove"
           disabled={count < 2}
           onClick={() => store.deletePages([page.id])}
-          className="!h-8 !min-w-8 hover:!bg-danger hover:!text-white"
+          className="!h-8 !min-w-8 hover:!bg-danger-soft hover:!text-danger"
         >
           <Trash2 {...ICON} />
         </BarButton>
@@ -668,7 +678,7 @@ function End({
           type="button"
           data-sound="page"
           onClick={() => store.addBlank()}
-          className="inline-flex h-11 items-center gap-2 border border-line-strong bg-panel px-4 text-[14px] font-medium hover:border-ink hover:bg-ink hover:text-white"
+          className="inline-flex h-11 items-center gap-2 border border-line-strong bg-panel px-4 text-[14px] font-medium transition-colors hover:border-ink hover:bg-white hover:text-accent-deep"
         >
           <Plus size={16} aria-hidden />
           Blank page
@@ -676,7 +686,7 @@ function End({
         <button
           type="button"
           onClick={() => onAddFiles(count)}
-          className="inline-flex h-11 items-center gap-2 border border-line-strong bg-panel px-4 text-[14px] font-medium hover:border-ink hover:bg-ink hover:text-white"
+          className="inline-flex h-11 items-center gap-2 border border-line-strong bg-panel px-4 text-[14px] font-medium transition-colors hover:border-ink hover:bg-white hover:text-accent-deep"
         >
           <FilePlus2 size={16} aria-hidden />
           Document

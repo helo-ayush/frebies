@@ -51,12 +51,9 @@ const stop = (event: ReactPointerEvent) => {
 const FINGER =
   "[@media(pointer:coarse)]:before:absolute [@media(pointer:coarse)]:before:inset-[calc(-9px/var(--z))] [@media(pointer:coarse)]:before:content-['']";
 
-/** A small key that stays the same size at every zoom. */
+/** A small key that stays the same size at every zoom. It sits in a row of keys above what is picked. */
 function Grip({
   label,
-  left,
-  right,
-  top,
   tone,
   cursor = "pointer",
   onPress,
@@ -65,10 +62,7 @@ function Grip({
   children,
 }: {
   label: string;
-  left?: string;
-  right?: string;
-  top: string;
-  tone: "accent" | "ink" | "plain";
+  tone: "accent" | "plain" | "danger";
   cursor?: string;
   onPress?: (event: ReactPointerEvent) => void;
   onPick?: () => void;
@@ -77,10 +71,10 @@ function Grip({
 }) {
   const look =
     tone === "accent"
-      ? "bg-accent-deep text-white"
-      : tone === "ink"
-        ? "bg-ink text-white"
-        : "border-ink bg-white text-ink hover:bg-danger hover:text-white";
+      ? "bg-accent-deep text-white hover:bg-accent"
+      : tone === "danger"
+        ? "border-line-strong bg-white text-ink hover:border-danger hover:bg-danger-soft hover:text-danger"
+        : "border-line-strong bg-white text-ink hover:border-ink hover:text-accent-deep";
   return (
     <button
       type="button"
@@ -95,20 +89,64 @@ function Grip({
       }}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onPick}
-      className={`pointer-events-auto absolute z-[5] grid touch-none place-items-center ${look} ${FINGER}`}
+      className={`pointer-events-auto relative grid shrink-0 touch-none place-items-center transition-colors ${look} ${FINGER}`}
       style={{
-        left,
-        right,
-        top,
-        width: px(22),
-        height: px(20),
+        width: px(24),
+        height: px(22),
         cursor,
-        borderWidth: tone === "plain" ? px(1) : 0,
+        borderWidth: tone === "accent" ? 0 : px(1),
         borderStyle: "solid",
       }}
     >
       {children}
     </button>
+  );
+}
+
+/** A row of keys over the top edge of what is picked. It never lies on the thing itself. */
+function Keys({
+  children,
+  at,
+  out,
+  side = out,
+}: {
+  children: ReactNode;
+  /** Which end of the top edge the row keeps to. */
+  at: "left" | "right" | "middle";
+  /** How far the frame stands off the top, and off the sides. */
+  out: number;
+  side?: number;
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute z-[5] flex"
+      style={{
+        bottom: "100%",
+        marginBottom: px(6 + out),
+        gap: px(3),
+        ...(at === "left"
+          ? { left: px(-side) }
+          : at === "right"
+            ? { right: px(-side) }
+            : { left: "50%", transform: "translateX(-50%)" }),
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** The keys a pointer finds over a text before it is picked: the one that moves it. */
+export function HoverMove() {
+  return (
+    <span
+      aria-hidden
+      data-grip
+      className="pointer-events-auto absolute z-[5] hidden place-items-center bg-accent-deep text-white group-hover/move:grid"
+      style={{ left: px(-4), bottom: "100%", marginBottom: px(6), width: px(24), height: px(22), cursor: "move" }}
+    >
+      <Move style={{ width: px(12), height: px(12) }} strokeWidth={2} aria-hidden />
+    </span>
   );
 }
 
@@ -146,7 +184,7 @@ export function Frame({
                   stop(event);
                   startEnd(store, page, id, i as 0 | 1, event);
                 }}
-                className={`pointer-events-auto absolute z-[4] cursor-crosshair touch-none border-ink bg-white ${FINGER}`}
+                className={`pointer-events-auto absolute z-[4] cursor-crosshair touch-none border-accent-deep bg-white ${FINGER}`}
                 style={{
                   left: end.x,
                   top: end.y,
@@ -173,28 +211,17 @@ export function Frame({
             className="pointer-events-none absolute"
             style={{ left: Math.max(ends[0].x, ends[1].x), top: Math.min(ends[0].y, ends[1].y) }}
           >
-            {locked ? (
-              <Grip
-                label="Unlock"
-                left={px(12)}
-                top={px(-28)}
-                tone="plain"
-                onPick={() => store.patch(id, { lock: undefined })}
-              >
-                <Lock {...ICON} />
-              </Grip>
-            ) : (
-              <Grip
-                label="Delete"
-                slot="object-remove"
-                left={px(12)}
-                top={px(-28)}
-                tone="plain"
-                onPick={() => store.remove([id])}
-              >
-                <Trash2 {...ICON} />
-              </Grip>
-            )}
+            <div className="absolute flex" style={{ left: px(10), bottom: px(8) }}>
+              {locked ? (
+                <Grip label="Unlock" tone="plain" onPick={() => store.patch(id, { lock: undefined })}>
+                  <Lock {...ICON} />
+                </Grip>
+              ) : (
+                <Grip label="Delete" slot="object-remove" tone="danger" onPick={() => store.remove([id])}>
+                  <Trash2 {...ICON} />
+                </Grip>
+              )}
+            </div>
           </div>
         ) : null}
       </>
@@ -215,7 +242,13 @@ export function Frame({
             : object.type === "ink"
               ? CORNERS
               : [...CORNERS, ...SIDES];
-  const small = Math.min(object.w, object.h) * store.view.zoom < 34;
+  const zoom = store.view.zoom;
+  const small = Math.min(object.w, object.h) * zoom < 34;
+  // On something small the handles step out, so they neither cover it nor each other.
+  const least = text ? 22 : 40;
+  const pushX = Math.max(0, (least - object.w * zoom) / 2);
+  const pushY = Math.max(0, (least - object.h * zoom) / 2);
+  const narrow = object.w * zoom < 96;
   const turns =
     !locked &&
     !crop &&
@@ -224,7 +257,9 @@ export function Frame({
     object.type !== "link" &&
     object.type !== "field" &&
     object.type !== "note";
-  const out = text ? 4 : 1;
+  const base = text ? 4 : 1;
+  const out = base + pushY;
+  const side = base + pushX;
 
   return (
     <div
@@ -238,43 +273,29 @@ export function Frame({
     >
       <span
         className="absolute border-accent"
-        style={{ inset: px(-out), borderWidth: px(1.5), borderStyle: editing || locked ? "dashed" : "solid" }}
+        style={{
+          left: px(-side),
+          right: px(-side),
+          top: px(-out),
+          bottom: px(-out),
+          borderWidth: px(1.5),
+          borderStyle: editing || locked ? "dashed" : "solid",
+        }}
       />
       {crop && object.type === "image" ? <Uncropped store={store} object={object} /> : null}
-      {(text || table) && alone && !locked ? (
-        <Grip
-          label="Move"
-          left={px(-out)}
-          top={px(-24 - out)}
-          tone="accent"
-          cursor="move"
-          onPress={(event) => startMove(store, page, [id], event)}
-        >
-          <Move {...ICON} />
-        </Grip>
-      ) : null}
-      {alone && locked ? (
-        <Grip
-          label="Unlock"
-          right={px(-out)}
-          top={px(-24 - out)}
-          tone="plain"
-          onPick={() => store.patch(id, { lock: undefined })}
-        >
-          <Lock {...ICON} />
-        </Grip>
-      ) : null}
-      {alone && !locked && !crop ? (
-        <Grip
-          label="Delete"
-          slot="object-remove"
-          right={px(-out)}
-          top={px(-24 - out)}
-          tone="plain"
-          onPick={() => store.remove([id])}
-        >
-          <Trash2 {...ICON} />
-        </Grip>
+      {alone ? (
+        <FrameKeys
+          store={store}
+          page={page}
+          id={id}
+          locked={locked}
+          moves={(text || table) && !locked}
+          turns={turns}
+          removes={!locked && !crop}
+          split={(text || table) && !narrow}
+          out={out}
+          side={side}
+        />
       ) : null}
       {/* The edge of a text box moves it while the inside is being typed in. */}
       {text && editing && !locked
@@ -309,7 +330,7 @@ export function Frame({
               if (crop) startCrop(store, page, id, handle, event);
               else startResize(store, page, id, handle, event);
             }}
-            className={`pointer-events-auto absolute touch-none border-ink bg-white ${FINGER}`}
+            className={`pointer-events-auto absolute touch-none border-accent-deep bg-white ${FINGER}`}
             style={{
               left: `${handle.x * 100}%`,
               top: `${handle.y * 100}%`,
@@ -318,7 +339,7 @@ export function Frame({
               borderWidth: px(1.5),
               borderStyle: "solid",
               cursor: cursorOf(handle, object.angle + page.rotate),
-              transform: `translate(calc(-50% + ${text ? (handle.x - 0.5) * 8 : 0}px / var(--z)), calc(-50% + ${text ? (handle.y - 0.5) * 8 : 0}px / var(--z)))`,
+              transform: `translate(calc(-50% + ${(handle.x - 0.5) * 2 * ((text ? 4 : 0) + pushX)}px / var(--z)), calc(-50% + ${(handle.y - 0.5) * 2 * ((text ? 4 : 0) + pushY)}px / var(--z)))`,
             }}
           />
         );
@@ -346,19 +367,75 @@ export function Frame({
             />
           ))
         : null}
-      {alone && turns ? (
-        <Grip
-          label="Turn"
-          left={text ? px(20) : `calc(50% - ${px(11)})`}
-          top={px(text ? -24 - out : -32)}
-          tone="ink"
-          cursor="grab"
-          onPress={(event) => startTurn(store, page, id, event)}
-        >
-          <RotateCw {...ICON} />
-        </Grip>
-      ) : null}
     </div>
+  );
+}
+
+/** Move, turn and delete above what is picked: split to the two ends of a wide box, in one row over a narrow one. */
+function FrameKeys({
+  store,
+  page,
+  id,
+  locked,
+  moves,
+  turns,
+  removes,
+  split,
+  out,
+  side,
+}: {
+  store: EditorStore;
+  page: Page;
+  id: string;
+  locked: boolean;
+  moves: boolean;
+  turns: boolean;
+  removes: boolean;
+  split: boolean;
+  out: number;
+  side: number;
+}) {
+  const move = moves ? (
+    <Grip label="Move" tone="accent" cursor="move" onPress={(event) => startMove(store, page, [id], event)}>
+      <Move {...ICON} />
+    </Grip>
+  ) : null;
+  const turn = turns ? (
+    <Grip label="Turn" tone="plain" cursor="grab" onPress={(event) => startTurn(store, page, id, event)}>
+      <RotateCw {...ICON} />
+    </Grip>
+  ) : null;
+  const end = locked ? (
+    <Grip label="Unlock" tone="plain" onPick={() => store.patch(id, { lock: undefined })}>
+      <Lock {...ICON} />
+    </Grip>
+  ) : removes ? (
+    <Grip label="Delete" slot="object-remove" tone="danger" onPick={() => store.remove([id])}>
+      <Trash2 {...ICON} />
+    </Grip>
+  ) : null;
+  if (split)
+    return (
+      <>
+        {move || turn ? (
+          <Keys at="left" out={out} side={side}>
+            {move}
+            {turn}
+          </Keys>
+        ) : null}
+        {end ? (
+          <Keys at="right" out={out} side={side}>
+            {end}
+          </Keys>
+        ) : null}
+      </>
+    );
+  return (
+    <Keys at="middle" out={out}>
+      {move}
+      {turn}
+      {end}
+    </Keys>
   );
 }
 
@@ -472,7 +549,7 @@ function AddKey({ label, style, onPick }: { label: string; style: React.CSSPrope
       onPointerDown={stop}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onPick}
-      className="pointer-events-auto absolute grid place-items-center bg-ink/10 text-ink opacity-70 transition hover:bg-ink hover:text-white hover:opacity-100"
+      className="pointer-events-auto absolute grid place-items-center bg-ink/[0.06] text-ink opacity-70 transition hover:bg-accent/15 hover:text-accent-deep hover:opacity-100"
       style={style}
     >
       <Plus style={{ width: px(12), height: px(12) }} strokeWidth={2.2} aria-hidden />
@@ -495,26 +572,23 @@ export function ManyFrame({ store, page, ids }: { store: EditorStore; page: Page
       <span className="absolute border-accent" style={{ inset: px(-6), borderWidth: px(1), borderStyle: "dashed" }} />
       {free ? (
         <>
-          <Grip
-            label="Move"
-            left={px(-6)}
-            top={px(-30)}
-            tone="accent"
-            cursor="move"
-            onPress={(event) => startMove(store, page, ids, event)}
-          >
-            <Move {...ICON} />
-          </Grip>
-          <Grip
-            label="Delete"
-            slot="object-remove"
-            right={px(-6)}
-            top={px(-30)}
-            tone="plain"
-            onPick={() => store.remove(ids)}
-          >
-            <Trash2 {...ICON} />
-          </Grip>
+          <Keys at={box.w * store.view.zoom < 96 ? "middle" : "left"} out={6}>
+            <Grip label="Move" tone="accent" cursor="move" onPress={(event) => startMove(store, page, ids, event)}>
+              <Move {...ICON} />
+            </Grip>
+            {box.w * store.view.zoom < 96 ? (
+              <Grip label="Delete" slot="object-remove" tone="danger" onPick={() => store.remove(ids)}>
+                <Trash2 {...ICON} />
+              </Grip>
+            ) : null}
+          </Keys>
+          {box.w * store.view.zoom < 96 ? null : (
+            <Keys at="right" out={6}>
+              <Grip label="Delete" slot="object-remove" tone="danger" onPick={() => store.remove(ids)}>
+                <Trash2 {...ICON} />
+              </Grip>
+            </Keys>
+          )}
           {[...CORNERS, ...SIDES].map((handle) => {
             const side = handle.x === 0.5 || handle.y === 0.5;
             if (side && Math.min(box.w, box.h) * store.view.zoom < 40) return null;
@@ -526,7 +600,7 @@ export function ManyFrame({ store, page, ids }: { store: EditorStore; page: Page
                   stop(event);
                   startResizeMany(store, page, ids, handle, event);
                 }}
-                className={`pointer-events-auto absolute touch-none border-ink bg-white ${FINGER}`}
+                className={`pointer-events-auto absolute touch-none border-accent-deep bg-white ${FINGER}`}
                 style={{
                   left: `${handle.x * 100}%`,
                   top: `${handle.y * 100}%`,

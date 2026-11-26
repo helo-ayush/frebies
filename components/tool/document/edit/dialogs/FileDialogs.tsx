@@ -119,7 +119,7 @@ export function BookmarksDialog({ store, open, onClose }: { store: EditorStore; 
   };
   const numberOf = (id: string) => doc.pages.findIndex((page) => page.id === id) + 1;
   const tiny =
-    "grid h-8 w-8 shrink-0 place-items-center hover:bg-ink hover:text-white disabled:pointer-events-none disabled:opacity-25";
+    "grid h-8 w-8 shrink-0 place-items-center transition-colors hover:bg-hover hover:text-accent-deep disabled:pointer-events-none disabled:opacity-25";
 
   return (
     <Sheet
@@ -138,7 +138,7 @@ export function BookmarksDialog({ store, open, onClose }: { store: EditorStore; 
               const mark: Mark = { id: uid("m"), title: `Page ${at}`, page: here.id, y: null, level: 0 };
               set(index < 0 ? [...list, mark] : [...list.slice(0, index), mark, ...list.slice(index)]);
             }}
-            className="inline-flex h-11 items-center gap-2 border border-line-strong bg-white px-4 text-[14px] font-medium hover:border-ink hover:bg-ink hover:text-white"
+            className="inline-flex h-11 items-center gap-2 border border-line-strong bg-white px-4 text-[14px] font-medium transition-colors hover:border-ink hover:text-accent-deep"
           >
             <Plus size={16} aria-hidden />
             Add this page
@@ -153,7 +153,7 @@ export function BookmarksDialog({ store, open, onClose }: { store: EditorStore; 
                 else store.say("No headings were found.");
               });
             }}
-            className="inline-flex h-11 items-center gap-2 border border-line-strong bg-white px-4 text-[14px] font-medium hover:border-ink hover:bg-ink hover:text-white"
+            className="inline-flex h-11 items-center gap-2 border border-line-strong bg-white px-4 text-[14px] font-medium transition-colors hover:border-ink hover:text-accent-deep"
           >
             <Wand2 size={16} aria-hidden />
             Make them from the headings
@@ -259,7 +259,7 @@ const KEYS: { title: string; rows: [string, string][] }[] = [
     title: "Anywhere",
     rows: [
       ["Ctrl Z / Ctrl Y", "Undo / redo"],
-      ["Ctrl S", "Download"],
+      ["Ctrl S", "Save, in the kind of file last saved"],
       ["Ctrl F", "Find and replace"],
       ["Ctrl P", "Print"],
       ["Ctrl O", "Open another file"],
@@ -271,8 +271,12 @@ const KEYS: { title: string; rows: [string, string][] }[] = [
   {
     title: "Picking and moving",
     rows: [
+      ["Click a text", "Pick it, to move or restyle it"],
+      ["Click it again, double-click, Enter", "Type in it"],
       ["Double-click on paper", "Type there"],
       ["Double-click on a line or shape", "Pick the whole drawing"],
+      ["Drag across a table", "Pick its cells, even in a PDF"],
+      ["Double-click a table cell", "Type in the cell"],
       ["Drag over the page", "Pick everything inside"],
       ["Shift + click", "Add to what is picked"],
       ["Arrow keys", "Move by 1 pt, with Shift by 10"],

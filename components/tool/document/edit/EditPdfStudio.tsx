@@ -11,7 +11,8 @@ import { downloadBlob } from "@/lib/image/encode";
 import { ContextMenu } from "./ContextMenu";
 import { FormatBar } from "./FormatBar";
 import { PageRail } from "./PageRail";
-import { DownloadKey, Ribbon, type DialogName } from "./Ribbon";
+import { Ribbon, type DialogName } from "./Ribbon";
+import { SaveKey } from "./SaveMenu";
 import { SignDialog } from "./SignDialog";
 import { Stage, type Place } from "./Stage";
 import { pasteCells, tableOf } from "./commands";
@@ -25,7 +26,7 @@ import { rowsFromHtml, rowsFromText } from "./engine/table";
 import { toPage } from "./interact";
 import { pressKey } from "./keys";
 import { marginBox, pageOf } from "./model";
-import { EditorStore, OPENS, isImage, useEditor } from "./store";
+import { EditorStore, OPENS, isImage, useEditor, type Format } from "./store";
 
 /** Leaving with the browser's back key. */
 const BACK = "back";
@@ -197,6 +198,14 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
   );
   const download = useCallback(
     () => void saveAs({ format: store.view.format, pages: null, dpi: 150, options: {} }),
+    [saveAs, store],
+  );
+  /** Saves in one kind of file, which Ctrl S then keeps to. */
+  const saveIn = useCallback(
+    (format: Format) => {
+      store.setView({ format });
+      void saveAs({ format, pages: null, dpi: 150, options: {} });
+    },
     [saveAs, store],
   );
   const print = useCallback(async () => {
@@ -443,7 +452,7 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
                           store.setView({ opening: false, error: problem.message }),
                         )
                       }
-                      className="inline-flex items-center gap-2 px-3 font-medium hover:bg-ink hover:text-white"
+                      className="inline-flex items-center gap-2 px-3 font-medium hover:bg-white hover:text-accent-deep"
                     >
                       <History size={16} aria-hidden />
                       <span className="max-w-[220px] truncate">Go on with {draft.name}</span>
@@ -502,7 +511,9 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
         onAddFiles={() => addFiles(store.doc.pages.length)}
         onPrint={() => void print()}
         onDialog={setDialog}
-        onDownload={download}
+        onSave={saveIn}
+        full={full}
+        onFull={() => setFull((value) => !value)}
         onClose={() => {
           setFull(false);
           store.close();
@@ -527,7 +538,7 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
           <button
             type="button"
             onClick={() => store.setView({ error: null })}
-            className="absolute inset-y-0 right-0 px-4 text-[13px] font-medium hover:bg-ink hover:text-white"
+            className="absolute inset-y-0 right-0 px-4 text-[13px] font-medium hover:bg-white/60"
           >
             Dismiss
           </button>
@@ -552,14 +563,12 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
               })
             }
             onClose={() => setRail(false)}
-            className="max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-[8] max-lg:shadow-[8px_0_0_rgba(24,24,27,0.12)]"
+            className="max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-[8] max-lg:border-r max-lg:border-line-strong"
           />
         ) : null}
         <Stage
           store={store}
           queue={queue}
-          full={full}
-          onFull={() => setFull((value) => !value)}
           onAddFiles={addFiles}
           onDropFiles={(files, place) => void take(files, place)}
         />
@@ -568,7 +577,7 @@ export function EditPdfStudio({ maxSizeMB }: { maxSizeMB: number }) {
       <ActionDock pinned={false} className="!px-3 !pb-[max(0.75rem,env(safe-area-inset-bottom))] !pt-3 lg:hidden">
         <div className="h-[56px]">
           <div className="flex h-full">
-            <DownloadKey store={store} onClick={download} onFormat={() => setDialog("save")} />
+            <SaveKey store={store} onSave={saveIn} onMore={() => setDialog("save")} />
           </div>
         </div>
       </ActionDock>
@@ -629,10 +638,10 @@ function LeaveDialog({
       ref={ref}
       aria-label="Leave the editor"
       onClose={onStay}
-      className="m-auto w-[min(420px,calc(100vw-24px))] border border-ink bg-panel p-0 text-ink"
+      className="m-auto w-[min(420px,calc(100vw-24px))] border border-line-strong bg-panel p-0 text-ink"
     >
       <div className="p-5">
-        <p className="fb-wide text-[19px]">Leave without downloading?</p>
+        <p className="fb-wide text-[19px]">Leave without saving?</p>
         <p className="mt-3 text-[15px] leading-snug text-muted">
           Your changes are kept in this browser, so you can go on with them when you come back.
         </p>
@@ -644,7 +653,7 @@ function LeaveDialog({
             type="button"
             data-slot="file-close"
             onClick={() => to && onLeave(to)}
-            className="h-[46px] border border-line-strong text-[14px] font-medium uppercase hover:bg-danger hover:text-white"
+            className="h-[46px] border border-line-strong text-[14px] font-medium uppercase hover:border-danger hover:bg-danger-soft hover:text-danger"
           >
             Leave
           </button>

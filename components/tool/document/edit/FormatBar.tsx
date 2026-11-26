@@ -89,7 +89,7 @@ function PageBar({ store, onAddFiles }: { store: EditorStore; onAddFiles: (at: n
       <BarText label="Blank page" icon={<Plus {...ICON} />} sound="page" onClick={() => store.addBlank(at + 1)} />
       <BarText label="Add a file" icon={<FilePlus2 {...ICON} />} onClick={() => onAddFiles(at + 1)} />
       <span className="ml-auto hidden shrink-0 whitespace-nowrap pl-4 pr-2 text-[13px] text-muted min-[1240px]:block">
-        Click to change or pick, double-click anywhere to type
+        Click to pick, double-click to type. Double-click empty space for new text
       </span>
     </>
   );

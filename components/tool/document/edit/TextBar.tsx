@@ -184,12 +184,12 @@ function FontList({
         data-sound="select"
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => onPick(id)}
-        className={`flex min-h-[38px] w-full items-center justify-between gap-3 px-3 py-1.5 text-left ${on ? "bg-ink text-white" : "hover:bg-hover"}`}
+        className={`flex min-h-[38px] w-full items-center justify-between gap-3 px-3 py-1.5 text-left ${on ? "fb-ed-row-on" : "hover:bg-hover"}`}
       >
         <span className="truncate text-[16px] leading-tight" style={labelCss(id)}>
           {label}
         </span>
-        {like ? <span className={`shrink-0 text-[11.5px] ${on ? "text-white/60" : "text-faint"}`}>{like}</span> : null}
+        {like ? <span className={`shrink-0 text-[11.5px] text-faint`}>{like}</span> : null}
       </button>
     );
   };
@@ -218,7 +218,7 @@ function FontList({
           {LIBRARY.filter((family) => family.group === group).map((family) => row(family.id, family.name, family.like))}
         </div>
       ))}
-      <div className="sticky bottom-0 border-t border-ink bg-panel">
+      <div className="sticky bottom-0 border-t border-line-strong bg-panel">
         {problem ? <p className="px-3 pt-2 text-[13px] text-danger">{problem}</p> : null}
         <MenuRow label="Add a font file" hint="TTF, OTF" icon={<Plus size={15} aria-hidden />} onClick={onAdd} />
       </div>
@@ -279,7 +279,7 @@ function ListPick({ store, type }: { store: EditorStore; type: "bullet" | "numbe
                   data-sound="select"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => (set(mark), close())}
-                  className={`h-[46px] text-[16px] ${on && now?.mark === mark ? "bg-ink text-white" : "bg-panel hover:bg-hover"}`}
+                  className={`h-[46px] text-[16px] ${on && now?.mark === mark ? "fb-ed-on" : "bg-panel hover:bg-hover"}`}
                   style={type === "bullet" ? { fontFamily: '"fb-symbols", "fb-arimo", sans-serif' } : undefined}
                 >
                   {type === "number" ? [1, 2, 3].map((n) => numberMark(mark, n)).join(" ") : mark}
@@ -374,11 +374,7 @@ export function LinkPick({ store, look }: { store: EditorStore; look: Style }) {
             className="fb-input !h-9 w-full !px-2.5 !text-[13.5px]"
           />
           <div className="mt-2.5 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => put(close)}
-              className="h-9 bg-ink text-[13px] font-medium text-white hover:bg-accent-deep"
-            >
+            <button type="button" onClick={() => put(close)} className="fb-btn !h-9 !px-3 !text-[13px]">
               {look.link ? "Change" : "Add link"}
             </button>
             <button
@@ -553,7 +549,7 @@ export function TextControls({ store, objects }: { store: EditorStore; objects: 
                   data-sound="select"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => spaceLines(store, value * 1.15)}
-                  className={`fb-num h-9 text-[13px] ${Math.abs(spacing - value * 1.15) < 0.03 ? "bg-ink text-white" : "bg-panel hover:bg-hover"}`}
+                  className={`fb-num h-9 text-[13px] ${Math.abs(spacing - value * 1.15) < 0.03 ? "fb-ed-on" : "bg-panel hover:bg-hover"}`}
                 >
                   {value}
                 </button>

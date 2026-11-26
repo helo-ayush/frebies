@@ -170,7 +170,7 @@ const Tiny = ({
       onClick();
     }}
     onPointerDown={(event) => event.stopPropagation()}
-    className={`grid h-7 w-7 place-items-center border-b border-line bg-panel text-ink last:border-b-0 disabled:opacity-30 ${danger ? "hover:bg-danger hover:text-white" : "hover:bg-ink hover:text-white"}`}
+    className={`grid h-7 w-7 place-items-center border-b border-line bg-panel text-ink last:border-b-0 disabled:opacity-30 ${danger ? "hover:bg-danger-soft hover:text-danger" : "hover:bg-white hover:text-accent-deep"}`}
   >
     {children}
   </button>
@@ -191,7 +191,7 @@ function Between({
   className?: string;
 }) {
   const key =
-    "flex h-[26px] flex-1 items-center justify-center gap-1 border border-line-strong bg-panel text-[11.5px] font-medium leading-none hover:border-ink hover:bg-ink hover:text-white";
+    "flex h-[26px] flex-1 items-center justify-center gap-1 border border-line-strong bg-panel text-[11.5px] font-medium leading-none transition-colors hover:border-ink hover:bg-white hover:text-accent-deep";
   return (
     <div data-between={at} className={`group/gap relative flex items-center ${className}`} style={{ width: WIDTH }}>
       {children}
@@ -315,7 +315,7 @@ const Thumb = memo(function Thumb({
           className={`relative block cursor-grab outline-offset-2 ${
             active || (many && marked)
               ? "shadow-[0_0_0_2px_#f2552c]"
-              : "shadow-[0_0_0_1px_rgba(24,24,27,0.25)] hover:shadow-[0_0_0_2px_#1d1c1f]"
+              : "shadow-[0_0_0_1px_rgba(24,24,27,0.25)] hover:shadow-[0_0_0_2px_#a5a4a2]"
           }`}
         >
           <ThumbArt store={store} page={page} index={i} count={count} queue={queue} />
@@ -542,7 +542,7 @@ export function PageRail({
         </div>
       </div>
       {many ? (
-        <div className="shrink-0 border-t border-ink bg-panel">
+        <div className="shrink-0 border-t border-line-strong bg-panel">
           <p className="flex items-center justify-between pl-3 text-[12.5px]">
             <span className="fb-num">{marked.length} pages</span>
             <button
@@ -568,7 +568,7 @@ export function PageRail({
                 title={label}
                 aria-label={label}
                 onClick={run}
-                className={`grid h-10 place-items-center border-l border-line first:border-l-0 ${label.startsWith("Delete") ? "hover:bg-danger hover:text-white" : "hover:bg-ink hover:text-white"}`}
+                className={`grid h-10 place-items-center border-l border-line first:border-l-0 ${label.startsWith("Delete") ? "hover:bg-danger-soft hover:text-danger" : "hover:bg-white hover:text-accent-deep"}`}
               >
                 <Icon size={15} aria-hidden />
               </button>
@@ -586,7 +586,7 @@ export function PageRail({
               type="button"
               aria-expanded={open}
               onClick={toggle}
-              className="flex h-11 w-full items-center justify-center gap-2 text-[13.5px] font-medium hover:bg-ink hover:text-white"
+              className="flex h-11 w-full items-center justify-center gap-2 text-[13.5px] font-medium transition-colors hover:bg-white hover:text-accent-deep"
             >
               <Plus size={16} aria-hidden />
               Add pages
