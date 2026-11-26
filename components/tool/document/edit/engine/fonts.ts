@@ -13,7 +13,7 @@ export type LibFamily = {
   name: string;
   /** The well-known font it stands in for. */
   like?: string;
-  group: "Sans" | "Serif" | "Typewriter" | "Handwriting" | "Hindi";
+  group: "Sans" | "Serif" | "Typewriter" | "Handwriting" | "Hindi" | "Symbols";
   faces: FaceName[];
 };
 
@@ -38,6 +38,7 @@ export const LIBRARY: LibFamily[] = [
   { id: "lib:dancing", name: "Dancing Script", group: "Handwriting", faces: ["regular", "bold"] },
   { id: "lib:caveat", name: "Caveat", group: "Handwriting", faces: ["regular", "bold"] },
   { id: "lib:vibes", name: "Great Vibes", group: "Handwriting", faces: ["regular"] },
+  { id: "lib:symbols", name: "Symbols", group: "Symbols", faces: ["regular"] },
   { id: "lib:devanagari", name: "Noto Sans Devanagari", like: "Hindi", group: "Hindi", faces: ["regular", "bold"] },
 ];
 
@@ -144,16 +145,156 @@ export function pdfFontsOf(sourceId: string): PdfFont[] {
   return [...pdfFonts.values()].filter((font) => font.sourceId === sourceId);
 }
 
+/** What Word's symbol fonts mean by the private letters they use for bullets and boxes. */
+const PRIVATE: Record<string, Record<number, string>> = {
+  symbol: {
+    0xb7: "•",
+    0xa7: "▪",
+    0xae: "→",
+    0xac: "←",
+    0xad: "↑",
+    0xaf: "↓",
+    0xb0: "°",
+    0xb1: "±",
+    0xb4: "×",
+    0xb8: "÷",
+    0xa3: "≤",
+    0xb3: "≥",
+    0xb9: "≠",
+    0xbb: "≈",
+    0xa5: "∞",
+    0xd6: "√",
+    0xe5: "∑",
+    0xd5: "∏",
+    0xf2: "∫",
+    0xb6: "∂",
+    0xd1: "∇",
+    0xce: "∈",
+    0xa8: "♦",
+    0xa9: "♥",
+    0xaa: "♠",
+    0xd2: "®",
+    0xd3: "©",
+    0xd4: "™",
+    0x61: "α",
+    0x62: "β",
+    0x67: "γ",
+    0x64: "δ",
+    0x65: "ε",
+    0x71: "θ",
+    0x6c: "λ",
+    0x6d: "μ",
+    0x70: "π",
+    0x72: "ρ",
+    0x73: "σ",
+    0x74: "τ",
+    0x66: "φ",
+    0x77: "ω",
+    0x44: "Δ",
+    0x53: "Σ",
+    0x57: "Ω",
+    0x2d: "–",
+    0x2a: "*",
+    0x6f: "ο",
+    0xde: "⇒",
+    0xdc: "⇐",
+    0xab: "↔",
+    0xdb: "⇔",
+    0xa1: "ϒ",
+    0xc5: "⊕",
+  },
+  wingdings: {
+    0x6c: "●",
+    0x6d: "○",
+    0x6e: "■",
+    0x6f: "□",
+    0x70: "□",
+    0x71: "❑",
+    0x72: "❒",
+    0x73: "◆",
+    0x74: "◆",
+    0x75: "◆",
+    0x76: "❖",
+    0x77: "◆",
+    0xa7: "▪",
+    0xa8: "☐",
+    0x9f: "•",
+    0x9e: "·",
+    0xfc: "✓",
+    0xfb: "✗",
+    0xfd: "☒",
+    0xfe: "☑",
+    0xd8: "➢",
+    0xe0: "→",
+    0xdf: "←",
+    0xe1: "↑",
+    0xe2: "↓",
+    0xe8: "➔",
+    0xf0: "⇒",
+    0xab: "★",
+    0xaa: "✦",
+    0xad: "✶",
+    0x4a: "☺",
+    0x4c: "☹",
+    0x28: "☎",
+    0x29: "✆",
+    0x2a: "✉",
+    0x22: "✂",
+    0x21: "✏",
+    0xa6: "○",
+    0xb6: "☆",
+    0x46: "☞",
+    0x7c: "○",
+    0x80: "⓪",
+    0x81: "①",
+    0x82: "②",
+    0x83: "③",
+    0x84: "④",
+    0x85: "⑤",
+    0x86: "⑥",
+    0x87: "⑦",
+    0x88: "⑧",
+    0x89: "⑨",
+    0x8a: "⑩",
+  },
+  wingdings2: { 0x50: "✓", 0x4f: "✗", 0x52: "☑", 0x51: "☒", 0xa3: "☐", 0x97: "●", 0x98: "•", 0xa0: "■", 0x99: "•" },
+  wingdings3: { 0x7d: "►", 0x75: "►", 0x67: "►", 0x22: "→", 0x66: "←", 0xc6: "▶" },
+};
+
+/** The letter a reader sees, for the ones symbol fonts keep in a private corner. */
+export function symbolText(font: string, text: string): string {
+  if (text.length !== 1) return text;
+  const code = text.charCodeAt(0);
+  const hidden = code >= 0xf000 && code <= 0xf0ff;
+  if (!hidden && code >= 0x100) return text;
+  const name = font
+    .toLowerCase()
+    .replace(/^[a-z]{6}\+/, "")
+    .replace(/[^a-z0-9]/g, "");
+  const table = name.startsWith("wingdings2")
+    ? PRIVATE.wingdings2
+    : name.startsWith("wingdings3")
+      ? PRIVATE.wingdings3
+      : name.startsWith("wingdings")
+        ? PRIVATE.wingdings
+        : name.startsWith("symbol")
+          ? PRIVATE.symbol
+          : null;
+  if (!table) return hidden ? (PRIVATE.symbol[code & 0xff] ?? text) : text;
+  if (!hidden) return name.startsWith("wingdings") ? (table[code] ?? text) : text;
+  return table[code & 0xff] ?? text;
+}
+
 const ALIASES: [RegExp, string][] = [
-  [/carlito|calibri/, "lib:carlito"],
-  [/caladea|cambria/, "lib:caladea"],
-  [/gelasio|georgia/, "lib:gelasio"],
-  [/garamond/, "lib:garamond"],
+  [/carlito|calibri|candara|corbel/, "lib:carlito"],
+  [/caladea|cambria|rockwell/, "lib:caladea"],
+  [/gelasio|georgia|constantia|sylfaen|bookman|schoolbook|^century($|[^g])|lucidabright|aptosserif/, "lib:gelasio"],
+  [/garamond|goudy|californian|perpetua|centaur|bellmt|highertower|hightower/, "lib:garamond"],
   [/playfair|didot|bodoni/, "lib:playfair"],
   [/opensans|segoe|verdana|tahoma|notosans|dejavusans|lucidasans|frutiger|myriad|trebuchet/, "lib:open-sans"],
   [/roboto/, "lib:roboto"],
   [/(^|[^a-z])inter($|[^a-z])|sfpro|sanfrancisco|geist/, "lib:inter"],
-  [/lato/, "lib:lato"],
+  [/lato($|[^a-z])|^lato|gillsans|twcen/, "lib:lato"],
   [/montserrat|gotham|proximanova/, "lib:montserrat"],
   [/poppins|futura|centurygothic|avenir/, "lib:poppins"],
   [/oswald|impact|bebas|leaguegothic/, "lib:oswald"],
@@ -345,7 +486,7 @@ export function fallbackFace(style: Style): Face {
   };
 }
 
-const SAFE = '"fb-arimo", "fb-devanagari", system-ui, sans-serif';
+const SAFE = '"fb-arimo", "fb-devanagari", "fb-symbols", system-ui, sans-serif';
 
 export function faceCss(face: Face): { family: string; weight: number; style: string } {
   if (face.kind === "pdf") {
@@ -400,6 +541,7 @@ export async function loadFaces(styles: readonly Style[], sample = "Aa"): Promis
     }
   }
   if (/[ऀ-ॿ]/.test(sample)) wanted.add('400 16px "fb-devanagari"').add('700 16px "fb-devanagari"');
+  if (/[\u2030-\u2bff]/.test(sample)) wanted.add('400 16px "fb-symbols"');
   await Promise.all([...wanted].map((font) => document.fonts.load(font, sample).catch(() => undefined)));
 }
 

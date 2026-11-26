@@ -110,6 +110,8 @@ export function Pop({
   const panel = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<{ left: number; top: number; max: number } | null>(null);
   const close = useCallback(() => setOpen(false), []);
+  // Inside a dialog the panel has to be part of it: everything else is out of reach then.
+  const host = open && typeof document !== "undefined" ? (anchor.current?.closest("dialog") ?? document.body) : null;
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -164,7 +166,7 @@ export function Pop({
   return (
     <>
       {button(open, () => setOpen((value) => !value), anchor as RefObject<HTMLButtonElement>)}
-      {open && typeof document !== "undefined"
+      {open && host
         ? createPortal(
             <div
               ref={panel}
@@ -176,7 +178,7 @@ export function Pop({
             >
               {children(close)}
             </div>,
-            document.body,
+            host,
           )
         : null}
     </>

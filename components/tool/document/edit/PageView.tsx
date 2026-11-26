@@ -4,33 +4,66 @@ import {
   memo,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { ObjectArt, placeCss } from "./Art";
-import { Frame } from "./Frame";
-import { TextView } from "./TextView";
-import { dragKey, lineBox, startMove, straighten, toPage, track } from "./interact";
-import { bounds, corners, objectBounds, placement, type Box, type Point } from "./engine/matrix";
-import { strokePath, toSvg } from "./engine/shapes";
-import type { Block } from "./engine/extract";
+import { Parts } from "./Art";
+import { Backdrop, DecorLayer } from "./Backdrop";
+import { CropArea } from "./CropArea";
+import { Field } from "./Fields";
+import { Frame, ManyFrame } from "./Frame";
+import { ObjectView } from "./ObjectView";
+import { Rulers } from "./Rulers";
 import {
+  GRID,
+  doublePress,
+  dragKey,
+  lineBox,
+  objectsIn,
+  shownCss,
+  startMove,
+  straighten,
+  toPage,
+  track,
+} from "./interact";
+import { cellSpot, markRects, ruledCell } from "./marking";
+import { bounds, type Box, type Point } from "./engine/matrix";
+import { shapeDef } from "./engine/shape-kinds";
+import { shapeParts, strokePath, toSvg } from "./engine/shapes";
+import type { Block } from "./engine/extract";
+import { distanceTo, isPanel, type Unit } from "./engine/vectors";
+import {
+  marginBox,
   mixes,
+  pageBox,
   shownSize,
   uid,
-  type EditObject,
   type FieldObject,
   type InkObject,
   type LinkObject,
   type MarkObject,
+  type NoteObject,
   type Page,
+  type PathObject,
   type ShapeKind,
   type ShapeObject,
   type Tool,
 } from "./model";
-import { SYMBOLS, useEditor, type EditorStore, type PageField, type PageLink, type PagePicture } from "./store";
+import {
+  SYMBOLS,
+  blockBox,
+  leadingOf,
+  pictureBox,
+  useEditor,
+  type EditorStore,
+  type PageField,
+  type PageLink,
+  type PagePicture,
+} from "./store";
 import type { RenderQueue } from "@/components/tool/viewer/render-queue";
 
 const CURSORS: Partial<Record<Tool, string>> = {
@@ -40,110 +73,12 @@ const CURSORS: Partial<Record<Tool, string>> = {
   highlight: "text",
   underline: "text",
   strike: "text",
+  squiggle: "text",
 };
 
-const DRAWN = new Set<Tool>([
-  "rect",
-  "ellipse",
-  "line",
-  "arrow",
-  "whiteout",
-  "check",
-  "cross",
-  "dot",
-  "link",
-  "field-text",
-  "field-multiline",
-  "field-check",
-  "field-list",
-]);
+const MARKING = new Set<Tool>(["highlight", "underline", "strike", "squiggle"]);
 
-/** The page's own drawing, without what was taken off it. */
-function Backdrop({
-  store,
-  page,
-  zoom,
-  queue,
-  onKey,
-}: {
-  store: EditorStore;
-  page: Page;
-  zoom: number;
-  queue: RenderQueue;
-  onKey: (key: string) => void;
-}) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const key = useEditor(store, (s) => s.backdropKey(page));
-  const [sharp, setSharp] = useState(zoom);
-  const drawn = useRef("");
-  const report = useRef(onKey);
-  report.current = onKey;
-
-  useEffect(() => {
-    const timer = setTimeout(() => setSharp(zoom), 140);
-    return () => clearTimeout(timer);
-  }, [zoom]);
-
-  useEffect(() => {
-    let off = false;
-    let stop: (() => void) | null = null;
-    const ratio = Math.min(2, window.devicePixelRatio || 1);
-    const scale = Math.min(sharp * ratio, 5000 / Math.max(page.w, page.h), Math.sqrt(15e6 / (page.w * page.h)));
-    const wanted = `${key}@${scale.toFixed(3)}`;
-    if (drawn.current === wanted) return;
-    void queue(async () => {
-      if (off) return;
-      const item = await store.backdrop(page).catch(() => null);
-      const canvas = ref.current;
-      if (off || !canvas) return;
-      if (item) {
-        const viewport = item.page.getViewport({ scale });
-        const bench = document.createElement("canvas");
-        bench.width = Math.max(1, Math.round(viewport.width));
-        bench.height = Math.max(1, Math.round(viewport.height));
-        // 2: form fields are drawn by the editor, so they can be filled in.
-        const task = item.page.render({ canvas: bench, viewport, annotationMode: 2 });
-        stop = () => task.cancel();
-        try {
-          await task.promise;
-        } catch {
-          return;
-        }
-        if (off || !ref.current) return;
-        canvas.width = bench.width;
-        canvas.height = bench.height;
-        canvas.getContext("2d")?.drawImage(bench, 0, 0);
-        store.canvases.set(page.id, { canvas, scale });
-      } else {
-        canvas.width = canvas.width || 1;
-      }
-      drawn.current = wanted;
-      report.current(key);
-    });
-    return () => {
-      off = true;
-      stop?.();
-    };
-  }, [store, page, key, sharp, queue]);
-
-  useEffect(
-    () => () => {
-      store.canvases.delete(page.id);
-    },
-    [store, page.id],
-  );
-
-  return (
-    <canvas
-      ref={ref}
-      aria-hidden
-      className="pointer-events-none absolute left-0 top-0 block"
-      style={{ width: page.w, height: page.h }}
-    />
-  );
-}
-
-export const boxStyle = (block: Block): CSSProperties => ({
+const boxStyle = (block: Block): CSSProperties => ({
   left: 0,
   top: 0,
   width: block.w,
@@ -152,253 +87,47 @@ export const boxStyle = (block: Block): CSSProperties => ({
   transform: `translate(${block.x}px, ${block.y}px) rotate(${block.angle}deg)`,
 });
 
-const coverOf = (store: EditorStore, page: Page, block: Block) =>
-  store.sample(
-    page.id,
-    bounds(corners(placement(block.x, block.y, block.angle), { x: 0, y: 0, w: block.w, h: block.h })),
-  );
+const coverOf = (store: EditorStore, page: Page, block: Block) => store.sample(page.id, blockBox(block));
 
-/** One object on the page: how it looks, and what a press on it does. */
-const ObjectView = memo(function ObjectView({
-  store,
-  page,
-  id,
-  stale,
-}: {
-  store: EditorStore;
-  page: Page;
-  id: string;
-  stale: boolean;
-}) {
-  const object = useEditor(store, (s) => s.doc.objects[id] as EditObject | undefined);
-  const editing = useEditor(store, (s) => s.view.editing === id);
-  const selected = useEditor(store, (s) => s.view.selection.includes(id));
-  const tool = useEditor(store, (s) => s.view.tool);
-  useEditor(store, (s) => object?.type === "mark" && s.view.editing !== null);
-  if (!object) return null;
-
-  const busy = store.view.editing !== null;
-  const reachable =
-    (tool === "select" && !(object.type === "mark" && busy)) ||
-    (tool === "text" && object.type === "text") ||
-    (tool === "link" && object.type === "link");
-
-  const press = (event: ReactPointerEvent) => {
-    if (event.button !== 0 || !reachable) return;
-    if (editing) {
-      event.stopPropagation();
-      return;
-    }
-    event.stopPropagation();
-    const { selection } = store.view;
-    if (event.pointerType === "touch" && !selected) {
-      // A finger may be scrolling: wait and see.
-      const from = { x: event.clientX, y: event.clientY };
-      track(
-        event,
-        () => undefined,
-        (next, cancelled) => {
-          if (cancelled || Math.hypot(next.clientX - from.x, next.clientY - from.y) > 10) return;
-          store.caret = from;
-          store.select([id], store.doc.objects[id]?.type === "text" ? id : null);
-        },
-      );
-      return;
-    }
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    event.preventDefault();
-    if (event.shiftKey) {
-      store.select(selected ? selection.filter((item) => item !== id) : [...selection, id]);
-      return;
-    }
-    const ids = selected ? selection : [id];
-    if (!selected) store.select([id]);
-    const spot = { x: event.clientX, y: event.clientY };
-    startMove(store, page, ids, event, (moved) => {
-      if (moved) return;
-      const now = store.doc.objects[id];
-      if (now?.type === "text") {
-        store.caret = spot;
-        store.select([id], id);
-      } else if (selected && selection.length > 1) store.select([id]);
-      else if (selected && now?.type === "mark") {
-        // Pressed again: reach for the words under the mark.
-        const under = document
-          .elementsFromPoint(spot.x, spot.y)
-          .find((node) => node instanceof HTMLElement && (node.dataset.block || node.dataset.kind === "text"));
-        if (!(under instanceof HTMLElement)) return;
-        if (under.dataset.object) {
-          store.caret = spot;
-          store.select([under.dataset.object], under.dataset.object);
-        } else if (under.dataset.block) {
-          const key = under.dataset.block;
-          const block = store.block(page, key);
-          if (!block) return;
-          void store.openBlock(page.id, key, coverOf(store, page, block)).then((opened) => {
-            if (!opened) return;
-            store.caret = spot;
-            store.select([opened], opened);
-          });
-        }
-      }
-    });
-  };
-
-  const common = {
-    onPointerDown: press,
-    "data-object": id,
-    "data-kind": object.type,
-  };
-  const cover = object.type === "text" && stale && object.block ? (page.covers[object.block] ?? null) : null;
-
-  if (object.type === "link") {
-    return (
-      <div
-        {...common}
-        style={{ ...placeCss(object), width: object.w, height: object.h }}
-        className={`border border-dashed border-accent-deep bg-accent/10 ${reachable ? "pointer-events-auto cursor-move" : ""}`}
-      />
-    );
-  }
-  const thin = object.type === "shape" && (object.kind === "line" || object.kind === "arrow");
-  return (
-    <div
-      {...common}
-      style={placeCss(object)}
-      className={`${reachable && !thin && object.type !== "ink" ? "pointer-events-auto" : "pointer-events-none"} ${selected ? "touch-none" : ""} ${
-        editing
-          ? ""
-          : `cursor-move ${reachable && !selected && !thin && object.type !== "ink" ? "hover:shadow-[0_0_0_calc(1.5px/var(--z))_#f2552c]" : ""}`
-      }`}
-    >
-      {object.type === "text" ? (
-        <TextView store={store} object={object} editing={editing} cover={cover} />
-      ) : (
-        <ObjectArt object={object} store={store} />
-      )}
-      {(thin || object.type === "ink") && reachable ? (
-        <svg
-          width={Math.max(1, object.w)}
-          height={Math.max(1, object.h)}
-          className="pointer-events-none absolute left-0 top-0 overflow-visible"
-          aria-hidden
-        >
-          <path
-            d={
-              object.type === "ink"
-                ? toSvg(object.strokes.flatMap((stroke) => strokePath(stroke, object.w, object.h)))
-                : `M0 ${object.flip ? object.h : 0}L${object.w} ${object.flip ? 0 : object.h}`
-            }
-            fill="none"
-            stroke="transparent"
-            strokeWidth={Math.max(object.width, 14 / store.view.zoom)}
-            className="pointer-events-auto cursor-move"
-          />
-        </svg>
-      ) : null}
-    </div>
-  );
+const boxOf = (a: Point, b: Point): Box => ({
+  x: Math.min(a.x, b.x),
+  y: Math.min(a.y, b.y),
+  w: Math.abs(b.x - a.x),
+  h: Math.abs(b.y - a.y),
 });
 
-/** A fillable field of the file. */
-function Field({ store, page, field }: { store: EditorStore; page: Page; field: PageField }) {
-  const key = `${page.source}:${field.name}`;
-  const value = useEditor(store, (s) => s.doc.values[key]) ?? field.value;
-  const tool = useEditor(store, (s) => s.view.tool);
-  const set = (next: string | boolean) => store.setValue(page.source as string, field.name, next);
-  const style: CSSProperties = { left: field.box.x, top: field.box.y, width: field.box.w, height: field.box.h };
-  const size =
-    field.size > 0 ? field.size : Math.max(6, Math.min(field.kind === "multiline" ? 11 : 14, field.box.h * 0.62));
-  const look = `pointer-events-auto absolute m-0 rounded-none border border-[#8fb3c9] bg-[#e4f1f8]/90 p-0 text-ink outline-none focus:border-ink focus:bg-white ${
-    tool === "select" ? "" : "!pointer-events-none"
-  }`;
-  const common = { "aria-label": field.name, disabled: field.readOnly, title: field.name };
-  if (field.kind === "check") {
-    return (
-      <input
-        type="checkbox"
-        {...common}
-        checked={Boolean(value)}
-        onChange={(event) => set(event.target.checked)}
-        className={`${look} accent-[#1d1c1f]`}
-        style={style}
-      />
-    );
-  }
-  if (field.kind === "radio") {
-    return (
-      <input
-        type="radio"
-        {...common}
-        name={`${page.id}-${field.name}`}
-        checked={value === field.option}
-        onChange={() => set(field.option ?? "")}
-        className={`${look} accent-[#1d1c1f]`}
-        style={style}
-      />
-    );
-  }
-  if (field.kind === "list") {
-    return (
-      <select
-        {...common}
-        value={String(value)}
-        onChange={(event) => set(event.target.value)}
-        className={`${look} px-0.5`}
-        style={{ ...style, fontSize: size }}
-      >
-        {!field.options.includes(String(value)) ? <option value={String(value)}>{String(value)}</option> : null}
-        {field.options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    );
-  }
-  if (field.kind === "multiline") {
-    return (
-      <textarea
-        {...common}
-        value={String(value)}
-        onChange={(event) => set(event.target.value)}
-        className={`${look} resize-none px-1 py-0.5 leading-[1.2]`}
-        style={{ ...style, fontSize: size }}
-      />
-    );
-  }
-  return (
-    <input
-      type="text"
-      {...common}
-      value={String(value)}
-      onChange={(event) => set(event.target.value)}
-      className={`${look} px-1`}
-      style={{ ...style, fontSize: size }}
-    />
-  );
-}
+const within = (inner: Box, outer: Box) =>
+  inner.x >= outer.x &&
+  inner.y >= outer.y &&
+  inner.x + inner.w <= outer.x + outer.w &&
+  inner.y + inner.h <= outer.y + outer.h;
 
 type Draft =
   | { kind: "box"; a: Point; b: Point }
   | { kind: "line"; a: Point; b: Point }
   | { kind: "ink"; points: number[] }
-  | { kind: "marks"; rects: Box[] };
+  | { kind: "marks"; rects: Box[] }
+  | { kind: "poly"; points: Point[]; at: Point };
 
 /** The page itself: its drawing, what can be picked up, and everything put on it. */
 const PageBody = memo(function PageBody({
   store,
   page,
+  index,
+  count,
   zoom,
   queue,
 }: {
   store: EditorStore;
   page: Page;
+  index: number;
+  count: number;
   zoom: number;
   queue: RenderQueue;
 }) {
   const [drawnKey, setDrawnKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [hover, setHover] = useState<Unit | null>(null);
   const [pictures, setPictures] = useState<PagePicture[]>([]);
   const [notes, setNotes] = useState<{ links: PageLink[]; fields: PageField[] }>({ links: [], fields: [] });
   const tool = useEditor(store, (s) => s.view.tool);
@@ -407,38 +136,142 @@ const PageBody = memo(function PageBody({
   const text = useEditor(store, (s) => s.readyText(page));
   const key = useEditor(store, (s) => s.backdropKey(page));
   const guides = useEditor(store, (s) => (s.view.guides?.page === page.id ? s.view.guides : null));
-  const hit = useEditor(store, (s) => {
-    const { find } = s.view;
-    const item = find.open ? find.hits[find.at] : undefined;
-    return item?.page === page.id ? item : null;
-  });
+  const find = useEditor(store, (s) => s.view.find);
+  const cropArea = useEditor(store, (s) => (s.view.cropArea?.page === page.id ? s.view.cropArea.box : null));
+  const showMargins = useEditor(store, (s) => s.view.prefs.margins);
+  const showGrid = useEditor(store, (s) => s.view.prefs.grid);
   // What can be picked up on this page is worked out once it comes near.
-  const { source, index } = page;
+  const { source } = page;
+  const sourceIndex = page.index;
   useEffect(() => {
     if (source === null) return;
     let off = false;
-    void store.textOf(source, index).catch(() => undefined);
+    void store.textOf(source, sourceIndex).catch(() => undefined);
     void store.picturesOf(page).then((list) => !off && setPictures(list));
     void store.notesOf(page).then((list) => !off && setNotes(list));
     return () => {
       off = true;
     };
-  }, [source, index, store]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [source, sourceIndex, store]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (tool !== "select") setHover(null);
+    if (tool !== "polygon") setDraft(null);
+  }, [tool]);
 
   const stale = drawnKey !== null && drawnKey !== key;
   const at = (event: { clientX: number; clientY: number }) => toPage(store, page, event.clientX, event.clientY);
+
+  // ------------------------------------------------------------ lines and shapes of the file
+
+  const gone = useMemo(() => new Set(page.pathCuts), [page.pathCuts]);
+  /** What a point of the page is on: lines within reach first, then what is filled there. */
+  const unitAt = (p: Point, reach: number, linesOnly = false): Unit | null => {
+    const units = store.unitsOn(page);
+    let best: Unit | null = null;
+    let close = reach;
+    let filled: Unit | null = null;
+    for (const unit of units) {
+      const { box } = unit;
+      if (
+        p.x < box.x - reach - 3 ||
+        p.y < box.y - reach - 3 ||
+        p.x > box.x + box.w + reach + 3 ||
+        p.y > box.y + box.h + reach + 3
+      )
+        continue;
+      if (unit.ops.some((op) => gone.has(op)) || unit.paths.some((path) => path.pattern)) continue;
+      const solid = !unit.line && unit.paths.some((path) => path.fill);
+      const d = distanceTo(unit, p);
+      if (solid) {
+        // The one painted last is on top.
+        if (d === 0 && !linesOnly) filled = unit;
+      } else if (d <= close) {
+        close = d;
+        best = unit;
+      }
+    }
+    return best ?? filled;
+  };
+  /** A line right under the pointer although a text block lies over it. */
+  const lineOver = (event: { clientX: number; clientY: number }, block: Block | null): Unit | null => {
+    const p = at(event);
+    const unit = unitAt(p, 2.2 / zoom, true);
+    if (!unit || !block || block.angle !== 0) return unit;
+    const onWords = block.rows.some(
+      (row) => p.y > row.y - row.size * 0.78 && p.y < row.y + row.size * 0.18 && p.x > row.x0 - 1 && p.x < row.x1 + 1,
+    );
+    return onWords ? null : unit;
+  };
+
+  const openUnit = (unit: Unit): { ids: string[]; done: Promise<string[]> } => {
+    const had = new Set(store.page(page.id)?.objects ?? []);
+    const done = store.openUnitsWithWords(page.id, [unit]);
+    const ids = (store.page(page.id)?.objects ?? []).filter(
+      (id) => !had.has(id) && store.doc.objects[id]?.ops?.some((op) => unit.ops.includes(op)),
+    );
+    return { ids, done };
+  };
+
+  const pressUnit = (event: ReactPointerEvent, unit: Unit) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const start = { clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId };
+    const add = event.shiftKey || event.ctrlKey || event.metaKey;
+    const before = store.view.selection;
+    const touch = event.pointerType === "touch";
+    const keyOf = dragKey();
+    setHover(null);
+    let opened: string[] | null = null;
+    let last = start;
+    track(
+      event,
+      (next) => {
+        last = { clientX: next.clientX, clientY: next.clientY, pointerId: next.pointerId };
+        if (opened || touch || add || Math.hypot(next.clientX - start.clientX, next.clientY - start.clientY) < 4)
+          return;
+        opened = openUnit(unit).ids;
+        if (opened.length === 0) return;
+        store.select(opened);
+        const moved = toPage(store, page, last.clientX, last.clientY);
+        const from = toPage(store, page, start.clientX, start.clientY);
+        store.patchMany(
+          opened,
+          (object) => ({ x: object.x + moved.x - from.x, y: object.y + moved.y - from.y }),
+          keyOf,
+        );
+        startMove(store, page, opened, last, undefined, keyOf);
+      },
+      (next, cancelled) => {
+        if (opened || cancelled) return;
+        if (touch && Math.hypot(next.clientX - start.clientX, next.clientY - start.clientY) > 10) return;
+        const { ids } = openUnit(unit);
+        if (ids.length === 0) return;
+        store.press = { time: performance.now(), x: start.clientX, y: start.clientY, fresh: ids[0] };
+        store.select(add ? [...before, ...ids] : ids);
+      },
+    );
+  };
 
   // ------------------------------------------------------------ the file's own text and pictures
 
   const pressBlock = (event: ReactPointerEvent, block: Block) => {
     if (event.button !== 0) return;
+    if (tool === "select") {
+      const unit = lineOver(event, block);
+      if (unit) {
+        pressUnit(event, unit);
+        return;
+      }
+    }
     event.preventDefault();
     event.stopPropagation();
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const start = { clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId };
-    const shift = event.shiftKey;
+    const add = event.shiftKey || event.ctrlKey || event.metaKey;
     const cover = coverOf(store, page, block);
-    const key = dragKey();
+    const keyOf = dragKey();
     let opening: Promise<string | null> | null = null;
     let last = start;
     let released = false;
@@ -459,8 +292,12 @@ const PageBody = memo(function PageBody({
           store.select([id]);
           const moved = toPage(store, page, last.clientX, last.clientY);
           const from = toPage(store, page, start.clientX, start.clientY);
-          store.patchMany([id], (object) => ({ x: object.x + moved.x - from.x, y: object.y + moved.y - from.y }), key);
-          if (!released) startMove(store, page, [id], last, undefined, key);
+          store.patchMany(
+            [id],
+            (object) => ({ x: object.x + moved.x - from.x, y: object.y + moved.y - from.y }),
+            keyOf,
+          );
+          if (!released) startMove(store, page, [id], last, undefined, keyOf);
         });
       },
       (_, cancelled) => {
@@ -468,7 +305,7 @@ const PageBody = memo(function PageBody({
         if (opening || cancelled) return;
         void store.openBlock(page.id, block.key, cover).then((id) => {
           if (!id) return;
-          if (shift) {
+          if (add) {
             store.select([...before, id]);
             return;
           }
@@ -484,14 +321,20 @@ const PageBody = memo(function PageBody({
     if (event.button !== 0) return;
     // A picture as large as the page is a scan: it stays put unless it is asked for.
     if (picture.whole) return;
+    const unit = lineOver(event, null);
+    if (unit) {
+      pressUnit(event, unit);
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const start = { clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId };
     let last = start;
     let released = false;
-    const key = dragKey();
+    const keyOf = dragKey();
     let opening: Promise<string | null> | null = null;
-    const open = () => (opening ??= store.openPicture(page.id, picture, key));
+    const open = () => (opening ??= store.openPicture(page.id, picture));
     track(
       event,
       (next) => {
@@ -507,8 +350,12 @@ const PageBody = memo(function PageBody({
           store.select([id]);
           const moved = toPage(store, page, last.clientX, last.clientY);
           const from = toPage(store, page, start.clientX, start.clientY);
-          store.patchMany([id], (object) => ({ x: object.x + moved.x - from.x, y: object.y + moved.y - from.y }), key);
-          if (!released) startMove(store, page, [id], last, undefined, key);
+          store.patchMany(
+            [id],
+            (object) => ({ x: object.x + moved.x - from.x, y: object.y + moved.y - from.y }),
+            keyOf,
+          );
+          if (!released) startMove(store, page, [id], last, undefined, keyOf);
         });
       },
       (_, cancelled) => {
@@ -525,7 +372,7 @@ const PageBody = memo(function PageBody({
 
   const place = (kind: Tool, a: Point, b: Point, click: boolean) => {
     const { prefs } = store.view;
-    let box: Box = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
+    let box = boxOf(a, b);
     const base = { angle: 0, opacity: 1 };
     if (kind === "link") {
       if (click) return;
@@ -534,78 +381,144 @@ const PageBody = memo(function PageBody({
       store.setView({ tool: "select" });
       return;
     }
+    if (kind === "note") {
+      const note: NoteObject = {
+        id: uid("n"),
+        type: "note",
+        x: a.x - 10,
+        y: a.y - 10,
+        w: 20,
+        h: 20,
+        ...base,
+        text: "",
+        color: prefs.note,
+        author: prefs.author,
+        date: new Date().toISOString(),
+      };
+      store.add(page.id, note);
+      store.setView({ tool: "select" });
+      return;
+    }
+    if (kind === "crop") {
+      if (!click && box.w > 12 && box.h > 12) store.setView({ cropArea: { page: page.id, box } });
+      return;
+    }
     if (kind.startsWith("field-")) {
       const type = kind.slice(6) as FieldObject["kind"];
       if (click) {
-        const wh = type === "check" ? { w: 16, h: 16 } : type === "multiline" ? { w: 220, h: 80 } : { w: 180, h: 24 };
+        const wh =
+          type === "check" || type === "radio"
+            ? { w: 16, h: 16 }
+            : type === "multiline"
+              ? { w: 220, h: 80 }
+              : type === "sign"
+                ? { w: 180, h: 46 }
+                : { w: 180, h: 24 };
         box = { x: a.x, y: a.y - wh.h / 2, ...wh };
       }
-      const names = { text: "Text", multiline: "Notes", check: "Checkbox", list: "List" };
-      const taken = Object.values(store.doc.objects).filter((object) => object.type === "field").length;
+      const names: Record<FieldObject["kind"], string> = {
+        text: "Text",
+        multiline: "Notes",
+        check: "Checkbox",
+        list: "List",
+        radio: "Choice",
+        sign: "Signature",
+      };
+      const fields = Object.values(store.doc.objects).filter(
+        (object): object is FieldObject => object.type === "field",
+      );
+      const same = fields.filter((object) => object.kind === type);
+      const last = same[same.length - 1];
       const field: FieldObject = {
         id: uid("f"),
         type: "field",
         kind: type,
         ...box,
         ...base,
-        name: `${names[type]} ${taken + 1}`,
+        // Radio buttons one after the other belong together until they are told otherwise.
+        name: type === "radio" && last ? last.name : `${names[type]} ${fields.length + 1}`,
+        value:
+          type === "radio" ? `Option ${same.filter((object) => object.name === last?.name).length + 1}` : undefined,
         options: ["Option 1", "Option 2"],
       };
       store.add(page.id, field);
-      store.setView({ tool: "select" });
+      if (type !== "radio" && type !== "check") store.setView({ tool: "select" });
       return;
     }
-    const shape = kind as ShapeKind;
-    if (shape === "line" || shape === "arrow") {
+    if (kind === "line" || kind === "arrow") {
       const line = lineBox(a, click ? { x: a.x + 110, y: a.y } : b);
       const object: ShapeObject = {
         id: uid("g"),
         type: "shape",
-        kind: shape,
+        kind,
         ...line,
         ...base,
-        stroke: prefs.shape.stroke ?? "#1d1c1f",
+        stroke: prefs.line.stroke,
         fill: null,
-        width: prefs.shape.width,
-        dash: prefs.shape.dash,
+        width: prefs.line.width,
+        dash: prefs.line.dash,
+        start: prefs.line.start,
+        end: kind === "arrow" && prefs.line.end === "none" ? "arrow" : prefs.line.end,
       };
       store.add(page.id, object);
       store.setView({ tool: "select" });
       return;
     }
-    if (SYMBOLS.has(shape)) {
-      const side = shape === "dot" ? 9 : 16;
+    if (SYMBOLS.has(kind)) {
+      const side = kind === "dot" ? 9 : 16;
       if (click || box.w < 5 || box.h < 5) box = { x: a.x - side / 2, y: a.y - side / 2, w: side, h: side };
       const object: ShapeObject = {
         id: uid("g"),
         type: "shape",
-        kind: shape,
+        kind,
         ...box,
         ...base,
         stroke: prefs.symbol,
         fill: null,
         width: Math.max(1, Math.min(box.w, box.h) * 0.12),
-        dash: false,
+        dash: "solid",
       };
       // The tool stays, so a form can be ticked through.
       store.add(page.id, object, false);
       return;
     }
-    if (click) box = { x: a.x - 60, y: a.y - 40, w: 120, h: 80 };
-    if (shape === "whiteout") {
+    if (kind === "whiteout" || kind === "redact") {
+      if (click) {
+        // A click takes the whole line of words under it.
+        const block = (text?.blocks ?? []).find(
+          (item) =>
+            !page.cuts[item.key] &&
+            item.angle === 0 &&
+            a.x >= item.x &&
+            a.x <= item.x + item.w &&
+            a.y >= item.y &&
+            a.y <= item.y + item.h,
+        );
+        const row = block?.rows.find((item) => a.y > item.y - item.size && a.y < item.y + item.size * 0.4);
+        box = row
+          ? { x: row.x0 - 1, y: row.y - row.size * 0.86, w: row.x1 - row.x0 + 2, h: row.size * 1.14 }
+          : { x: a.x - 60, y: a.y - 12, w: 120, h: 24 };
+      }
       const object: ShapeObject = {
         id: uid("g"),
         type: "shape",
-        kind: "whiteout",
+        kind,
         ...box,
         ...base,
         stroke: null,
-        fill: prefs.white ?? store.sample(page.id, box),
+        fill: kind === "redact" ? "#000000" : (prefs.white ?? store.sample(page.id, box)),
         width: 0,
-        dash: false,
+        dash: "solid",
       };
       store.add(page.id, object, false);
       return;
+    }
+    const shape: ShapeKind = kind.slice("shape:".length);
+    const ratio = shapeDef(shape)?.ratio ?? 1.4;
+    if (click) {
+      const w = ratio >= 1 ? 120 : 120 * ratio;
+      const h = w / ratio;
+      box = { x: a.x - w / 2, y: a.y - h / 2, w, h };
     }
     const object: ShapeObject = { id: uid("g"), type: "shape", kind: shape, ...box, ...base, ...prefs.shape };
     store.add(page.id, object);
@@ -659,49 +572,125 @@ const PageBody = memo(function PageBody({
     store.add(page.id, mark, false);
   };
 
+  const finishPoly = (points: Point[], close: boolean) => {
+    setDraft(null);
+    if (points.length < 2) return;
+    const box = bounds(points);
+    const w = Math.max(0.5, box.w);
+    const h = Math.max(0.5, box.h);
+    const { prefs } = store.view;
+    const object: PathObject = {
+      id: uid("v"),
+      type: "path",
+      x: box.x,
+      y: box.y,
+      w,
+      h,
+      angle: 0,
+      opacity: 1,
+      path: [
+        ...points.map((p, i): PathObject["path"][number] => [
+          i === 0 ? "M" : "L",
+          (p.x - box.x) / w,
+          (p.y - box.y) / h,
+        ]),
+        ...(close && points.length > 2 ? ([["Z"]] as PathObject["path"]) : []),
+      ],
+      stroke: prefs.shape.stroke ?? "#1d1c1f",
+      fill: close ? prefs.shape.fill : null,
+      width: prefs.shape.width || 1,
+      dash: [],
+      cap: 1,
+      join: 1,
+    };
+    store.add(page.id, object);
+    store.setView({ tool: "select" });
+  };
+
+  // A many-sided form is closed with Enter, and left with Escape.
+  const poly = draft?.kind === "poly" ? draft.points : null;
+  useEffect(() => {
+    if (!poly) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.key === "Enter") finishPoly(poly, false);
+      else setDraft(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [poly]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ------------------------------------------------------------ pressing the page
+
+  /** Typing starts where the page was pressed twice: in the cell of a drawn table, or on open paper. */
+  const startTyping = (p: Point) => {
+    const cell = text ? ruledCell(text, page, p) : null;
+    if (cell) {
+      const size = store.view.prefs.text.size;
+      const leading = leadingOf(store.freshStyle());
+      const spot = cellSpot(cell, size, leading);
+      store.addTextIn(page.id, spot.box, spot.y);
+    } else store.addText(page.id, p.x, p.y);
+  };
+
+  const pressedTwice = (p: Point, reach: number) => {
+    const unit = unitAt(p, reach);
+    if (!unit) {
+      startTyping(p);
+      return;
+    }
+    void store.openDrawing(page.id, unit).then((ids) => {
+      if (ids.length > 0) store.select(ids);
+    });
+  };
+
   const onPointerDown = (event: ReactPointerEvent) => {
     if (event.button !== 0) return;
     const a = at(event);
+    const touch = event.pointerType === "touch";
     if (tool === "select") {
-      if (!event.shiftKey) store.select([]);
-      if (event.pointerType === "touch") return;
+      const reach = (touch ? 10 : 4) / zoom;
+      const double = doublePress(store.press, event);
+      const unit = double ? null : unitAt(a, reach);
+      if (unit && !isPanel(unit, page)) {
+        pressUnit(event, unit);
+        return;
+      }
+      const spot = { x: event.clientX, y: event.clientY };
+      const typing = store.view.editing !== null;
+      store.press = double ? null : { time: performance.now(), ...spot, fresh: null };
+      const kept = event.shiftKey || event.ctrlKey || event.metaKey ? store.view.selection : [];
+      if (kept.length === 0) store.select([]);
+      if (touch) {
+        track(
+          event,
+          () => undefined,
+          (next, cancelled) => {
+            if (!cancelled && double && Math.hypot(next.clientX - spot.x, next.clientY - spot.y) < 12)
+              pressedTwice(a, reach);
+          },
+        );
+        return;
+      }
       event.preventDefault();
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
       let drawn = false;
-      const first = { x: event.clientX, y: event.clientY };
       track(
         event,
         (next) => {
-          if (!drawn && Math.hypot(next.clientX - first.x, next.clientY - first.y) < 5) return;
+          if (!drawn && Math.hypot(next.clientX - spot.x, next.clientY - spot.y) < 5) return;
           drawn = true;
           setDraft({ kind: "box", a, b: at(next) });
         },
         (next) => {
           setDraft(null);
-          if (!drawn) return;
-          const b = at(next);
-          const box = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
-          const now = store.page(page.id);
-          const inside = (now?.objects ?? []).filter((id) => {
-            const object = store.doc.objects[id];
-            if (!object) return false;
-            const o = objectBounds(object);
-            return o.x >= box.x && o.y >= box.y && o.x + o.w <= box.x + box.w && o.y + o.h <= box.y + box.h;
-          });
-          const own = (store.readyText(page)?.blocks ?? []).filter((block) => {
-            if (now?.cuts[block.key]) return false;
-            const o = bounds(corners(placement(block.x, block.y, block.angle), { x: 0, y: 0, w: block.w, h: block.h }));
-            return o.x >= box.x && o.y >= box.y && o.x + o.w <= box.x + box.w && o.y + o.h <= box.y + box.h;
-          });
-          if (own.length === 0) {
-            if (inside.length > 0) store.select(inside);
+          if (!drawn) {
+            if (double && !typing) pressedTwice(a, reach);
             return;
           }
-          void Promise.all(own.map((block) => store.openBlock(page.id, block.key, coverOf(store, page, block)))).then(
-            (opened) => {
-              store.select([...inside, ...opened.filter((id): id is string => id !== null)]);
-            },
-          );
+          pickInside(boxOf(a, at(next)), kept);
         },
       );
       return;
@@ -713,7 +702,22 @@ const PageBody = memo(function PageBody({
         store.select([]);
         return;
       }
-      store.addText(page.id, a.x, a.y);
+      startTyping(a);
+      return;
+    }
+    if (tool === "polygon") {
+      const points = draft?.kind === "poly" ? draft.points : [];
+      const first = points[0];
+      const near = first && points.length > 2 && Math.hypot(a.x - first.x, a.y - first.y) < 9 / zoom;
+      const double = points.length > 1 && doublePress(store.press, event);
+      store.press = { time: performance.now(), x: event.clientX, y: event.clientY, fresh: null };
+      if (near || double) {
+        finishPoly(points, Boolean(near));
+        return;
+      }
+      const last = points[points.length - 1];
+      const next = event.shiftKey && last ? straighten(last, a) : a;
+      setDraft({ kind: "poly", points: [...points, next], at: next });
       return;
     }
     if (tool === "pen" || tool === "marker") {
@@ -738,7 +742,7 @@ const PageBody = memo(function PageBody({
       );
       return;
     }
-    if (tool === "highlight" || tool === "underline" || tool === "strike") {
+    if (tool === "highlight" || tool === "underline" || tool === "strike" || tool === "squiggle") {
       let rects: Box[] = [];
       track(
         event,
@@ -753,48 +757,180 @@ const PageBody = memo(function PageBody({
       );
       return;
     }
-    if (DRAWN.has(tool)) {
-      let b = a;
-      const line = tool === "line" || tool === "arrow";
-      track(
-        event,
-        (next) => {
-          b = at(next);
-          if (next.shiftKey) {
-            if (line) b = straighten(a, b);
-            else {
-              const side = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y));
-              b = { x: a.x + Math.sign(b.x - a.x || 1) * side, y: a.y + Math.sign(b.y - a.y || 1) * side };
-            }
+    let b = a;
+    const line = tool === "line" || tool === "arrow";
+    track(
+      event,
+      (next) => {
+        b = at(next);
+        if (next.shiftKey) {
+          if (line) b = straighten(a, b);
+          else {
+            const side = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+            b = { x: a.x + Math.sign(b.x - a.x || 1) * side, y: a.y + Math.sign(b.y - a.y || 1) * side };
           }
-          setDraft(line ? { kind: "line", a, b } : { kind: "box", a, b });
-        },
-        (_, cancelled) => {
-          setDraft(null);
-          if (!cancelled) place(tool, a, b, Math.hypot(b.x - a.x, b.y - a.y) < 4);
-        },
-      );
-    }
+        }
+        setDraft(line ? { kind: "line", a, b } : { kind: "box", a, b });
+      },
+      (_, cancelled) => {
+        setDraft(null);
+        if (!cancelled) place(tool, a, b, Math.hypot(b.x - a.x, b.y - a.y) < 4);
+      },
+    );
   };
 
-  const turned =
-    page.rotate === 90
-      ? `translate(${page.h * zoom}px, 0) rotate(90deg) `
-      : page.rotate === 180
-        ? `translate(${page.w * zoom}px, ${page.h * zoom}px) rotate(180deg) `
-        : page.rotate === 270
-          ? `translate(0, ${page.w * zoom}px) rotate(270deg) `
-          : "";
+  /** Everything that lies wholly inside a box dragged over the page. */
+  const pickInside = (box: Box, kept: readonly string[]) => {
+    const now = store.page(page.id);
+    if (!now) return;
+    const inside = [...new Set([...kept, ...objectsIn(store, now, box)])];
+    const blocks = (store.readyText(page)?.blocks ?? []).filter(
+      (block) => !now.cuts[block.key] && within(blockBox(block), box),
+    );
+    const cuts = new Set(now.pathCuts);
+    const units = store
+      .unitsOn(page)
+      .filter(
+        (unit) =>
+          !unit.ops.some((op) => cuts.has(op)) && !unit.paths.some((path) => path.pattern) && within(unit.box, box),
+      );
+    const images = pictures.filter(
+      (picture) => !picture.whole && !now.imageCuts.includes(picture.index) && within(pictureBox(picture), box),
+    );
+    if (blocks.length + units.length + images.length === 0) {
+      store.select(inside);
+      return;
+    }
+    if (units.length > 600) {
+      store.say("That is too much to pick at once. Drag over a smaller part.");
+      return;
+    }
+    void (async () => {
+      const opened = [...inside];
+      for (const picture of images) {
+        const id = await store.openPicture(page.id, picture, true);
+        if (id) opened.push(id);
+      }
+      opened.push(...store.openUnits(page.id, units, false));
+      for (const block of blocks) {
+        const id = await store.openBlock(
+          page.id,
+          block.key,
+          coverOf(store, page, block),
+          units.length + images.length > 0,
+        );
+        if (id) opened.push(id);
+      }
+      store.select(opened);
+    })();
+  };
+
+  // ------------------------------------------------------------ what the pointer is over
+
+  const frame = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  const onPointerMove = (event: ReactPointerEvent) => {
+    if (draft?.kind === "poly") {
+      const p = at(event);
+      const last = draft.points[draft.points.length - 1];
+      setDraft({ ...draft, at: event.shiftKey && last ? straighten(last, p) : p });
+      return;
+    }
+    if (tool !== "select" || event.pointerType === "touch" || event.buttons !== 0) {
+      if (hover) setHover(null);
+      return;
+    }
+    const { clientX, clientY } = event;
+    const target = event.target as HTMLElement;
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      if (target.closest?.("[data-object], [data-handle], input, textarea, select")) {
+        setHover(null);
+        return;
+      }
+      const blockKey = target.closest?.<HTMLElement>("[data-block]")?.dataset.block;
+      const block = blockKey ? store.block(page, blockKey) : null;
+      const spot = { clientX, clientY };
+      let unit: Unit | null;
+      if (block || target.closest?.("[data-picture]:not([data-whole])")) unit = lineOver(spot, block);
+      else {
+        unit = unitAt(at(spot), 4 / zoom);
+        if (unit && isPanel(unit, page)) unit = null;
+      }
+      setHover(unit);
+    });
+  };
+
+  const onContextMenu = (event: ReactMouseEvent) => {
+    const target = event.target as HTMLElement;
+    // Words being typed keep the browser's own menu, with its spelling.
+    if (target.closest("[contenteditable], input, textarea, select")) return;
+    event.preventDefault();
+    if (tool !== "select") return;
+    const p = at(event);
+    const open = () => store.setView({ menu: { x: event.clientX, y: event.clientY, page: page.id, at: p } });
+    const id = target.closest<HTMLElement>("[data-object]")?.dataset.object;
+    if (id) {
+      if (!store.view.selection.includes(id)) store.select(store.withGroups([id]));
+      open();
+      return;
+    }
+    const key = target.closest<HTMLElement>("[data-block]")?.dataset.block;
+    const block = key ? store.block(page, key) : null;
+    const unit = block ? lineOver(event, block) : unitAt(p, 4 / zoom);
+    if (unit && !isPanel(unit, page)) {
+      const { ids } = openUnit(unit);
+      store.select(ids);
+      open();
+      return;
+    }
+    if (block) {
+      void store.openBlock(page.id, block.key, coverOf(store, page, block)).then((made) => {
+        if (made) store.select([made]);
+        open();
+      });
+      return;
+    }
+    const picture = pictures.find(
+      (item) => String(item.index) === target.closest<HTMLElement>("[data-picture]")?.dataset.picture,
+    );
+    if (picture && !picture.whole) {
+      void store.openPicture(page.id, picture).then((made) => {
+        if (made) store.select([made]);
+        open();
+      });
+      return;
+    }
+    store.select([]);
+    open();
+  };
+
   const touchable = tool === "select" || tool === "text";
   const blocks = (text?.blocks ?? []).filter((block) => !page.cuts[block.key]);
   const { prefs } = store.view;
   const mine = selection.filter((id) => page.objects.includes(id));
+  const box = pageBox(page);
+  const clip: CSSProperties = page.box
+    ? {
+        clipPath: `inset(${box.y}px ${page.w - box.x - box.w}px ${page.h - box.y - box.h}px ${box.x}px)`,
+      }
+    : {};
+  const inner = page.margin ? marginBox(page) : null;
+  const hits = find.open ? find.hits.filter((hit) => hit.page === page.id) : [];
+  const current = find.open ? find.hits[find.at] : undefined;
+  const px = (value: number) => `calc(${value}px / var(--z))`;
 
   return (
     <div
       className="absolute inset-0"
-      style={{ touchAction: tool === "select" ? undefined : "none" }}
+      style={{ touchAction: tool === "select" ? "manipulation" : "none" }}
       onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerLeave={() => {
+        cancelAnimationFrame(frame.current);
+        setHover(null);
+      }}
+      onContextMenu={onContextMenu}
     >
       <div
         className="absolute left-0 top-0"
@@ -803,162 +939,246 @@ const PageBody = memo(function PageBody({
             width: page.w,
             height: page.h,
             transformOrigin: "0 0",
-            transform: `${turned}scale(${zoom})`,
-            cursor: CURSORS[tool] ?? (tool === "select" ? "default" : "crosshair"),
+            transform: shownCss(page, zoom),
+            cursor: CURSORS[tool] ?? (tool === "select" ? (hover ? "move" : "default") : "crosshair"),
             "--z": zoom,
           } as CSSProperties
         }
       >
-        <Backdrop store={store} page={page} zoom={zoom} queue={queue} onKey={setDrawnKey} />
+        <div className="absolute inset-0" style={clip}>
+          <Backdrop store={store} page={page} zoom={zoom} queue={queue} onKey={setDrawnKey} />
 
-        {/* What the file itself holds, ready to be picked up */}
-        {touchable ? (
-          <div className="absolute inset-0">
-            {pictures
-              .filter((picture) => !page.imageCuts.includes(picture.index) && tool === "select")
-              .map((picture) => (
+          {showGrid ? (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute"
+              style={{
+                left: box.x,
+                top: box.y,
+                width: box.w,
+                height: box.h,
+                backgroundImage:
+                  "linear-gradient(to right, rgba(29,28,31,0.13) 1px, transparent 1px), linear-gradient(to bottom, rgba(29,28,31,0.13) 1px, transparent 1px)",
+                backgroundSize: `${GRID}px ${GRID}px`,
+                backgroundPosition: `${-box.x % GRID}px ${-box.y % GRID}px`,
+              }}
+            />
+          ) : null}
+          {showMargins && inner ? (
+            <span
+              aria-hidden
+              data-margin-guide
+              className="pointer-events-none absolute"
+              style={{
+                left: inner.x,
+                top: inner.y,
+                width: inner.w,
+                height: inner.h,
+                outline: `${px(1)} dashed rgba(28,111,179,0.4)`,
+              }}
+            />
+          ) : null}
+
+          {/* What the file itself holds, ready to be picked up */}
+          {touchable ? (
+            <div className="absolute inset-0">
+              {pictures
+                .filter((picture) => !page.imageCuts.includes(picture.index) && tool === "select")
+                .map((picture) => (
+                  <div
+                    key={picture.index}
+                    data-picture={picture.index}
+                    data-whole={picture.whole || undefined}
+                    onPointerDown={(event) => pressPicture(event, picture)}
+                    className={`absolute left-0 top-0 ${picture.whole ? "" : `cursor-move ${hover ? "" : "hover:shadow-[0_0_0_calc(2px/var(--z))_#f2552c]"}`}`}
+                    style={{
+                      width: picture.w,
+                      height: picture.h,
+                      transformOrigin: "0 0",
+                      transform: `translate(${picture.x}px, ${picture.y}px) rotate(${picture.angle}deg)`,
+                    }}
+                  />
+                ))}
+              {blocks.map((block) => (
                 <div
-                  key={picture.index}
-                  data-picture={picture.index}
-                  onPointerDown={(event) => pressPicture(event, picture)}
-                  onDoubleClick={() => {
-                    if (picture.whole) void store.openPicture(page.id, picture).then((id) => id && store.select([id]));
-                  }}
-                  title={picture.whole ? "Double-click to select this picture" : undefined}
-                  className={`absolute left-0 top-0 ${picture.whole ? "" : "cursor-move hover:shadow-[0_0_0_calc(2px/var(--z))_#f2552c]"}`}
-                  style={{
-                    width: picture.w,
-                    height: picture.h,
-                    transformOrigin: "0 0",
-                    transform: `translate(${picture.x}px, ${picture.y}px) rotate(${picture.angle}deg)`,
-                  }}
+                  key={block.key}
+                  data-block={block.key}
+                  onPointerDown={(event) => pressBlock(event, block)}
+                  className={`absolute ${hover ? "cursor-move" : "cursor-text hover:bg-accent/[0.07] hover:shadow-[0_0_0_calc(1.5px/var(--z))_#f2552c]"}`}
+                  style={boxStyle(block)}
                 />
               ))}
-            {blocks.map((block) => (
-              <div
-                key={block.key}
-                data-block={block.key}
-                onPointerDown={(event) => pressBlock(event, block)}
-                className="absolute cursor-text hover:bg-accent/[0.07] hover:shadow-[0_0_0_calc(1.5px/var(--z))_#f2552c]"
-                style={boxStyle(block)}
-              />
-            ))}
-          </div>
-        ) : null}
+            </div>
+          ) : null}
 
-        {tool === "link"
-          ? notes.links
-              .filter((link) => !page.linkCuts.includes(link.place))
-              .map((link) => (
-                <div
-                  key={link.place}
-                  title={link.url || "A link inside the document"}
-                  onPointerDown={(event) => {
-                    event.stopPropagation();
-                    store.openLink(page.id, link);
-                    store.setView({ tool: "select" });
+          {tool === "link"
+            ? notes.links
+                .filter((link) => !page.linkCuts.includes(link.place))
+                .map((link) => (
+                  <div
+                    key={link.place}
+                    title={link.url || "A link inside the document"}
+                    onPointerDown={(event) => {
+                      event.stopPropagation();
+                      store.openLink(page.id, link);
+                      store.setView({ tool: "select" });
+                    }}
+                    className="absolute cursor-pointer border border-dashed border-accent-deep bg-accent/10"
+                    style={{ left: link.box.x, top: link.box.y, width: link.box.w, height: link.box.h }}
+                  />
+                ))
+            : null}
+
+          <div className="pointer-events-none absolute inset-0">
+            {/* Answers are typed into the page: a press in one is not a press on the page. */}
+            <div onPointerDown={(event) => event.stopPropagation()} onFocus={() => store.select([])}>
+              {notes.fields.map((field, i) => (
+                <Field key={`${field.name}${i}`} store={store} page={page} field={field} />
+              ))}
+            </div>
+            {page.objects
+              .filter((id) => !mixes(store.doc.objects[id]))
+              .map((id) => (
+                <ObjectView key={id} store={store} page={page} id={id} stale={stale} />
+              ))}
+          </div>
+
+          {/* Highlights mix with what is under them */}
+          <div className="pointer-events-none absolute inset-0" style={{ mixBlendMode: "multiply" }}>
+            {page.objects
+              .filter((id) => mixes(store.doc.objects[id]))
+              .map((id) => (
+                <ObjectView key={id} store={store} page={page} id={id} stale={stale} />
+              ))}
+            {draft?.kind === "marks" && tool === "highlight"
+              ? draft.rects.map((rect, i) => (
+                  <span
+                    key={i}
+                    className="absolute"
+                    style={{
+                      left: rect.x,
+                      top: rect.y,
+                      width: rect.w,
+                      height: rect.h,
+                      background: prefs.mark.highlight,
+                      opacity: 0.75,
+                    }}
+                  />
+                ))
+              : null}
+            {draft?.kind === "ink" && tool === "marker" ? (
+              <InkDraft points={draft.points} color={prefs.marker.color} width={prefs.marker.width} opacity={0.55} />
+            ) : null}
+            {hits.map((hit, i) =>
+              hit.spots.map((spot, k) => (
+                <span
+                  key={`${i}-${k}`}
+                  data-hit={hit === current ? "current" : "other"}
+                  className="absolute left-0 top-0"
+                  style={{
+                    width: spot.w,
+                    height: spot.h,
+                    transformOrigin: "0 0",
+                    transform: `translate(${spot.x}px, ${spot.y}px) rotate(${spot.angle}deg)`,
+                    background: hit === current ? "rgba(242,85,44,0.55)" : "rgba(255,210,63,0.6)",
                   }}
-                  className="absolute cursor-pointer border border-dashed border-accent-deep bg-accent/10"
-                  style={{ left: link.box.x, top: link.box.y, width: link.box.w, height: link.box.h }}
                 />
-              ))
-          : null}
-
-        <div className="pointer-events-none absolute inset-0">
-          {/* Answers are typed into the page: a press in one is not a press on the page. */}
-          <div onPointerDown={(event) => event.stopPropagation()} onFocus={() => store.select([])}>
-            {notes.fields.map((field, i) => (
-              <Field key={`${field.name}${i}`} store={store} page={page} field={field} />
-            ))}
+              )),
+            )}
           </div>
-          {page.objects
-            .filter((id) => !mixes(store.doc.objects[id]))
-            .map((id) => (
-              <ObjectView key={id} store={store} page={page} id={id} stale={stale} />
-            ))}
+          <DecorLayer store={store} page={page} index={index} count={count} />
         </div>
 
-        {/* Highlights mix with what is under them */}
-        <div className="pointer-events-none absolute inset-0" style={{ mixBlendMode: "multiply" }}>
-          {page.objects
-            .filter((id) => mixes(store.doc.objects[id]))
-            .map((id) => (
-              <ObjectView key={id} store={store} page={page} id={id} stale={stale} />
-            ))}
-          {draft?.kind === "marks" && tool === "highlight"
-            ? draft.rects.map((rect, i) => (
+        <div className="pointer-events-none absolute inset-0">
+          {hover && !gone.has(hover.ops[0]) ? <UnitOutline unit={hover} /> : null}
+          {draft ? <DraftView draft={draft} tool={tool} store={store} pageId={page.id} /> : null}
+          {current?.page === page.id
+            ? current.spots.map((spot, k) => (
                 <span
-                  key={i}
-                  className="absolute"
+                  key={k}
+                  className="absolute left-0 top-0"
                   style={{
-                    left: rect.x,
-                    top: rect.y,
-                    width: rect.w,
-                    height: rect.h,
-                    background: prefs.mark.highlight,
-                    opacity: 0.75,
+                    width: spot.w,
+                    height: spot.h,
+                    transformOrigin: "0 0",
+                    transform: `translate(${spot.x}px, ${spot.y}px) rotate(${spot.angle}deg)`,
+                    boxShadow: `0 0 0 ${px(2)} #f2552c`,
                   }}
                 />
               ))
             : null}
-          {draft?.kind === "ink" && tool === "marker" ? (
-            <InkDraft points={draft.points} color={prefs.marker.color} width={prefs.marker.width} opacity={0.55} />
-          ) : null}
-        </div>
-
-        <div className="pointer-events-none absolute inset-0">
-          {draft ? <DraftView draft={draft} tool={tool} store={store} pageId={page.id} /> : null}
-          {hit ? (
-            <span
-              className="absolute bg-accent/15"
-              style={{
-                left: hit.box.x - 2,
-                top: hit.box.y - 1,
-                width: hit.box.w + 4,
-                height: hit.box.h + 2,
-                boxShadow: "0 0 0 calc(2px / var(--z)) #f2552c",
-              }}
-            />
-          ) : null}
           {guides && guides.x !== null ? (
-            <span
-              className="absolute bg-accent"
-              style={{ left: guides.x, top: 0, width: "calc(1px / var(--z))", height: page.h }}
-            />
+            <span className="absolute bg-accent" style={{ left: guides.x, top: box.y, width: px(1), height: box.h }} />
           ) : null}
           {guides && guides.y !== null ? (
-            <span
-              className="absolute bg-accent"
-              style={{ top: guides.y, left: 0, height: "calc(1px / var(--z))", width: page.w }}
-            />
+            <span className="absolute bg-accent" style={{ top: guides.y, left: box.x, height: px(1), width: box.w }} />
           ) : null}
           {mine.map((id) => (
             <Frame key={id} store={store} page={page} id={id} alone={selection.length === 1} editing={editing === id} />
           ))}
+          {mine.length > 1 && mine.length === selection.length ? (
+            <ManyFrame store={store} page={page} ids={mine} />
+          ) : null}
+          {cropArea ? <CropArea store={store} page={page} box={cropArea} /> : null}
         </div>
       </div>
     </div>
   );
 });
 
+/** A line or shape of the file the pointer is over. */
+function UnitOutline({ unit }: { unit: Unit }) {
+  if (unit.line) {
+    const { x0, y0, x1, y1, width } = unit.line;
+    return (
+      <svg width="1" height="1" className="absolute left-0 top-0 overflow-visible" aria-hidden>
+        <path
+          data-unit-hover
+          d={`M${x0} ${y0}L${x1} ${y1}`}
+          stroke="#f2552c"
+          fill="none"
+          style={{ strokeWidth: `max(${width}px, calc(2.5px / var(--z)))` }}
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg width="1" height="1" className="absolute left-0 top-0 overflow-visible" aria-hidden>
+      {unit.paths.map((path) => (
+        <path
+          key={path.op}
+          data-unit-hover
+          d={toSvg(path.path)}
+          stroke="#f2552c"
+          fill={path.fill ? "rgba(242,85,44,0.10)" : "none"}
+          style={{ strokeWidth: `calc(2px / var(--z))` }}
+        />
+      ))}
+    </svg>
+  );
+}
+
 /** Room for a page. The page itself is only there while it is near the screen. */
 export const PageView = memo(function PageView({
   store,
   page,
-  number,
+  index,
+  count,
   zoom,
   queue,
   near,
 }: {
   store: EditorStore;
   page: Page;
-  number: number;
+  index: number;
+  count: number;
   zoom: number;
   queue: RenderQueue;
   near: boolean;
 }) {
   const sheet = useRef<HTMLDivElement>(null);
   const size = shownSize(page);
+  const rulers = useEditor(store, (s) => s.view.prefs.rulers);
   useLayoutEffect(() => {
     const node = sheet.current;
     if (!node) return;
@@ -971,11 +1191,12 @@ export const PageView = memo(function PageView({
     <div
       ref={sheet}
       data-page={page.id}
-      aria-label={`Page ${number}`}
-      className="relative shrink-0 bg-white shadow-[0_0_0_1px_rgba(24,24,27,0.2)]"
-      style={{ width: size.w * zoom, height: size.h * zoom }}
+      aria-label={`Page ${index + 1}`}
+      className="relative shrink-0 shadow-[0_0_0_1px_rgba(24,24,27,0.2)]"
+      style={{ width: size.w * zoom, height: size.h * zoom, background: page.paper ?? "#ffffff" }}
     >
-      {near ? <PageBody store={store} page={page} zoom={zoom} queue={queue} /> : null}
+      {near ? <PageBody store={store} page={page} index={index} count={count} zoom={zoom} queue={queue} /> : null}
+      {near && rulers ? <Rulers store={store} page={page} zoom={zoom} /> : null}
     </div>
   );
 });
@@ -1010,7 +1231,8 @@ function DraftView({ draft, tool, store, pageId }: { draft: Draft; tool: Tool; s
   if (draft.kind === "ink")
     return tool === "pen" ? <InkDraft points={draft.points} color={prefs.pen.color} width={prefs.pen.width} /> : null;
   if (draft.kind === "marks") {
-    if (tool === "highlight") return null;
+    if (!MARKING.has(tool) || tool === "highlight") return null;
+    const kind = tool as "underline" | "strike" | "squiggle";
     return (
       <>
         {draft.rects.map((rect, i) => (
@@ -1019,14 +1241,38 @@ function DraftView({ draft, tool, store, pageId }: { draft: Draft; tool: Tool; s
             className="absolute"
             style={{
               left: rect.x,
-              top: rect.y + rect.h * (tool === "underline" ? 0.93 : 0.54),
+              top: rect.y + rect.h * (kind === "strike" ? 0.54 : 0.93),
               width: rect.w,
               height: Math.max(0.6, rect.h * 0.06),
-              background: tool === "underline" ? prefs.mark.underline : prefs.mark.strike,
+              background: prefs.mark[kind],
             }}
           />
         ))}
       </>
+    );
+  }
+  if (draft.kind === "poly") {
+    const [first, ...rest] = draft.points;
+    return (
+      <svg width="1" height="1" className="absolute left-0 top-0 overflow-visible" aria-hidden>
+        <path
+          d={`M${first.x} ${first.y}${rest.map((p) => `L${p.x} ${p.y}`).join("")}L${draft.at.x} ${draft.at.y}`}
+          fill="none"
+          stroke={prefs.shape.stroke ?? "#1d1c1f"}
+          strokeWidth={prefs.shape.width || 1}
+          strokeLinejoin="round"
+        />
+        {draft.points.map((p, i) => (
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            fill="#ffffff"
+            stroke="#1d1c1f"
+            style={{ r: "calc(4px / var(--z))", strokeWidth: "calc(1.5px / var(--z))" }}
+          />
+        ))}
+      </svg>
     );
   }
   if (draft.kind === "line") {
@@ -1034,42 +1280,38 @@ function DraftView({ draft, tool, store, pageId }: { draft: Draft; tool: Tool; s
       <svg width="1" height="1" className="absolute left-0 top-0 overflow-visible" aria-hidden>
         <path
           d={`M${draft.a.x} ${draft.a.y}L${draft.b.x} ${draft.b.y}`}
-          stroke={prefs.shape.stroke ?? "#1d1c1f"}
-          strokeWidth={prefs.shape.width}
-          strokeDasharray={prefs.shape.dash ? `${prefs.shape.width * 3} ${prefs.shape.width * 2}` : undefined}
+          stroke={prefs.line.stroke}
+          strokeWidth={prefs.line.width}
+          strokeDasharray={prefs.line.dash === "solid" ? undefined : `${prefs.line.width * 3} ${prefs.line.width * 2}`}
         />
       </svg>
     );
   }
-  const box = {
-    left: Math.min(draft.a.x, draft.b.x),
-    top: Math.min(draft.a.y, draft.b.y),
-    width: Math.abs(draft.a.x - draft.b.x),
-    height: Math.abs(draft.a.y - draft.b.y),
-  };
-  if (tool === "rect" || tool === "ellipse") {
+  const own = boxOf(draft.a, draft.b);
+  const box = { left: own.x, top: own.y, width: own.w, height: own.h };
+  if (tool.startsWith("shape:")) {
+    const shape: ShapeObject = {
+      id: "draft",
+      type: "shape",
+      kind: tool.slice("shape:".length),
+      ...own,
+      angle: 0,
+      opacity: 1,
+      ...prefs.shape,
+    };
     return (
-      <span
-        className="absolute"
-        style={{
-          ...box,
-          borderRadius: tool === "ellipse" ? "50%" : 0,
-          background: prefs.shape.fill ?? undefined,
-          outline: prefs.shape.stroke
-            ? `${prefs.shape.width}px ${prefs.shape.dash ? "dashed" : "solid"} ${prefs.shape.stroke}`
-            : undefined,
-          outlineOffset: -prefs.shape.width / 2,
-        }}
-      />
+      <span className="absolute block" style={box}>
+        <Parts parts={shapeParts(shape)} w={own.w} h={own.h} />
+      </span>
     );
   }
-  if (tool === "whiteout")
+  if (tool === "whiteout" || tool === "redact")
     return (
       <span
         className="absolute"
         style={{
           ...box,
-          background: prefs.white ?? store.sample(pageId, { x: box.left, y: box.top, w: box.width, h: box.height }),
+          background: tool === "redact" ? "#000000" : (prefs.white ?? store.sample(pageId, own)),
           boxShadow: "0 0 0 calc(1px / var(--z)) #a5a4a2",
         }}
       />
@@ -1080,84 +1322,4 @@ function DraftView({ draft, tool, store, pageId }: { draft: Draft; tool: Tool; s
       style={{ ...box, borderStyle: "dashed", borderWidth: "calc(1.5px / var(--z))" }}
     />
   );
-}
-
-/** The lines of text between two points, as boxes to mark. */
-function markRects(blocks: readonly Block[], page: Page, store: EditorStore, a: Point, b: Point): Box[] {
-  type Line = { x0: number; x1: number; y: number; size: number; stops: number[] };
-  const lines: Line[] = [];
-  for (const block of blocks) {
-    if (block.angle !== 0 || page.cuts[block.key]) continue;
-    lines.push(...block.rows);
-  }
-  // Text typed or changed here can be marked too.
-  for (const id of page.objects) {
-    const object = store.doc.objects[id];
-    if (object?.type !== "text" || object.angle !== 0) continue;
-    const rows = Math.max(1, Math.round(object.h / object.leading));
-    for (let i = 0; i < rows; i += 1) {
-      const size = object.runs[0]?.style.size ?? 12;
-      lines.push({
-        x0: object.x,
-        x1: object.x + object.w,
-        y: object.y + (i + 0.5) * object.leading + size * 0.32,
-        size,
-        stops: [],
-      });
-    }
-  }
-  const middle = (line: Line) => line.y - line.size * 0.32;
-  const nearest = (p: Point) => {
-    let best: Line | null = null;
-    let score = Infinity;
-    for (const line of lines) {
-      const dx = Math.max(0, line.x0 - p.x, p.x - line.x1);
-      const dy = Math.max(0, Math.abs(p.y - middle(line)) - line.size * 0.6);
-      const d = dx * 0.6 + dy * 2;
-      if (d < score) {
-        score = d;
-        best = line;
-      }
-    }
-    return score < 60 ? best : null;
-  };
-  let from = nearest(a);
-  let to = nearest(b);
-  if (!from || !to) {
-    const box = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
-    return box.w > 3 && box.h > 3 ? [box] : [];
-  }
-  let start = a;
-  let end = b;
-  const same = from === to || Math.abs(from.y - to.y) < 1;
-  if ((!same && from.y > to.y) || (same && a.x > b.x)) {
-    [from, to] = [to, from];
-    [start, end] = [end, start];
-  }
-  const snapTo = (line: Line, x: number) => {
-    if (line.stops.length === 0) return Math.min(Math.max(x, line.x0), line.x1);
-    return line.stops.reduce((best, stop) => (Math.abs(stop - x) < Math.abs(best - x) ? stop : best), line.stops[0]);
-  };
-  const rect = (line: Line, x0: number, x1: number): Box => ({
-    x: x0,
-    y: line.y - line.size * 0.86,
-    w: x1 - x0,
-    h: line.size * 1.12,
-  });
-  if (same) {
-    const x0 = snapTo(from, start.x);
-    const x1 = snapTo(to, end.x);
-    return x1 - x0 > 0.5 ? [rect(from, x0, x1)] : [];
-  }
-  const span = { x0: Math.min(from.x0, to.x0), x1: Math.max(from.x1, to.x1) };
-  const out: Box[] = [];
-  for (const line of lines) {
-    if (line.y < from.y - 1 || line.y > to.y + 1) continue;
-    if (line !== from && line !== to && Math.min(line.x1, span.x1) - Math.max(line.x0, span.x0) < line.size) continue;
-    const x0 = line === from ? snapTo(line, start.x) : line.x0;
-    const x1 = line === to ? snapTo(line, end.x) : line.x1;
-    if (line !== from && line !== to && (Math.abs(line.y - from.y) < 1 || Math.abs(line.y - to.y) < 1)) continue;
-    if (x1 - x0 > 0.5) out.push(rect(line, x0, x1));
-  }
-  return out;
 }

@@ -4,6 +4,8 @@ Fonts for the PDF editor
 All under the SIL Open Font License, Version 1.1 (full text at the end).
 Lato, Carlito, Playfair Display and Dancing Script are unmodified. The others are
 cut down to Latin, Greek, Cyrillic and common symbols (Noto Sans Devanagari: plus Hindi).
+Frebies Symbols (symbols-regular.ttf) is a cut-down merge of Noto Sans Symbols,
+Noto Sans Symbols 2 and Noto Sans Math, kept for bullets, arrows, marks and maths signs.
 
 - Copyright 2026 The Arimo Project Authors (https://github.com/googlefonts/arimo)
 - Copyright 2012 The Caladea Project Authors (https://github.com/huertatipografica/Caladea)
@@ -18,6 +20,8 @@ cut down to Latin, Greek, Cyrillic and common symbols (Noto Sans Devanagari: plu
 - Copyright (c) 2010-2014 by tyPoland Lukasz Dziedzic (team@latofonts.com) with Reserved Font Name "Lato"
 - Copyright 2024 The Montserrat.Git Project Authors (https://github.com/JulietaUla/Montserrat.git)
 - Copyright 2022 The Noto Project Authors (https://github.com/notofonts/devanagari)
+- Copyright 2022 The Noto Project Authors (https://github.com/notofonts/symbols)
+- Copyright 2022 The Noto Project Authors (https://github.com/notofonts/math)
 - Copyright 2020 The Open Sans Project Authors (https://github.com/googlefonts/opensans)
 - Copyright 2016 The Oswald Project Authors (https://github.com/googlefonts/OswaldFont)
 - Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name "Playfair Display"
